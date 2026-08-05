@@ -1,0 +1,2159 @@
+-- ============================================================
+-- 合併腳本：反作弊繞過 + 全道具解鎖 + 表情模擬解鎖 + arch多功能 (含速度/跳跃/飞行)
+-- 植入後自動執行所有功能 (手機修復版)
+-- ============================================================
+
+-- ---------- AC Bypass 及 反檢測 ----------
+local _stbl; _stbl = hookfunction(getrenv().setmetatable, newcclosure(function(tbl, mt)
+    if mt and typeof(mt) == "table" and rawget(mt, "__mode") == "kv" then
+        local tr = debug.traceback()
+        if tr:find("MiscellaneousController") then
+            return _stbl({1,2,3}, {})
+        end
+    end
+    return _stbl(tbl, mt)
+end))
+
+coroutine.wrap(function()
+    pcall(function()
+        local function _proc(o)
+            pcall(function()
+                if o:IsA("LocalScript") or o:IsA("ModuleScript") then
+                    local _s, nm = pcall(function() return o.Name:lower() end)
+                    if not _s or not nm then return end
+                    local _tags = {"anticheat","ac","detection","ban","kick","security","moderation"}
+                    for _i = 1, #_tags do
+                        if nm:find(_tags[_i]) then
+                            pcall(function() o.Disabled = true end)
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+        pcall(function()
+            local _desc = game:GetDescendants()
+            for _i = 1, #_desc do _proc(_desc[_i]) end
+        end)
+        pcall(function() game.DescendantAdded:Connect(_proc) end)
+    end)
+    pcall(function()
+        local _nc = game:GetService("NetworkClient")
+        if not _nc then return end
+        _nc.ChildAdded:Connect(function(ch)
+            pcall(function()
+                local _ok, _n = pcall(function() return ch.Name:lower() end)
+                if _ok and _n then
+                    if _n:find("anticheat") or _n:find("detection") then
+                        pcall(function() ch:Destroy() end)
+                    end
+                end
+            end)
+        end)
+    end)
+end)()
+
+local _fakeEv
+pcall(function()
+    _fakeEv = Instance.new("RemoteEvent")
+    _fakeEv.Name = "ClientAlert"
+    _fakeEv.Parent = LocalPlayer
+end)
+
+pcall(function()
+    local _rf = game:GetService("ReplicatedFirst")
+    local _tgt = _rf:WaitForChild("LocalScript3", 10)
+    local _ct = 0
+    local _gc = getgc(false)
+    for _i = 1, #_gc do
+        local _fn = _gc[_i]
+        if type(_fn) ~= "function" then continue end
+        local _ok1, _env = pcall(getfenv, _fn)
+        if not _ok1 or type(_env) ~= "table" then continue end
+        local _ok2, _scr = pcall(function() return rawget(_env, "script") end)
+        if not _ok2 or not _scr or typeof(_scr) ~= "Instance" then continue end
+        local _ok3, _ss = pcall(tostring, _scr)
+        if not _ok3 then continue end
+        if not (_scr == _tgt or (type(_ss) == "string" and _ss:find("LoadingScreen"))) then continue end
+        local _ok4, _consts = pcall(debug.getconstants, _fn)
+        if not _ok4 or type(_consts) ~= "table" then continue end
+        for _j = 1, #_consts do
+            local _c = _consts[_j]
+            if type(_c) == "string" and (_c:find("TakeTheL") or _c:find("ban") or _c:find("kick")) then
+                pcall(function()
+                    hookfunction(_fn, function() end)
+                    _ct += 1
+                end)
+                break
+            end
+        end
+    end
+end)
+
+-- ---------- 提早初始化表情相關服務與連接 ----------
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+local Controllers = PlayerScripts:WaitForChild("Controllers")
+local Modules = ReplicatedStorage:WaitForChild("Modules")
+
+local CosmeticLibrary = require(Modules:WaitForChild("CosmeticLibrary"))
+local EmoteController = require(Controllers:WaitForChild("EmoteController"))
+local FighterController = require(Controllers:WaitForChild("FighterController"))
+local PlayerDataController = require(Controllers:WaitForChild("PlayerDataController"))
+
+local isLocalEmoting = false
+local localEmoteObject = nil
+local hookedEntities = setmetatable({}, { __mode = "k" })
+
+local previousCameraMode = nil
+local previousMinZoom = nil
+
+local function safeFire(signal)
+    if not signal then return end
+    if type(signal) == "table" then
+        if type(signal.Fire) == "function" then
+            pcall(function() signal:Fire() end)
+        elseif type(signal.fire) == "function" then
+            pcall(function() signal:fire() end)
+        end
+    elseif typeof(signal) == "Instance" and signal:IsA("BindableEvent") then
+        pcall(function() signal:Fire() end)
+    end
+end
+
+local function applyHooksToEntity(entity)
+    if not entity or hookedEntities[entity] then return end
+    hookedEntities[entity] = true
+    local oldIsEmoting = entity.IsEmoting
+    if oldIsEmoting then
+        entity.IsEmoting = function(self, ...)
+            if isLocalEmoting then
+                return true
+            end
+            return oldIsEmoting(self, ...)
+        end
+    end
+    local oldGetCurrentEmote = entity.GetCurrentEmote
+    if oldGetCurrentEmote then
+        entity.GetCurrentEmote = function(self, ...)
+            if isLocalEmoting and localEmoteObject then
+                return localEmoteObject
+            end
+            return oldGetCurrentEmote(self, ...)
+        end
+    end
+end
+
+local function setupFighter(fighter)
+    if fighter.IsLocalPlayer then
+        if fighter.Entity then
+            applyHooksToEntity(fighter.Entity)
+        end
+        fighter.EntityAdded:Connect(function(entity)
+            applyHooksToEntity(entity)
+        end)
+    end
+end
+
+for _, fighter in pairs(FighterController.Objects) do
+    setupFighter(fighter)
+end
+FighterController.ObjectAdded:Connect(setupFighter)
+
+local oldCanEmote = EmoteController.CanEmote
+EmoteController.CanEmote = function(self, p2)
+    local success, result = pcall(oldCanEmote, self, p2)
+    if success and result then
+        return true
+    end
+    local fighter = FighterController:GetFighter(LocalPlayer)
+    if fighter and fighter.IsLocalPlayer and fighter:IsAlive() then
+        local entity = fighter.Entity
+        if entity and not entity:Get("IsFrozen") then
+            return true
+        end
+    end
+    return false
+end
+
+local currentLocalEmote = nil
+local runningConnection = nil
+
+local function stopCurrentLocalEmote()
+    isLocalEmoting = false
+    localEmoteObject = nil
+    pcall(function()
+        if previousCameraMode then
+            LocalPlayer.CameraMode = previousCameraMode
+            previousCameraMode = nil
+        end
+        if previousMinZoom then
+            LocalPlayer.CameraMinZoomDistance = previousMinZoom
+            previousMinZoom = nil
+        end
+    end)
+    local fighter = FighterController:GetFighter(LocalPlayer)
+    local entity = fighter and fighter.Entity
+    if entity and entity.EmoteStatusChanged then
+        safeFire(entity.EmoteStatusChanged)
+    end
+    if currentLocalEmote then
+        pcall(function()
+            currentLocalEmote:Destroy()
+        end)
+        currentLocalEmote = nil
+    end
+end
+
+local function setupHumanoidMonitoring(character)
+    if not character then return end
+    local humanoid = character:WaitForChild("Humanoid", 10)
+    if not humanoid then return end
+    if runningConnection then
+        runningConnection:Disconnect()
+    end
+    runningConnection = humanoid.Running:Connect(function(speed)
+        if speed > 0.1 then
+            stopCurrentLocalEmote()
+        end
+    end)
+end
+
+setupHumanoidMonitoring(LocalPlayer.Character)
+LocalPlayer.CharacterAdded:Connect(setupHumanoidMonitoring)
+
+-- 等待主要模組完全加載
+task.wait(4)
+
+-- ---------- 全皮膚/包裝/掛件解鎖 ----------
+local _plrs    = Players
+local _rs      = ReplicatedStorage
+local _http    = game:GetService("HttpService")
+local _run     = game:GetService("RunService")
+local _ws      = game:GetService("Workspace")
+local _lp      = LocalPlayer
+local _pscripts = PlayerScripts
+local _ctrl    = Controllers
+local _mods    = Modules
+
+local _enumLib = require(_mods:WaitForChild("EnumLibrary", 10))
+if _enumLib then pcall(function() _enumLib:WaitForEnumBuilder() end) end
+
+local _cosLib  = CosmeticLibrary
+local _itmLib  = require(_mods:WaitForChild("ItemLibrary", 10))
+local _datCtrl = PlayerDataController
+
+local _eq, _favs = {}, {}
+local _buildingWep, _viewProf = nil, nil
+local _lastWep = nil
+local _fakeInv = {}
+
+local function _mkCosmetic(nm, ctype, opts)
+    local _base = _cosLib.Cosmetics[nm]
+    if not _base then return nil end
+    local _d = {}
+    for k, v in pairs(_base) do _d[k] = v end
+    _d.Name = nm
+    _d.Type = _d.Type or ctype
+    _d.Seed = _d.Seed or math.random(1, 1000000)
+    if _enumLib then
+        local _s, _eid = pcall(_enumLib.ToEnum, _enumLib, nm)
+        if _s and _eid then
+            _d.Enum = _eid
+            _d.ObjectID = _d.ObjectID or _eid
+        end
+    end
+    if opts then
+        if opts.inverted ~= nil then _d.Inverted = opts.inverted end
+        if opts.favoritesOnly ~= nil then _d.OnlyUseFavorites = opts.favoritesOnly end
+    end
+    return _d
+end
+
+local _cfgFile = "rivals_unlocker_config.json"
+local _saveLock = false
+
+local function _stripForSave()
+    local _out = {}
+    for wn, cos in pairs(_eq) do
+        _out[wn] = {}
+        for ct, cd in pairs(cos) do
+            if cd and cd.Name then
+                _out[wn][ct] = {
+                    Name = cd.Name,
+                    Inverted = cd.Inverted,
+                    OnlyUseFavorites = cd.OnlyUseFavorites
+                }
+            end
+        end
+    end
+    return { equipped = _out, favorites = _favs }
+end
+
+local function _loadCfg()
+    if not isfile or not readfile then return end
+    local _ok1, _ex = pcall(isfile, _cfgFile)
+    if not _ok1 or not _ex then return end
+    local _ok2, _raw = pcall(readfile, _cfgFile)
+    if not _ok2 or not _raw or _raw == "" then return end
+    local _ok3, _dec = pcall(_http.JSONDecode, _http, _raw)
+    if not _ok3 or not _dec then return end
+    if _dec.favorites then
+        _favs = _dec.favorites
+    end
+    if _dec.equipped then
+        _eq = {}
+        local _cnt = 0
+        for wn, cos in pairs(_dec.equipped) do
+            _eq[wn] = {}
+            for ct, sd in pairs(cos) do
+                if sd and sd.Name then
+                    if _cosLib.Cosmetics[sd.Name] then
+                        local _cloned = _mkCosmetic(sd.Name, ct, {
+                            inverted = sd.Inverted,
+                            favoritesOnly = sd.OnlyUseFavorites
+                        })
+                        if _cloned then
+                            _eq[wn][ct] = _cloned
+                            _cnt += 1
+                        end
+                    end
+                end
+            end
+            if not next(_eq[wn]) then _eq[wn] = nil end
+        end
+    end
+end
+
+local function _saveCfg()
+    if not writefile or _saveLock then return end
+    _saveLock = true
+    task.spawn(function()
+        task.wait(1)
+        local _payload = _stripForSave()
+        local _ok, _enc = pcall(_http.JSONEncode, _http, _payload)
+        if _ok then
+            pcall(writefile, _cfgFile, _enc)
+        end
+        _saveLock = false
+    end)
+end
+
+_loadCfg()
+
+local _cosTypes = {"Skin","Wrap","Charm","Dance","Emote"}
+local function _isCosType(cosObj)
+    if not cosObj then return false end
+    for _, t in ipairs(_cosTypes) do
+        if cosObj.Type == t then return true end
+    end
+    return false
+end
+
+-- 覆蓋擁有權檢查
+_cosLib.OwnsCosmeticNormally = function(self, inv, nm, wep)
+    local c = _cosLib.Cosmetics[nm]
+    if c and c.Type == "Skin" then return true end
+    return false
+end
+_cosLib.OwnsCosmeticUniversally = function(self, inv, nm, wep)
+    local c = _cosLib.Cosmetics[nm]
+    if c and c.Type == "Skin" then return true end
+    return false
+end
+_cosLib.OwnsCosmeticForWeapon = function(self, inv, nm, wep)
+    local c = _cosLib.Cosmetics[nm]
+    if c and c.Type == "Skin" then return true end
+    return false
+end
+
+local _origOwns = _cosLib.OwnsCosmetic
+_cosLib.OwnsCosmetic = function(self, inv, nm, wep)
+    if nm:find("MISSING_") or nm == "Bubble Gun" then
+        return _origOwns(self, inv, nm, wep)
+    end
+    local c = _cosLib.Cosmetics[nm]
+    if c and _isCosType(c) then return true end
+    return _origOwns(self, inv, nm, wep)
+end
+
+local _origGet = _datCtrl.Get
+_datCtrl.Get = function(self, key)
+    local _val = _origGet(self, key)
+    if key == "CosmeticInventory" then
+        local _prx = {}
+        if _val then
+            for k, v in pairs(_val) do
+                local c = _cosLib.Cosmetics[k]
+                if c and _isCosType(c) then _prx[k] = v end
+            end
+        end
+        return setmetatable(_prx, {
+            __index = function(t, k)
+                local c = _cosLib.Cosmetics[k]
+                if c and _isCosType(c) then return true end
+                return nil
+            end
+        })
+    end
+    if key == "FavoritedCosmetics" then
+        local _res = _val and table.clone(_val) or {}
+        for wep, fv in pairs(_favs) do
+            _res[wep] = _res[wep] or {}
+            for nm, isFav in pairs(fv) do
+                local c = _cosLib.Cosmetics[nm]
+                if c and _isCosType(c) then
+                    _res[wep][nm] = isFav
+                end
+            end
+        end
+        return _res
+    end
+    return _val
+end
+
+local _origGetWep = _datCtrl.GetWeaponData
+_datCtrl.GetWeaponData = function(self, wn)
+    local _d = _origGetWep(self, wn)
+    if not _d then return nil end
+    if _eq[wn] then
+        for ct, cd in pairs(_eq[wn]) do
+            pcall(function() _d[ct] = cd end)
+        end
+    end
+    return _d
+end
+
+local _fightCtrl
+pcall(function()
+    _fightCtrl = require(_ctrl:WaitForChild("FighterController", 10))
+end)
+
+if hookmetamethod then
+    local _remotes   = _rs:FindFirstChild("Remotes")
+    local _dataRem   = _remotes and _remotes:FindFirstChild("Data")
+    local _equipRem  = _dataRem and _dataRem:FindFirstChild("EquipCosmetic")
+    local _favRem    = _dataRem and _dataRem:FindFirstChild("FavoriteCosmetic")
+    local _repRem    = _remotes and _remotes:FindFirstChild("Replication")
+    local _fightRem  = _repRem and _repRem:FindFirstChild("Fighter")
+    local _useItmRem = _fightRem and _fightRem:FindFirstChild("UseItem")
+
+    if _equipRem then
+        local _onc
+        _onc = hookmetamethod(game, "__namecall", function(self, ...)
+            if getnamecallmethod() ~= "FireServer" then
+                return _onc(self, ...)
+            end
+            local _a = {...}
+
+            if _useItmRem and self == _useItmRem then
+                local _oid = _a[1]
+                if _fightCtrl then
+                    pcall(function()
+                        local _f = _fightCtrl:GetFighter(_lp)
+                        if _f and _f.Items then
+                            for _, itm in pairs(_f.Items) do
+                                if itm:Get("ObjectID") == _oid then
+                                    _lastWep = itm.Name
+                                    break
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+
+            if self == _equipRem then
+                local _wn   = _a[1]
+                local _ct   = _a[2]
+                local _cn   = _a[3]
+                local _opts = _a[4] or {}
+                if _cn and _cn ~= "None" and _cn ~= "" then
+                    local _inv = _datCtrl:Get("CosmeticInventory")
+                    if _inv and rawget(_inv, _cn) then
+                        return _onc(self, ...)
+                    end
+                end
+                _eq[_wn] = _eq[_wn] or {}
+                if not _cn or _cn == "None" or _cn == "" then
+                    _eq[_wn][_ct] = nil
+                    if not next(_eq[_wn]) then _eq[_wn] = nil end
+                else
+                    local _cloned = _mkCosmetic(_cn, _ct, {
+                        inverted = _opts.IsInverted,
+                        favoritesOnly = _opts.OnlyUseFavorites
+                    })
+                    if _cloned then _eq[_wn][_ct] = _cloned end
+                end
+                task.defer(function()
+                    pcall(function() _datCtrl.CurrentData:Replicate("WeaponInventory") end)
+                end)
+                _saveCfg()
+                return
+            end
+
+            if self == _favRem then
+                local _cos = _cosLib.Cosmetics[_a[2]]
+                if _cos then
+                    _favs[_a[1]] = _favs[_a[1]] or {}
+                    _favs[_a[1]][_a[2]] = _a[3] or nil
+                    task.spawn(function()
+                        pcall(function() _datCtrl.CurrentData:Replicate("FavoritedCosmetics") end)
+                    end)
+                    _saveCfg()
+                end
+                return
+            end
+
+            return _onc(self, ...)
+        end)
+    end
+end
+
+local _cliItem
+pcall(function()
+    _cliItem = require(_lp.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
+end)
+
+if _cliItem and _cliItem._CreateViewModel then
+    local _origCVM = _cliItem._CreateViewModel
+    _cliItem._CreateViewModel = function(self, vmRef)
+        local _wn  = self.Name
+        local _wp  = self.ClientFighter and self.ClientFighter.Player
+        _buildingWep = (_wp == _lp) and _wn or nil
+        if _wp == _lp and _eq[_wn] then
+            local _dk = self:ToEnum("Data")
+            if vmRef[_dk] then
+                if _eq[_wn].Skin then
+                    vmRef[_dk][self:ToEnum("Skin")] = _eq[_wn].Skin
+                    vmRef[_dk][self:ToEnum("Name")] = _eq[_wn].Skin.Name
+                end
+                if _eq[_wn].Charm then vmRef[_dk][self:ToEnum("Charm")] = _eq[_wn].Charm end
+                if _eq[_wn].Wrap  then vmRef[_dk][self:ToEnum("Wrap")]  = _eq[_wn].Wrap  end
+            elseif vmRef.Data then
+                if _eq[_wn].Skin  then vmRef.Data.Skin  = _eq[_wn].Skin; vmRef.Data.Name = _eq[_wn].Skin.Name end
+                if _eq[_wn].Charm then vmRef.Data.Charm = _eq[_wn].Charm end
+                if _eq[_wn].Wrap  then vmRef.Data.Wrap  = _eq[_wn].Wrap  end
+            end
+        end
+        local _r = _origCVM(self, vmRef)
+        _buildingWep = nil
+        return _r
+    end
+end
+
+local _vmMod = _lp.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem:FindFirstChild("ClientViewModel")
+if _vmMod then
+    local _CVM = require(_vmMod)
+    local _origNew = _CVM.new
+    _CVM.new = function(repData, cliItm)
+        local _wp  = cliItm.ClientFighter and cliItm.ClientFighter.Player
+        local _wn  = _buildingWep or cliItm.Name
+        if _wp == _lp and _eq[_wn] then
+            local _RC  = require(_rs.Modules.ReplicatedClass)
+            local _dk  = _RC:ToEnum("Data")
+            repData[_dk] = repData[_dk] or {}
+            local _cos = _eq[_wn]
+            if _cos.Skin  then repData[_dk][_RC:ToEnum("Skin")]  = _cos.Skin  end
+            if _cos.Charm then repData[_dk][_RC:ToEnum("Charm")] = _cos.Charm end
+            if _cos.Wrap  then repData[_dk][_RC:ToEnum("Wrap")]  = _cos.Wrap  end
+        end
+        return _origNew(repData, cliItm)
+    end
+end
+
+-- ---------- 表情模擬 ----------
+local oldUseEmoteByName = EmoteController.UseEmoteByName
+EmoteController.UseEmoteByName = function(self, emoteName)
+    stopCurrentLocalEmote()
+    task.spawn(function()
+        local EmotesFolder = Modules:FindFirstChild("Emotes")
+        local emoteModule = EmotesFolder and EmotesFolder:FindFirstChild(emoteName)
+        local character = LocalPlayer.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if emoteModule and humanoid then
+            task.wait(0.1)
+            pcall(function()
+                currentLocalEmote = require(emoteModule).new(humanoid)
+                previousCameraMode = LocalPlayer.CameraMode
+                previousMinZoom = LocalPlayer.CameraMinZoomDistance
+                LocalPlayer.CameraMode = Enum.CameraMode.Classic
+                LocalPlayer.CameraMinZoomDistance = 8
+                isLocalEmoting = true
+                localEmoteObject = currentLocalEmote
+                local fighter = FighterController:GetFighter(LocalPlayer)
+                local entity = fighter and fighter.Entity
+                if entity and entity.EmoteStatusChanged then
+                    safeFire(entity.EmoteStatusChanged)
+                end
+                task.defer(currentLocalEmote.Simulate, currentLocalEmote)
+                currentLocalEmote.Destroying:Wait()
+                if isLocalEmoting then
+                    stopCurrentLocalEmote()
+                end
+            end)
+        end
+    end)
+end
+
+-- // arch script (Void + Orbit + Fist + Riot + Scythe + Wallbang + ESP + Aimbot + RapidFire + Speed/Jump/Fly) 手機修復版
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService('Players')
+local RunService = game:GetService('RunService')
+local TweenService = game:GetService('TweenService')
+local VirtualInput = game:GetService('VirtualInputManager')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local UserInputService = game:GetService('UserInputService')
+local Workspace = game:GetService('Workspace')
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HRP = Character:WaitForChild('HumanoidRootPart')
+local Camera = Workspace.CurrentCamera
+
+-- ============= ESP & Aimbot variables =============
+local espActive = false
+local aimbotActive = false
+local silentAimActive = false
+local aimFov = 30
+local silentFov = 30
+local aimTargetPart = "Head"
+local silentTargetPart = "Head"
+local espLines = {}
+local espTexts = {}
+local espBoxes = {}
+
+-- ============= SPREAD PATCH =============
+local spreadPatched = false
+local function patchGunSpread()
+    if spreadPatched then return end
+    local playerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+    local gunModule = playerScripts:WaitForChild("Modules"):WaitForChild("ItemTypes"):FindFirstChild("Gun")
+    if not gunModule then return end
+    
+    local success, module = pcall(require, gunModule)
+    if not success then return end
+    
+    if module.GetSpread then
+        local oldGetSpread = module.GetSpread
+        module.GetSpread = function(...)
+            if aimbotActive or silentAimActive then
+                return Vector2.new(0, 0)
+            end
+            return oldGetSpread(...)
+        end
+        spreadPatched = true
+        print("[arch script] Gun spread patched")
+    end
+    
+    local function patchTool(tool)
+        if not tool then return end
+        pcall(function()
+            local settings = tool:FindFirstChild("Settings") or tool:FindFirstChild("Config") or tool:FindFirstChild("Stats")
+            if settings then
+                for _, child in pairs(settings:GetChildren()) do
+                    if string.find(string.lower(child.Name), "spread") or 
+                       string.find(string.lower(child.Name), "accuracy") or
+                       string.find(string.lower(child.Name), "recoil") then
+                        if child:IsA("NumberValue") then
+                            child.Value = 0
+                        elseif child:IsA("Vector2Value") then
+                            child.Value = Vector2.new(0, 0)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        char.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then
+                task.wait(0.1)
+                patchTool(child)
+            end
+        end)
+    end)
+    
+    local currentChar = LocalPlayer.Character
+    if currentChar then
+        local tool = currentChar:FindFirstChildOfClass("Tool")
+        if tool then patchTool(tool) end
+    end
+end
+task.spawn(patchGunSpread)
+
+-- ============= COOLDOWN PATCH =============
+local function patchMeleeCooldowns()
+    local modules = ReplicatedStorage:FindFirstChild("Modules")
+    local itemLib = modules and modules:FindFirstChild("ItemLibrary")
+    if not itemLib then return end
+    local success, library = pcall(require, itemLib)
+    if not (success and type(library) == "table") then return end
+    local items = library.Items or library.Weapons or library.Melee or library.Utilities
+    if type(items) ~= "table" then return end
+    local meleeCooldowns = {
+        "Cooldown", "AttackCooldown", "UseDelay", "SpinCooldown",
+        "HeavyAttackCooldown", "AbilityCooldown", "FireCooldown"
+    }
+    for name, item in pairs(items) do
+        if type(item) == "table" then
+            local itemName = item.Name or name
+            local isMelee = (item.Type == "Melee" or item.Category == "Melee" or (item.Damage and not item.AmmoType))
+            if isMelee then
+                for _, field in ipairs(meleeCooldowns) do
+                    if item[field] ~= nil then item[field] = 0 end
+                end
+            end
+            if string.lower(itemName) == "scythe" then
+                if item.DashCooldown ~= nil then item.DashCooldown = 0
+                elseif item.AbilityCooldown ~= nil then item.AbilityCooldown = 0 end
+                print("[arch script] Scythe dash cooldown removed.")
+            end
+        end
+    end
+    print("[arch script] Melee cooldowns patched.")
+end
+task.spawn(patchMeleeCooldowns)
+
+-- ============= WALLBANG =============
+local wallbangActive = false
+local wallbangObject = nil
+
+do
+    local _wallbangFunc = function()
+        local __a1b2c3 = setmetatable({}, {
+            __index = function(__d4e5f6, __g7h8i9)
+                local __j0k1l2, __m3n4o5 = pcall(function()
+                    return game:GetService(__g7h8i9)
+                end)
+                if __m3n4o5 then return cloneref(__m3n4o5) end
+                return nil
+            end
+        })
+        local __p6q7r8 = getgenv()
+        if __p6q7r8.__s9t0u1 then __p6q7r8.__s9t0u1:Shutdown() end
+        local __v2w3x4 = __a1b2c3.Players
+        local __y5z6a7 = __a1b2c3.RunService
+        local __b8c9d0 = __a1b2c3.ReplicatedStorage
+        local __e1f2g3 = __a1b2c3.Workspace
+        local __k7l8m9 = __v2w3x4.LocalPlayer
+        local __q3r4s5 = __k7l8m9.PlayerScripts
+        local __t6u7v8 = require(__q3r4s5.Modules.ItemTypes.Gun)
+        local __w9x0y1 = require(__b8c9d0.Modules.Utility)
+        local __z2a3b4 = setmetatable({}, {
+            __index = function(_, __c5d6e7)
+                local __f8g9h0 = __k7l8m9.Character
+                if not __f8g9h0 then return nil end
+                if __c5d6e7 == "__root" then
+                    return __f8g9h0:FindFirstChild("HumanoidRootPart")
+                elseif __c5d6e7 == "__head" then
+                    return __f8g9h0:FindFirstChild("Head")
+                end
+                return nil
+            end
+        })
+        __p6q7r8.__s9t0u1 = {}
+        do
+            local __i1j2k3 = __p6q7r8.__s9t0u1
+            function __i1j2k3:__init()
+                self.__active = true
+                self.__target = nil
+                self.__desync = false
+                self.__conn1 = nil
+                self.__conn2 = nil
+                self.__task1 = nil
+                self.__oldfunc = nil
+                self:__setup()
+            end
+            function __i1j2k3:__setup()
+                self.__conn1 = __y5z6a7.Heartbeat:Connect(function()
+                    if not self.__active then return end
+                    self.__target = self:__find()
+                end)
+                local __l4m5n6 = __t6u7v8.StartShooting
+                self.__oldfunc = __l4m5n6
+                __t6u7v8.StartShooting = function(__o7p8q9, ...)
+                    if silentAimActive then
+                        return __l4m5n6(__o7p8q9, ...)
+                    end
+                    local __r0s1t2 = {__l4m5n6(__o7p8q9, ...)}
+                    if not __o7p8q9.ClientFighter or not __o7p8q9.ClientFighter.IsLocalPlayer then
+                        return unpack(__r0s1t2)
+                    end
+                    local __u3v4w5 = __r0s1t2[3]
+                    if not __u3v4w5 or typeof(__u3v4w5) ~= "table" then
+                        return unpack(__r0s1t2)
+                    end
+                    __r0s1t2[4] = true
+                    local __x6y7z8 = self.__target
+                    if not self.__active or not __x6y7z8 or not __x6y7z8.Character then
+                        return unpack(__r0s1t2)
+                    end
+                    if not self.__desync or self.__curr ~= __x6y7z8 then
+                        self:__desync_start(__x6y7z8)
+                        task.wait(0.1)
+                    end
+                    if self.__task1 then
+                        task.cancel(self.__task1)
+                        self.__task1 = nil
+                    end
+                    local __a9b0c1 = __x6y7z8.Character:FindFirstChild("Head")
+                    if not __a9b0c1 then return unpack(__r0s1t2) end
+                    local __d2e3f4 = __a9b0c1.Position
+                    local __g5h6i7 = __a9b0c1.CFrame
+                    local __j8k9l0 = __d2e3f4 - Vector3.new(0, 5, 0)
+                    local __m1n2o3 = CFrame.lookAt(__j8k9l0, __d2e3f4)
+                    local __p4q5r6 = CFrame.new()
+                    __u3v4w5[utf8.char(0)] = __w9x0y1:EncodeCFrame(CFrame.new(__j8k9l0, __d2e3f4) * CFrame.Angles(__m1n2o3:ToOrientation()))
+                    __u3v4w5[utf8.char(1)] = __w9x0y1:EncodeCFrame(CFrame.new(__d2e3f4) * CFrame.Angles(__m1n2o3:ToOrientation()))
+                    __u3v4w5[utf8.char(2)] = __a9b0c1
+                    __u3v4w5[utf8.char(3)] = __w9x0y1:EncodeCFrame(__p4q5r6)
+                    self.__task1 = task.delay(0.15, function() self:__desync_stop() end)
+                    return unpack(__r0s1t2)
+                end
+            end
+            function __i1j2k3:__find()
+                local myChar = __k7l8m9.Character
+                if not myChar then return nil end
+                local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+                if not myRoot then return nil end
+                local closest = nil
+                local closestDist = math.huge
+                local MAX_DISTANCE = 200
+                for _, player in next, __v2w3x4:GetPlayers() do
+                    if player == __k7l8m9 then continue end
+                    if player:GetAttribute("TeamID") == __k7l8m9:GetAttribute("TeamID") then continue end
+                    local char = player.Character
+                    if not char then continue end
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    local head = char:FindFirstChild("Head")
+                    local hum = char:FindFirstChildWhichIsA("Humanoid")
+                    if not (root and head and hum and hum.Health > 0) then continue end
+                    local dist = (myRoot.Position - root.Position).Magnitude
+                    if dist > MAX_DISTANCE then continue end
+                    if dist < closestDist then
+                        closestDist = dist
+                        closest = player
+                    end
+                end
+                return closest
+            end
+            function __i1j2k3:__desync_start(__c3d4e5)
+                if self.__conn2 then self.__conn2:Disconnect() end
+                self.__desync = true
+                self.__curr = __c3d4e5
+                self.__conn2 = __y5z6a7.Heartbeat:Connect(function()
+                    if not self.__desync then return end
+                    local __f6g7h8 = __z2a3b4.__root
+                    if not __f6g7h8 then return end
+                    local __i9j0k1 = __c3d4e5.Character and __c3d4e5.Character:FindFirstChild("HumanoidRootPart")
+                    if not __i9j0k1 then
+                        self:__desync_stop()
+                        return
+                    end
+                    local __l2m3n4 = __f6g7h8.CFrame
+                    local __o5p6q7 = __f6g7h8.Velocity
+                    local __r8s9t0 = __f6g7h8.RotVelocity
+                    __f6g7h8.CFrame = __i9j0k1.CFrame * CFrame.new(0, -5, 0)
+                    __y5z6a7:BindToRenderStep("__restore", 101, function()
+                        __f6g7h8.CFrame = __l2m3n4
+                        __f6g7h8.Velocity = __o5p6q7
+                        __f6g7h8.RotVelocity = __r8s9t0
+                        __y5z6a7:UnbindFromRenderStep("__restore")
+                    end)
+                end)
+            end
+            function __i1j2k3:__desync_stop()
+                self.__desync = false
+                self.__curr = nil
+                if self.__conn2 then
+                    self.__conn2:Disconnect()
+                    self.__conn2 = nil
+                end
+            end
+            function __i1j2k3:Shutdown()
+                self.__active = false
+                if self.__conn1 then self.__conn1:Disconnect() end
+                if self.__conn2 then self.__conn2:Disconnect() end
+                if self.__task1 then task.cancel(self.__task1) end
+                if self.__oldfunc then
+                    __t6u7v8.StartShooting = self.__oldfunc
+                end
+            end
+            return __i1j2k3
+        end
+    end
+
+    function startWallbang()
+        if wallbangObject then return end
+        local obj = _wallbangFunc()
+        obj:__init()
+        wallbangObject = obj
+        wallbangActive = true
+        print("[arch script] Wallbang enabled.")
+    end
+
+    function stopWallbang()
+        if wallbangObject then
+            wallbangObject:Shutdown()
+            wallbangObject = nil
+            wallbangActive = false
+            print("[arch script] Wallbang disabled.")
+        end
+    end
+end
+
+-- ============= SILENT AIM HOOK =============
+local silentAimHookActive = false
+local function setupSilentAimHook()
+    if silentAimHookActive then return end
+    local playerScripts = LocalPlayer.PlayerScripts
+    local gunModule = require(playerScripts.Modules.ItemTypes.Gun)
+    local originalStartShooting = gunModule.StartShooting
+
+    gunModule.StartShooting = function(self, ...)
+        if silentAimActive then
+            local targetPartInstance = nil
+            local camPos = Camera.CFrame.Position
+            local camDir = Camera.CFrame.LookVector
+            local closestAngle = silentFov
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p == LocalPlayer then continue end
+                if p:GetAttribute("TeamID") == LocalPlayer:GetAttribute("TeamID") then continue end
+                local char = p.Character
+                if char then
+                    local part = char:FindFirstChild(silentTargetPart)
+                    if part then
+                        local toTarget = (part.Position - camPos).Unit
+                        local angle = math.acos(math.clamp(camDir:Dot(toTarget), -1, 1))
+                        local degrees = math.deg(angle)
+                        if degrees <= closestAngle then
+                            closestAngle = degrees
+                            targetPartInstance = part
+                        end
+                    end
+                end
+            end
+            if targetPartInstance then
+                local oldCamCF = Camera.CFrame
+                Camera.CFrame = CFrame.lookAt(camPos, targetPartInstance.Position)
+                local results = {originalStartShooting(self, ...)}
+                Camera.CFrame = oldCamCF
+                return unpack(results)
+            end
+        end
+        return originalStartShooting(self, ...)
+    end
+    silentAimHookActive = true
+end
+task.spawn(setupSilentAimHook)
+
+-- ============= GUI =============
+local gui = Instance.new("ScreenGui")
+gui.Name = "arch script"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 999999999
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+pcall(function() gui.Parent = game:GetService("CoreGui") end)
+if not gui.Parent then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 260, 0, 430)   -- 加高容纳新按钮
+main.Position = UDim2.new(0.5, -130, -0.2, 0)
+main.BackgroundColor3 = Color3.fromRGB(18,18,22)
+main.BackgroundTransparency = 0.15
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = gui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
+
+local topLine = Instance.new("Frame", main)
+topLine.Size = UDim2.new(1,0,0,2)
+local rgbOn = false
+task.spawn(function()
+    local h = 0
+    while true do
+        if rgbOn then
+            h = (h + 0.005) % 1
+            topLine.BackgroundColor3 = Color3.fromHSV(h,1,1)
+        else
+            topLine.BackgroundColor3 = Color3.fromRGB(0,180,255)
+        end
+        task.wait()
+    end
+end)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,20)
+title.Position = UDim2.new(0,0,0,2)
+title.Text = "arch script"
+title.Font = Enum.Font.Arcade
+title.TextSize = 14
+title.TextColor3 = Color3.fromRGB(230,230,230)
+title.BackgroundTransparency = 1
+title.TextXAlignment = Enum.TextXAlignment.Center
+
+local uiToggleBtn = Instance.new("TextButton", main)
+uiToggleBtn.Size = UDim2.new(0, 30, 0, 18)
+uiToggleBtn.Position = UDim2.new(1, -35, 0, 2)
+uiToggleBtn.Text = "UI OFF"
+uiToggleBtn.Font = Enum.Font.Code
+uiToggleBtn.TextSize = 10
+uiToggleBtn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+uiToggleBtn.TextColor3 = Color3.new(1,1,1)
+uiToggleBtn.ZIndex = 10
+Instance.new("UICorner", uiToggleBtn).CornerRadius = UDim.new(0,4)
+
+local restoreBtn = Instance.new("TextButton", gui)
+restoreBtn.Size = UDim2.new(0, 80, 0, 25)
+restoreBtn.Position = UDim2.new(1, -90, 1, -30)
+restoreBtn.Text = "UI ON"
+restoreBtn.Font = Enum.Font.Code
+restoreBtn.TextSize = 12
+restoreBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+restoreBtn.TextColor3 = Color3.new(1,1,1)
+restoreBtn.Visible = false
+restoreBtn.ZIndex = 10
+Instance.new("UICorner", restoreBtn).CornerRadius = UDim.new(0,6)
+
+local function setupDragClick(button, onClick)
+    local inputConn
+    local startPos, startBtnPos
+    local dragged = false
+    button.MouseButton1Down:Connect(function()
+        startPos = UserInputService:GetMouseLocation()
+        startBtnPos = button.Position
+        dragged = false
+        inputConn = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = UserInputService:GetMouseLocation() - startPos
+                if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
+                    dragged = true
+                end
+                if dragged then
+                    button.Position = UDim2.new(
+                        startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X,
+                        startBtnPos.Y.Scale, startBtnPos.Y.Offset + delta.Y
+                    )
+                end
+            end
+        end)
+    end)
+    button.MouseButton1Up:Connect(function()
+        if inputConn then inputConn:Disconnect() inputConn = nil end
+        if not dragged then onClick() end
+    end)
+end
+
+setupDragClick(uiToggleBtn, function()
+    main.Visible = false
+    restoreBtn.Visible = true
+end)
+setupDragClick(restoreBtn, function()
+    main.Visible = true
+    restoreBtn.Visible = false
+end)
+
+local ytext = Instance.new("TextLabel", main)
+ytext.Size = UDim2.new(1,0,0,20)
+ytext.Position = UDim2.new(0,0,0,22)
+ytext.Text = "Y: 0"
+ytext.Font = Enum.Font.GothamBlack
+ytext.TextSize = 13
+ytext.TextColor3 = Color3.fromRGB(0,255,180)
+ytext.BackgroundTransparency = 1
+ytext.TextXAlignment = Enum.TextXAlignment.Center
+
+local statusDot = Instance.new("Frame", main)
+statusDot.Size = UDim2.new(0,8,0,8)
+statusDot.Position = UDim2.new(0.85,0,0.95,0)
+statusDot.BackgroundColor3 = Color3.fromRGB(150,0,0)
+Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1,0)
+
+-- ============= 按钮布局 =============
+local voidBtn = Instance.new("TextButton", main)
+voidBtn.Size = UDim2.new(0,75,0,22)
+voidBtn.Position = UDim2.new(0,13,0,50)
+voidBtn.Text = "VOID OFF"
+voidBtn.Font = Enum.Font.Code
+voidBtn.TextSize = 12
+voidBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+voidBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", voidBtn).CornerRadius = UDim.new(0,8)
+
+local orbBtn = Instance.new("TextButton", main)
+orbBtn.Size = UDim2.new(0,75,0,22)
+orbBtn.Position = UDim2.new(0,169,0,50)
+orbBtn.Text = "ORBIT OFF"
+orbBtn.Font = Enum.Font.Code
+orbBtn.TextSize = 12
+orbBtn.BackgroundColor3 = Color3.fromRGB(35,35,55)
+orbBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", orbBtn).CornerRadius = UDim.new(0,8)
+
+local fistBtn = Instance.new("TextButton", main)
+fistBtn.Size = UDim2.new(0,75,0,22)
+fistBtn.Position = UDim2.new(0,13,0,80)
+fistBtn.Text = "FIST OFF"
+fistBtn.Font = Enum.Font.Code
+fistBtn.TextSize = 12
+fistBtn.BackgroundColor3 = Color3.fromRGB(50,30,30)
+fistBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", fistBtn).CornerRadius = UDim.new(0,8)
+
+local roitBtn = Instance.new("TextButton", main)
+roitBtn.Size = UDim2.new(0,75,0,22)
+roitBtn.Position = UDim2.new(0,169,0,80)
+roitBtn.Text = "ROIT OFF"
+roitBtn.Font = Enum.Font.Code
+roitBtn.TextSize = 12
+roitBtn.BackgroundColor3 = Color3.fromRGB(30,30,50)
+roitBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", roitBtn).CornerRadius = UDim.new(0,8)
+
+local scytheBtn = Instance.new("TextButton", main)
+scytheBtn.Size = UDim2.new(0,75,0,22)
+scytheBtn.Position = UDim2.new(0,13,0,110)
+scytheBtn.Text = "SCYTHE OFF"
+scytheBtn.Font = Enum.Font.Code
+scytheBtn.TextSize = 12
+scytheBtn.BackgroundColor3 = Color3.fromRGB(50,50,30)
+scytheBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", scytheBtn).CornerRadius = UDim.new(0,8)
+
+local wallbangBtn = Instance.new("TextButton", main)
+wallbangBtn.Size = UDim2.new(0,75,0,22)
+wallbangBtn.Position = UDim2.new(0,169,0,110)
+wallbangBtn.Text = "WALLBANG OFF"
+wallbangBtn.Font = Enum.Font.Code
+wallbangBtn.TextSize = 12
+wallbangBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+wallbangBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", wallbangBtn).CornerRadius = UDim.new(0,8)
+
+local espBtn = Instance.new("TextButton", main)
+espBtn.Size = UDim2.new(0,75,0,22)
+espBtn.Position = UDim2.new(0,13,0,140)
+espBtn.Text = "ESP OFF"
+espBtn.Font = Enum.Font.Code
+espBtn.TextSize = 12
+espBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+espBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", espBtn).CornerRadius = UDim.new(0,8)
+
+local aimbotBtn = Instance.new("TextButton", main)
+aimbotBtn.Size = UDim2.new(0,75,0,22)
+aimbotBtn.Position = UDim2.new(0,169,0,140)
+aimbotBtn.Text = "AIMBOT OFF"
+aimbotBtn.Font = Enum.Font.Code
+aimbotBtn.TextSize = 12
+aimbotBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+aimbotBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", aimbotBtn).CornerRadius = UDim.new(0,8)
+
+local noclipBtn = Instance.new("TextButton", main)
+noclipBtn.Size = UDim2.new(0,75,0,22)
+noclipBtn.Position = UDim2.new(0,13,0,170)
+noclipBtn.Text = "NOCLIP OFF"
+noclipBtn.Font = Enum.Font.Code
+noclipBtn.TextSize = 12
+noclipBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+noclipBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", noclipBtn).CornerRadius = UDim.new(0,8)
+
+local silentAimBtn = Instance.new("TextButton", main)
+silentAimBtn.Size = UDim2.new(0,75,0,22)
+silentAimBtn.Position = UDim2.new(0,169,0,170)
+silentAimBtn.Text = "SILENT OFF"
+silentAimBtn.Font = Enum.Font.Code
+silentAimBtn.TextSize = 12
+silentAimBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+silentAimBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", silentAimBtn).CornerRadius = UDim.new(0,8)
+
+local rapidFireBtn = Instance.new("TextButton", main)
+rapidFireBtn.Size = UDim2.new(0,75,0,22)
+rapidFireBtn.Position = UDim2.new(0,13,0,200)
+rapidFireBtn.Text = "RAPID OFF"
+rapidFireBtn.Font = Enum.Font.Code
+rapidFireBtn.TextSize = 12
+rapidFireBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+rapidFireBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", rapidFireBtn).CornerRadius = UDim.new(0,8)
+
+local delayBtn = Instance.new("TextButton", main)
+delayBtn.Size = UDim2.new(0,75,0,22)
+delayBtn.Position = UDim2.new(0,169,0,200)
+delayBtn.Text = "DELAY: 80"
+delayBtn.Font = Enum.Font.Code
+delayBtn.TextSize = 12
+delayBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+delayBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", delayBtn).CornerRadius = UDim.new(0,6)
+
+local aimFovBtn = Instance.new("TextButton", main)
+aimFovBtn.Size = UDim2.new(0,110,0,22)
+aimFovBtn.Position = UDim2.new(0,13,0,230)
+aimFovBtn.Text = "AIM FOV: " .. aimFov
+aimFovBtn.Font = Enum.Font.Code
+aimFovBtn.TextSize = 11
+aimFovBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+aimFovBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", aimFovBtn).CornerRadius = UDim.new(0,6)
+
+local silentFovBtn = Instance.new("TextButton", main)
+silentFovBtn.Size = UDim2.new(0,110,0,22)
+silentFovBtn.Position = UDim2.new(0,135,0,230)
+silentFovBtn.Text = "SIL FOV: " .. silentFov
+silentFovBtn.Font = Enum.Font.Code
+silentFovBtn.TextSize = 11
+silentFovBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+silentFovBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", silentFovBtn).CornerRadius = UDim.new(0,6)
+
+local aimPartBtn = Instance.new("TextButton", main)
+aimPartBtn.Size = UDim2.new(0,110,0,22)
+aimPartBtn.Position = UDim2.new(0,13,0,260)
+aimPartBtn.Text = "AIM PART: HEAD"
+aimPartBtn.Font = Enum.Font.Code
+aimPartBtn.TextSize = 11
+aimPartBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+aimPartBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", aimPartBtn).CornerRadius = UDim.new(0,6)
+
+local silPartBtn = Instance.new("TextButton", main)
+silPartBtn.Size = UDim2.new(0,110,0,22)
+silPartBtn.Position = UDim2.new(0,135,0,260)
+silPartBtn.Text = "SIL PART: HEAD"
+silPartBtn.Font = Enum.Font.Code
+silPartBtn.TextSize = 11
+silPartBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+silPartBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", silPartBtn).CornerRadius = UDim.new(0,6)
+
+-- ============= 新增: Speed, Jump, Fly 按钮 =============
+local speedBtn = Instance.new("TextButton", main)
+speedBtn.Size = UDim2.new(0,110,0,22)
+speedBtn.Position = UDim2.new(0,13,0,290)
+speedBtn.Text = "SPEED OFF"
+speedBtn.Font = Enum.Font.Code
+speedBtn.TextSize = 11
+speedBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+speedBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", speedBtn).CornerRadius = UDim.new(0,8)
+
+local jumpBtn = Instance.new("TextButton", main)
+jumpBtn.Size = UDim2.new(0,110,0,22)
+jumpBtn.Position = UDim2.new(0,135,0,290)
+jumpBtn.Text = "JUMP OFF"
+jumpBtn.Font = Enum.Font.Code
+jumpBtn.TextSize = 11
+jumpBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+jumpBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", jumpBtn).CornerRadius = UDim.new(0,8)
+
+local flyBtn = Instance.new("TextButton", main)
+flyBtn.Size = UDim2.new(0,75,0,22)
+flyBtn.Position = UDim2.new(0,13,0,320)
+flyBtn.Text = "FLY OFF"
+flyBtn.Font = Enum.Font.Code
+flyBtn.TextSize = 12
+flyBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+flyBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0,8)
+
+local flyUpBtn = Instance.new("TextButton", main)
+flyUpBtn.Size = UDim2.new(0,40,0,22)
+flyUpBtn.Position = UDim2.new(0,95,0,320)
+flyUpBtn.Text = "▲"
+flyUpBtn.Font = Enum.Font.Code
+flyUpBtn.TextSize = 14
+flyUpBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+flyUpBtn.TextColor3 = Color3.new(1,1,1)
+flyUpBtn.Visible = false
+Instance.new("UICorner", flyUpBtn).CornerRadius = UDim.new(0,6)
+
+local flyDownBtn = Instance.new("TextButton", main)
+flyDownBtn.Size = UDim2.new(0,40,0,22)
+flyDownBtn.Position = UDim2.new(0,145,0,320)
+flyDownBtn.Text = "▼"
+flyDownBtn.Font = Enum.Font.Code
+flyDownBtn.TextSize = 14
+flyDownBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+flyDownBtn.TextColor3 = Color3.new(1,1,1)
+flyDownBtn.Visible = false
+Instance.new("UICorner", flyDownBtn).CornerRadius = UDim.new(0,6)
+
+-- ============= LOGIC VARIABLES =============
+local voidActive = false
+local orbActive = false
+local fistActive = false
+local roitActive = false
+local scytheActive = false
+local noclipActive = false
+local rapidFireActive = false
+local fireDelay = 80 -- ms
+
+-- 新增功能变量
+local speedBoostActive = false
+local jumpBoostActive = false
+local flyActive = false
+local flyBodyGyro = nil
+local flyBodyVelocity = nil
+local flyVerticalSpeed = 0
+local flySpeed = 500            -- 水平飞行速度最大值
+
+local lastPos = nil
+local flip = true
+local orbAngle = 0
+
+local VOID_POS_NEG = CFrame.new(0, -321730912732103712003733333177387219676767, 0)
+local VOID_POS_POS = CFrame.new(0,  39126371928633123561237812537, 0)
+
+local function getHRP() return HRP end
+
+task.spawn(function()
+    while true do
+        local hrp = getHRP()
+        if hrp then ytext.Text = "Y: " .. math.floor(hrp.Position.Y) end
+        task.wait(0.12)
+    end
+end)
+
+local function isEnemy(player)
+    return player ~= LocalPlayer and player:GetAttribute("TeamID") ~= LocalPlayer:GetAttribute("TeamID")
+end
+
+local function getClosestEnemy()
+    local closest = nil
+    local minDist = math.huge
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    local root = char.HumanoidRootPart
+    for _, p in ipairs(Players:GetPlayers()) do
+        if isEnemy(p) and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            local dist = (root.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            if dist < minDist then
+                minDist = dist
+                closest = p.Character
+            end
+        end
+    end
+    return closest
+end
+
+local function resetAllPartsVelocity()
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Velocity = Vector3.new(0, 0, 0)
+        end
+    end
+end
+
+-- ============= WALL CHECK =============
+local function isClearLineOfSight(origin, targetPos, targetCharacter)
+    local direction = (targetPos - origin)
+    local distance = direction.Magnitude
+    if distance < 0.01 then return true end
+    direction = direction.Unit
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, targetCharacter}
+    
+    local raycastResult = Workspace:Raycast(origin, direction * distance, rayParams)
+    return raycastResult == nil
+end
+
+-- ============= RAPID FIRE LOGIC =============
+local mouseDown = false
+local rapidFireTask = nil
+local rapidFireLastGun = nil
+
+local function getCurrentGun()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return nil end
+    if pcall(function() return tool.StartShooting end) then
+        return tool
+    end
+    return nil
+end
+
+local function patchGunCooldown(tool)
+    if not tool then return end
+    pcall(function()
+        local settings = tool:FindFirstChild("Settings") or tool:FindFirstChild("Config")
+        if settings then
+            local fireRate = settings:FindFirstChild("FireRate") or settings:FindFirstChild("Cooldown")
+            if fireRate and fireRate:IsA("NumberValue") then
+                fireRate.Value = 0
+            end
+        end
+    end)
+    pcall(function()
+        if tool.Cooldown then tool.Cooldown = 0 end
+        if tool.FireCooldown then tool.FireCooldown = 0 end
+        if tool.ShootCooldown then tool.ShootCooldown = 0 end
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not gameProcessed then
+        mouseDown = true
+        if rapidFireActive and not rapidFireTask then
+            rapidFireLastGun = getCurrentGun()
+            rapidFireTask = task.spawn(function()
+                while rapidFireActive and mouseDown and rapidFireLastGun == getCurrentGun() do
+                    local gun = getCurrentGun()
+                    if gun then
+                        patchGunCooldown(gun)
+                        gun:Activate()
+                    end
+                    task.wait(fireDelay / 1000)
+                end
+                rapidFireTask = nil
+                rapidFireLastGun = nil
+            end)
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        mouseDown = false
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") and rapidFireActive and rapidFireTask then
+            if child ~= rapidFireLastGun then
+                mouseDown = false
+            end
+        end
+    end)
+end)
+
+-- FIST loop
+local fistConnection = nil
+local function startFist()
+    if fistConnection then fistConnection:Disconnect() end
+    task.spawn(patchMeleeCooldowns)
+    fistConnection = RunService.Stepped:Connect(function()
+        if not fistActive then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        resetAllPartsVelocity()
+        local enemy = getClosestEnemy()
+        if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+            local enemyRoot = enemy.HumanoidRootPart
+            local tickTime = tick() * 4010
+            local offsetX = math.cos(tickTime) * 0.1
+            local offsetZ = math.sin(tickTime) * 0.1
+            root.CFrame = enemyRoot.CFrame * CFrame.new(offsetX, 0, offsetZ)
+        end
+    end)
+end
+
+-- ROIT loop
+local roitConnection = nil
+local function startRoit()
+    if roitConnection then roitConnection:Disconnect() end
+    roitConnection = RunService.Stepped:Connect(function()
+        if not roitActive then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        resetAllPartsVelocity()
+        local enemy = getClosestEnemy()
+        if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+            local enemyRoot = enemy.HumanoidRootPart
+            local randomOffset = Vector3.new(math.random(-5, 5), math.random(0, 5), math.random(-5, 5))
+            root.CFrame = enemyRoot.CFrame + randomOffset
+        end
+    end)
+end
+
+-- NOCLIP loop
+local noclipConnection = nil
+local function startNoClip()
+    if noclipConnection then noclipConnection:Disconnect() end
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipActive then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end)
+end
+
+-- ============= 飞行功能实现 =============
+local function createFlyForces()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+
+    flyBodyGyro = Instance.new("BodyGyro")
+    flyBodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    flyBodyGyro.D = 100
+    flyBodyGyro.P = 3000
+    flyBodyGyro.Parent = hrp
+
+    flyBodyVelocity = Instance.new("BodyVelocity")
+    flyBodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
+    flyBodyVelocity.Velocity = Vector3.zero
+    flyBodyVelocity.P = 3000
+    flyBodyVelocity.Parent = hrp
+
+    hum.PlatformStand = true
+end
+
+local function removeFlyForces()
+    if flyBodyGyro then flyBodyGyro:Destroy() flyBodyGyro = nil end
+    if flyBodyVelocity then flyBodyVelocity:Destroy() flyBodyVelocity = nil end
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
+end
+
+local function flyLoop()
+    if not flyActive then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return end
+
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+
+    local moveDir = hum.MoveDirection
+    local forward = cam.CFrame.LookVector * Vector3.new(1,0,1)
+    local right = cam.CFrame.RightVector * Vector3.new(1,0,1)
+    local horizontalVel = (forward * moveDir.Z + right * moveDir.X) * flySpeed
+
+    flyBodyVelocity.Velocity = Vector3.new(horizontalVel.X, flyVerticalSpeed, horizontalVel.Z)
+    flyBodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + cam.CFrame.LookVector * Vector3.new(1,0,1))
+end
+
+local flyConnection
+local function startFly()
+    if flyConnection then flyConnection:Disconnect() end
+    createFlyForces()
+    flyVerticalSpeed = 0
+    flyConnection = RunService.RenderStepped:Connect(flyLoop)
+    flyUpBtn.Visible = true
+    flyDownBtn.Visible = true
+end
+
+local function stopFly()
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    removeFlyForces()
+    flyVerticalSpeed = 0
+    flyUpBtn.Visible = false
+    flyDownBtn.Visible = false
+end
+
+local flyUpHolding = false
+local flyDownHolding = false
+flyUpBtn.MouseButton1Down:Connect(function() flyUpHolding = true end)
+flyUpBtn.MouseButton1Up:Connect(function() flyUpHolding = false end)
+flyDownBtn.MouseButton1Down:Connect(function() flyDownHolding = true end)
+flyDownBtn.MouseButton1Up:Connect(function() flyDownHolding = false end)
+
+task.spawn(function()
+    while true do
+        if flyActive then
+            if flyUpHolding then flyVerticalSpeed = 30
+            elseif flyDownHolding then flyVerticalSpeed = -30
+            else flyVerticalSpeed = 0 end
+        end
+        task.wait(0.05)
+    end
+end)
+
+-- ============= BUTTON HANDLERS =============
+fistBtn.MouseButton1Click:Connect(function()
+    fistActive = not fistActive
+    if fistActive then
+        fistBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 250)
+        fistBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        fistBtn.Text = "FIST ON"
+        startFist()
+    else
+        fistBtn.BackgroundColor3 = Color3.fromRGB(50,30,30)
+        fistBtn.TextColor3 = Color3.new(1,1,1)
+        fistBtn.Text = "FIST OFF"
+        if fistConnection then fistConnection:Disconnect() fistConnection = nil end
+    end
+end)
+
+roitBtn.MouseButton1Click:Connect(function()
+    roitActive = not roitActive
+    if roitActive then
+        roitBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 250)
+        roitBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        roitBtn.Text = "ROIT ON"
+        startRoit()
+    else
+        roitBtn.BackgroundColor3 = Color3.fromRGB(30,30,50)
+        roitBtn.TextColor3 = Color3.new(1,1,1)
+        roitBtn.Text = "ROIT OFF"
+        if roitConnection then roitConnection:Disconnect() roitConnection = nil end
+    end
+end)
+
+scytheBtn.MouseButton1Click:Connect(function()
+    scytheActive = not scytheActive
+    if scytheActive then
+        scytheBtn.Text = "SCYTHE ON"
+        scytheBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 250)
+        scytheBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        task.spawn(patchMeleeCooldowns)
+    else
+        scytheBtn.Text = "SCYTHE OFF"
+        scytheBtn.BackgroundColor3 = Color3.fromRGB(50,50,30)
+        scytheBtn.TextColor3 = Color3.new(1,1,1)
+    end
+end)
+
+wallbangBtn.MouseButton1Click:Connect(function()
+    wallbangActive = not wallbangActive
+    if wallbangActive then
+        wallbangBtn.Text = "WALLBANG ON"
+        wallbangBtn.BackgroundColor3 = Color3.fromRGB(100, 180, 255)
+        wallbangBtn.TextColor3 = Color3.fromRGB(0,0,0)
+        startWallbang()
+    else
+        wallbangBtn.Text = "WALLBANG OFF"
+        wallbangBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+        wallbangBtn.TextColor3 = Color3.new(1,1,1)
+        stopWallbang()
+    end
+end)
+
+voidBtn.MouseButton1Click:Connect(function()
+    local hrp = getHRP()
+    voidActive = not voidActive
+    if voidActive then
+        voidBtn.Text = "VOID ON"
+        voidBtn.BackgroundColor3 = Color3.fromRGB(0,180,100)
+        statusDot.BackgroundColor3 = Color3.fromRGB(0,255,120)
+        rgbOn = true
+        lastPos = hrp.CFrame
+        task.spawn(function()
+            while voidActive do
+                local hrp = getHRP()
+                if hrp then
+                    if flip then
+                        hrp.CFrame = VOID_POS_NEG
+                    else
+                        hrp.CFrame = VOID_POS_POS
+                    end
+                    flip = not flip
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end
+                task.wait(0.12)
+            end
+        end)
+    else
+        voidBtn.Text = "VOID OFF"
+        voidBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        statusDot.BackgroundColor3 = Color3.fromRGB(150,0,0)
+        rgbOn = false
+        local hrp = getHRP()
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            if lastPos then hrp.CFrame = lastPos else hrp.CFrame = CFrame.new(0,10,0) end
+        end
+    end
+end)
+
+local orbConn
+orbBtn.MouseButton1Click:Connect(function()
+    orbActive = not orbActive
+    orbBtn.Text = orbActive and "ORBIT ON" or "ORBIT OFF"
+    orbBtn.BackgroundColor3 = orbActive and Color3.fromRGB(60, 40, 150) or Color3.fromRGB(35, 35, 55)
+    if orbActive then
+        orbConn = RunService.Heartbeat:Connect(function()
+            local target = getClosestEnemy()
+            if target and target:FindFirstChild("HumanoidRootPart") and orbActive then
+                local enemyHRP = target.HumanoidRootPart
+                orbAngle = orbAngle + 0.5
+                HRP.CFrame = CFrame.new(
+                    enemyHRP.Position + Vector3.new(math.cos(orbAngle)*6, 4, math.sin(orbAngle)*6),
+                    enemyHRP.Position
+                )
+            end
+        end)
+    else
+        if orbConn then orbConn:Disconnect() orbConn = nil end
+    end
+end)
+
+noclipBtn.MouseButton1Click:Connect(function()
+    noclipActive = not noclipActive
+    if noclipActive then
+        noclipBtn.Text = "NOCLIP ON"
+        noclipBtn.BackgroundColor3 = Color3.fromRGB(0,200,100)
+        noclipBtn.TextColor3 = Color3.fromRGB(0,0,0)
+        startNoClip()
+    else
+        noclipBtn.Text = "NOCLIP OFF"
+        noclipBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        noclipBtn.TextColor3 = Color3.new(1,1,1)
+        if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    end
+end)
+
+silentAimBtn.MouseButton1Click:Connect(function()
+    silentAimActive = not silentAimActive
+    if silentAimActive then
+        silentAimBtn.Text = "SILENT ON"
+        silentAimBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        silentAimBtn.TextColor3 = Color3.fromRGB(0,0,0)
+    else
+        silentAimBtn.Text = "SILENT OFF"
+        silentAimBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        silentAimBtn.TextColor3 = Color3.new(1,1,1)
+    end
+end)
+
+rapidFireBtn.MouseButton1Click:Connect(function()
+    rapidFireActive = not rapidFireActive
+    if rapidFireActive then
+        rapidFireBtn.Text = "RAPID ON"
+        rapidFireBtn.BackgroundColor3 = Color3.fromRGB(0,200,255)
+        rapidFireBtn.TextColor3 = Color3.fromRGB(0,0,0)
+    else
+        rapidFireBtn.Text = "RAPID OFF"
+        rapidFireBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        rapidFireBtn.TextColor3 = Color3.new(1,1,1)
+        mouseDown = false
+    end
+end)
+
+delayBtn.MouseButton1Click:Connect(function()
+    fireDelay = fireDelay + 10
+    if fireDelay > 200 then fireDelay = 20 end
+    delayBtn.Text = "DELAY: " .. fireDelay
+end)
+
+aimFovBtn.MouseButton1Click:Connect(function()
+    aimFov = aimFov + 5
+    if aimFov > 180 then aimFov = 5 end
+    aimFovBtn.Text = "AIM FOV: " .. aimFov
+end)
+
+silentFovBtn.MouseButton1Click:Connect(function()
+    silentFov = silentFov + 5
+    if silentFov > 180 then silentFov = 5 end
+    silentFovBtn.Text = "SIL FOV: " .. silentFov
+end)
+
+aimPartBtn.MouseButton1Click:Connect(function()
+    if aimTargetPart == "Head" then
+        aimTargetPart = "HumanoidRootPart"
+        aimPartBtn.Text = "AIM PART: BODY"
+    else
+        aimTargetPart = "Head"
+        aimPartBtn.Text = "AIM PART: HEAD"
+    end
+end)
+
+silPartBtn.MouseButton1Click:Connect(function()
+    if silentTargetPart == "Head" then
+        silentTargetPart = "HumanoidRootPart"
+        silPartBtn.Text = "SIL PART: BODY"
+    else
+        silentTargetPart = "Head"
+        silPartBtn.Text = "SIL PART: HEAD"
+    end
+end)
+
+-- ============= 新增功能按钮事件 =============
+speedBtn.MouseButton1Click:Connect(function()
+    speedBoostActive = not speedBoostActive
+    if speedBoostActive then
+        speedBtn.Text = "SPEED ON"
+        speedBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+        speedBtn.TextColor3 = Color3.fromRGB(0,0,0)
+    else
+        speedBtn.Text = "SPEED OFF"
+        speedBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        speedBtn.TextColor3 = Color3.new(1,1,1)
+    end
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = speedBoostActive and 500 or 16
+    end
+end)
+
+jumpBtn.MouseButton1Click:Connect(function()
+    jumpBoostActive = not jumpBoostActive
+    if jumpBoostActive then
+        jumpBtn.Text = "JUMP ON"
+        jumpBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+        jumpBtn.TextColor3 = Color3.fromRGB(0,0,0)
+    else
+        jumpBtn.Text = "JUMP OFF"
+        jumpBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        jumpBtn.TextColor3 = Color3.new(1,1,1)
+    end
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpPower = jumpBoostActive and 500 or 50
+    end
+end)
+
+flyBtn.MouseButton1Click:Connect(function()
+    flyActive = not flyActive
+    if flyActive then
+        flyBtn.Text = "FLY ON"
+        flyBtn.BackgroundColor3 = Color3.fromRGB(100,180,255)
+        flyBtn.TextColor3 = Color3.fromRGB(0,0,0)
+        startFly()
+    else
+        flyBtn.Text = "FLY OFF"
+        flyBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        flyBtn.TextColor3 = Color3.new(1,1,1)
+        stopFly()
+    end
+end)
+
+-- ENTER ANIMATION
+main.BackgroundTransparency = 1
+task.spawn(function()
+    task.wait(0.3)
+    TweenService:Create(main, TweenInfo.new(0.5), {
+        Position = UDim2.new(0.5,-130,0.05,0),
+        BackgroundTransparency = 0.15
+    }):Play()
+end)
+
+-- ============= ESP =============
+local function clearESP()
+    for _, v in pairs(espLines) do if v then v:Remove() end end
+    for _, v in pairs(espTexts) do if v then v:Remove() end end
+    for _, v in pairs(espBoxes) do if v then v:Remove() end end
+    table.clear(espLines)
+    table.clear(espTexts)
+    table.clear(espBoxes)
+end
+
+local function createESPForPlayer(player)
+    local line = Drawing.new("Line")
+    line.Visible = false
+    line.Color = Color3.fromRGB(255,255,255)
+    line.Thickness = 1
+    table.insert(espLines, line)
+
+    local nameText = Drawing.new("Text")
+    nameText.Visible = false
+    nameText.Color = Color3.fromRGB(255,255,255)
+    nameText.Size = 14
+    nameText.Center = true
+    nameText.Outline = true
+    table.insert(espTexts, nameText)
+
+    local distText = Drawing.new("Text")
+    distText.Visible = false
+    distText.Color = Color3.fromRGB(200,200,200)
+    distText.Size = 13
+    distText.Center = true
+    distText.Outline = true
+    table.insert(espTexts, distText)
+
+    local boxOutline = Drawing.new("Square")
+    boxOutline.Visible = false
+    boxOutline.Color = Color3.fromRGB(0,0,0)
+    boxOutline.Thickness = 3
+    boxOutline.Filled = false
+    table.insert(espBoxes, boxOutline)
+
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Color = Color3.fromRGB(255,255,255)
+    box.Thickness = 1
+    box.Filled = false
+    table.insert(espBoxes, box)
+
+    return {line, nameText, distText, boxOutline, box}
+end
+
+local function updateESP()
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then
+        for _, v in pairs(espLines) do v.Visible = false end
+        for _, v in pairs(espTexts) do v.Visible = false end
+        for _, v in pairs(espBoxes) do v.Visible = false end
+        return
+    end
+    local myRoot = myChar.HumanoidRootPart
+
+    local idx = 1
+    for _, player in ipairs(Players:GetPlayers()) do
+        if not isEnemy(player) then continue end
+        local char = player.Character
+        if not char then
+            if espLines[idx] then espLines[idx].Visible = false end
+            if espTexts[idx*2-1] then espTexts[idx*2-1].Visible = false end
+            if espTexts[idx*2] then espTexts[idx*2].Visible = false end
+            if espBoxes[idx*2-1] then espBoxes[idx*2-1].Visible = false end
+            if espBoxes[idx*2] then espBoxes[idx*2].Visible = false end
+            idx = idx + 1
+            continue
+        end
+        local head = char:FindFirstChild("Head")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if not (head and root and hum and hum.Health > 0) then
+            if espLines[idx] then espLines[idx].Visible = false end
+            if espTexts[idx*2-1] then espTexts[idx*2-1].Visible = false end
+            if espTexts[idx*2] then espTexts[idx*2].Visible = false end
+            if espBoxes[idx*2-1] then espBoxes[idx*2-1].Visible = false end
+            if espBoxes[idx*2] then espBoxes[idx*2].Visible = false end
+            idx = idx + 1
+            continue
+        end
+
+        while #espLines < idx do
+            createESPForPlayer(player)
+        end
+
+        local line = espLines[idx]
+        local nameText = espTexts[idx*2-1]
+        local distText = espTexts[idx*2]
+        local boxOutline = espBoxes[idx*2-1]
+        local box = espBoxes[idx*2]
+
+        if not line then idx = idx + 1 continue end
+
+        local headPos, onScreenH = Camera:WorldToViewportPoint(head.Position)
+        local rootPos, onScreenR = Camera:WorldToViewportPoint(root.Position)
+        local onScreen = onScreenH or onScreenR
+
+        if onScreen then
+            local height = (root.Position - head.Position).Magnitude * 1.8
+            local width = height * 0.5
+            local boxX = headPos.X - width/2
+            local boxY = headPos.Y
+            boxOutline.Position = Vector2.new(boxX, boxY)
+            boxOutline.Size = Vector2.new(width, height)
+            boxOutline.Visible = true
+            box.Position = Vector2.new(boxX, boxY)
+            box.Size = Vector2.new(width, height)
+            box.Visible = true
+
+            local myPos, _ = Camera:WorldToViewportPoint(myRoot.Position)
+            line.From = Vector2.new(myPos.X, myPos.Y)
+            line.To = Vector2.new(headPos.X, headPos.Y + height)
+            line.Visible = true
+
+            local dist = math.floor((myRoot.Position - root.Position).Magnitude)
+            nameText.Text = player.Name
+            nameText.Position = Vector2.new(headPos.X, headPos.Y - 18)
+            nameText.Visible = true
+            distText.Text = dist .. "m"
+            distText.Position = Vector2.new(headPos.X, headPos.Y + height + 2)
+            distText.Visible = true
+
+            local health = hum.Health / hum.MaxHealth
+            local col = Color3.fromHSV(health * 0.33, 1, 1)
+            box.Color = col
+            line.Color = col
+        else
+            line.Visible = false
+            nameText.Visible = false
+            distText.Visible = false
+            boxOutline.Visible = false
+            box.Visible = false
+        end
+        idx = idx + 1
+    end
+
+    for i = idx, #espLines do
+        espLines[i].Visible = false
+        if espTexts[i*2-1] then espTexts[i*2-1].Visible = false end
+        if espTexts[i*2] then espTexts[i*2].Visible = false end
+        if espBoxes[i*2-1] then espBoxes[i*2-1].Visible = false end
+        if espBoxes[i*2] then espBoxes[i*2].Visible = false end
+    end
+end
+
+local espConnection = nil
+espBtn.MouseButton1Click:Connect(function()
+    espActive = not espActive
+    if espActive then
+        espBtn.Text = "ESP ON"
+        espBtn.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+        espBtn.TextColor3 = Color3.fromRGB(0,0,0)
+        espConnection = RunService.RenderStepped:Connect(updateESP)
+    else
+        espBtn.Text = "ESP OFF"
+        espBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        espBtn.TextColor3 = Color3.new(1,1,1)
+        if espConnection then
+            espConnection:Disconnect()
+            espConnection = nil
+        end
+        clearESP()
+    end
+end)
+
+-- ============= AIMBOT =============
+local aimbotConnection = nil
+aimbotBtn.MouseButton1Click:Connect(function()
+    aimbotActive = not aimbotActive
+    if aimbotActive then
+        aimbotBtn.Text = "AIMBOT ON"
+        aimbotBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        aimbotBtn.TextColor3 = Color3.fromRGB(0,0,0)
+        
+        task.spawn(patchGunSpread)
+        
+        aimbotConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if not aimbotActive then return end
+            
+            local targetCharacter = nil
+            local targetPart = nil
+            local camPos = Camera.CFrame.Position
+            local camDir = Camera.CFrame.LookVector
+            local closestAngle = aimFov
+            
+            for _, p in ipairs(Players:GetPlayers()) do
+                if isEnemy(p) and p.Character then
+                    local part = p.Character:FindFirstChild(aimTargetPart)
+                    local hum = p.Character:FindFirstChildWhichIsA("Humanoid")
+                    if part and hum and hum.Health > 0 then
+                        local toTarget = (part.Position - camPos).Unit
+                        local angle = math.acos(math.clamp(camDir:Dot(toTarget), -1, 1))
+                        local degrees = math.deg(angle)
+                        if degrees <= closestAngle then
+                            if isClearLineOfSight(camPos, part.Position, p.Character) then
+                                closestAngle = degrees
+                                targetPart = part
+                                targetCharacter = p.Character
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if targetPart and targetCharacter then
+                Camera.CFrame = CFrame.lookAt(camPos, targetPart.Position)
+            end
+        end)
+    else
+        aimbotBtn.Text = "AIMBOT OFF"
+        aimbotBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        aimbotBtn.TextColor3 = Color3.new(1,1,1)
+        if aimbotConnection then
+            aimbotConnection:Disconnect()
+            aimbotConnection = nil
+        end
+    end
+end)
+
+-- ============= Character respawn safety =============
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    HRP = char:WaitForChild('HumanoidRootPart')
+    if voidActive then
+        task.wait(0.5)
+        local hrp = getHRP()
+        if hrp then hrp.CFrame = CFrame.new(0, 39126371928633123561237812537, 0) end
+    end
+
+    if fistConnection then fistConnection:Disconnect() fistConnection = nil end
+    if roitConnection then roitConnection:Disconnect() roitConnection = nil end
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+
+    if fistActive then startFist() end
+    if roitActive then startRoit() end
+    if noclipActive then startNoClip() end
+
+    -- 恢复 WalkSpeed / JumpPower 状态
+    local hum = char:WaitForChild("Humanoid")
+    if hum then
+        hum.WalkSpeed = speedBoostActive and 500 or 16
+        hum.JumpPower = jumpBoostActive and 500 or 50
+    end
+
+    -- 如果飞行是开启的，重新启用飞行
+    if flyActive then
+        removeFlyForces()
+        startFly()
+    end
+
+    mouseDown = false
+    if rapidFireTask then
+        task.cancel(rapidFireTask)
+        rapidFireTask = nil
+        rapidFireLastGun = nil
+    end
+
+    if wallbangActive then
+        stopWallbang()
+        startWallbang()
+    end
+
+    spreadPatched = false
+    task.spawn(patchGunSpread)
+
+    if espActive then
+        if espConnection then espConnection:Disconnect() end
+        espConnection = RunService.RenderStepped:Connect(updateESP)
+    end
+    if aimbotActive then
+        if aimbotConnection then aimbotConnection:Disconnect() end
+        aimbotConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if not aimbotActive then return end
+            local targetCharacter = nil
+            local targetPart = nil
+            local camPos = Camera.CFrame.Position
+            local camDir = Camera.CFrame.LookVector
+            local closestAngle = aimFov
+            for _, p in ipairs(Players:GetPlayers()) do
+                if isEnemy(p) and p.Character then
+                    local part = p.Character:FindFirstChild(aimTargetPart)
+                    local hum = p.Character:FindFirstChildWhichIsA("Humanoid")
+                    if part and hum and hum.Health > 0 then
+                        local toTarget = (part.Position - camPos).Unit
+                        local angle = math.acos(math.clamp(camDir:Dot(toTarget), -1, 1))
+                        local degrees = math.deg(angle)
+                        if degrees <= closestAngle then
+                            if isClearLineOfSight(camPos, part.Position, p.Character) then
+                                closestAngle = degrees
+                                targetPart = part
+                                targetCharacter = p.Character
+                            end
+                        end
+                    end
+                end
+            end
+            if targetPart and targetCharacter then
+                Camera.CFrame = CFrame.lookAt(camPos, targetPart.Position)
+            end
+        end)
+    end
+end)
+
+print("arch script Loaded - Mobile Fix applied. Speed/Jump/Fly (max 500) integrated.")

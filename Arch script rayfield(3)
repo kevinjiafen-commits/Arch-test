@@ -1,0 +1,21 @@
+-- ============================================================
+-- 合併腳本：反作弊繞過 + 全道具解鎖 + 表情模擬解鎖 + arch script (手機修復版)
+-- 植入後自動執行所有功能，並新增 Speed / Infinite Jump / Wall Check / Team Check / Fly
+-- UI 使用 Rayfield 庫
+-- ============================================================
+
+local function main()
+-- ---------- 服務獲取 ----------
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+
+end
+
+main()

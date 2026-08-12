@@ -3667,5 +3667,404 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     applyNoFlash()
     applyDeviceSpoof()
 end)
+-- ============================================================
+-- [追加] Spoofer & Unlock All Weapons 模块 (独立集成)
+-- ============================================================
 
+local SpoofPlayers = game:GetService("Players")
+local SpoofLP = SpoofPlayers.LocalPlayer
+
+-- Spoof 配置默认值
+getgenv().Config = getgenv().Config or {
+    victim = SpoofLP and SpoofLP.UserId or 0,
+    helper = "",
+    level = 0,
+    streak = 0,
+    elo = 0,
+    keys = 0,
+    premium = false,
+    verified = false,
+    platform = "DESKTOP",
+    join = "discord.gg/rivalscomp"
+}
+
+-- 武器解锁控制标志
+if _G.UnlockWeaponsLoaded == nil then
+    _G.UnlockWeaponsLoaded = false
+end
+
+-- 远程脚本缓存与连接控制
+local rawSpoofContent = nil
+local applyThread = nil
+
+local function ApplySpoofs()
+    -- 固定邀请链接
+    getgenv().Config.join = "discord.gg/rivalscomp"
+
+    if applyThread then
+        task.cancel(applyThread)
+    end
+
+    applyThread = task.delay(0.2, function()
+        applyThread = nil
+        task.spawn(function()
+            -- 首次加载远程 spoof 脚本
+            if not rawSpoofContent then
+                local url = "https://raw.githubusercontent.com/WEFGQERQEGWGE/a/refs/heads/main/UDRCRFRAMESCRIPT.lua"
+                local success, content = pcall(game.HttpGet, game, url)
+                if not success or not content or #content == 0 then
+                    Library:Notify("Failed to fetch spoof script", 5)
+                    return
+                end
+                rawSpoofContent = content
+            end
+
+            -- 断开旧连接
+            if getgenv()._spoofConnection then
+                pcall(function() getgenv()._spoofConnection:Disconnect() end)
+                getgenv()._spoofConnection = nil
+            end
+
+            -- 修改远程脚本：去除 discord 弹窗、改为全局连接管理
+            local modified = rawSpoofContent
+            local startPos = modified:find("local rq =")
+            if startPos then
+                local closePos = modified:find("end%)", startPos)
+                if closePos then
+                    modified = modified:sub(1, startPos - 1) .. "-- Discord popup removed" .. modified:sub(closePos + 4)
+                end
+            end
+
+            modified = "if getgenv()._spoofConnection then getgenv()._spoofConnection:Disconnect() getgenv()._spoofConnection = nil end\n" .. modified
+            modified = modified:gsub(
+                "game:GetService%( \"RunService\" %)%.RenderStepped:Connect%( function%( %)",
+                "getgenv()._spoofConnection = game:GetService(\"RunService\").RenderStepped:Connect(function()"
+            )
+
+            -- 执行 spoof
+            local execSuccess, execErr = pcall(function()
+                loadstring(modified)()
+            end)
+
+            if not execSuccess then
+                Library:Notify("Spoof error: " .. tostring(execErr), 5)
+            end
+        end)
+    end)
+end
+
+-- 读取 UI 控件并更新 Config，然后触发 spoof
+local function UpdateSpoofConfigAndApply()
+    local cfg = getgenv().Config
+    if SpoofVictimToggle and SpoofVictimToggle.Value then
+        cfg.victim = tonumber(SpoofVictimInput.Text) or cfg.victim
+    else
+        cfg.victim = SpoofLP.UserId
+    end
+    if SpoofHelperToggle and SpoofHelperToggle.Value then
+        cfg.helper = SpoofHelperInput.Text or ""
+    else
+        cfg.helper = ""
+    end
+    if SpoofLevelToggle and SpoofLevelToggle.Value then
+        cfg.level = tonumber(SpoofLevelInput.Text) or 0
+    else
+        cfg.level = 0
+    end
+    if SpoofStreakToggle and SpoofStreakToggle.Value then
+        cfg.streak = tonumber(SpoofStreakInput.Text) or 0
+    else
+        cfg.streak = 0
+    end
+    if SpoofEloToggle and SpoofEloToggle.Value then
+        cfg.elo = tonumber(SpoofEloInput.Text) or 0
+    else
+        cfg.elo = 0
+    end
+    if SpoofKeysToggle and SpoofKeysToggle.Value then
+        cfg.keys = tonumber(SpoofKeysInput.Text) or 0
+    else
+        cfg.keys = 0
+    end
+    if SpoofPremiumToggle then cfg.premium = SpoofPremiumToggle.Value end
+    if SpoofVerifiedToggle then cfg.verified = SpoofVerifiedToggle.Value end
+    if SpoofPlatformToggle and SpoofPlatformToggle.Value then
+        cfg.platform = SpoofPlatformDropdown.Value or "DESKTOP"
+    else
+        cfg.platform = ""
+    end
+    ApplySpoofs()
+end
+
+-- 解锁全部武器
+local function ExecuteUnlockWeapons()
+    if _G.UnlockWeaponsLoaded then return end
+    _G.UnlockWeaponsLoaded = true
+
+    task.spawn(function()
+        local success, content = pcall(game.HttpGet, game, "https://pastefy.app/7wVhe3Ef/raw")
+        if not success or not content or #content == 0 then
+            _G.UnlockWeaponsLoaded = false
+            Library:Notify("Failed to download unlock weapons script", 5)
+            return
+        end
+
+        local execSuccess, execErr = pcall(function()
+            loadstring(content)()
+        end)
+
+        if execSuccess then
+            Library:Notify("Unlock All Weapons executed successfully", 3)
+        else
+            Library:Notify("Weapon script warning: " .. tostring(execErr), 5)
+        end
+    end)
+end
+
+-- ============================================================
+-- 构建 Spoofer UI 分页
+-- ============================================================
+local SpooferTab = Library:Tab("Spoofer", 95816097006870) -- 图标 id 可自行更换
+
+-- 左侧: Spoof 选项
+local SpoofGroup = SpooferTab:Group("Spoof Options")
+
+-- Victim Toggle + Input
+local VictimFrame = SpoofGroup:Toggle({
+    Name = "Spoof Victim",
+    Default = false,
+    Callback = function(val)
+        SpoofVictimToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofVictimToggle = {Value = false}  -- 初始值
+SpoofGroup:Textbox({
+    Name = "Victim UserID",
+    Placeholder = tostring(SpoofLP.UserId),
+    Callback = function(text)
+        SpoofVictimInput = SpoofVictimInput or {}
+        SpoofVictimInput.Text = text
+        if SpoofVictimToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofVictimInput = {Text = tostring(SpoofLP.UserId)}
+
+-- Helper Toggle + Input
+local HelperFrame = SpoofGroup:Toggle({
+    Name = "Spoof Helper",
+    Default = false,
+    Callback = function(val)
+        SpoofHelperToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofHelperToggle = {Value = false}
+SpoofGroup:Textbox({
+    Name = "Helper Username",
+    Placeholder = getgenv().Config.helper,
+    Callback = function(text)
+        SpoofHelperInput = {Text = text}
+        if SpoofHelperToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofHelperInput = {Text = getgenv().Config.helper}
+
+-- 分割线（无，直接继续）
+
+-- Level Toggle + Input
+local LevelFrame = SpoofGroup:Toggle({
+    Name = "Spoof Level",
+    Default = false,
+    Callback = function(val)
+        SpoofLevelToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofLevelToggle = {Value = false}
+SpoofGroup:Textbox({
+    Name = "Level",
+    Placeholder = tostring(getgenv().Config.level),
+    Callback = function(text)
+        SpoofLevelInput = {Text = text}
+        if SpoofLevelToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofLevelInput = {Text = tostring(getgenv().Config.level)}
+
+-- Streak Toggle + Input
+local StreakFrame = SpoofGroup:Toggle({
+    Name = "Spoof Streak",
+    Default = false,
+    Callback = function(val)
+        SpoofStreakToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofStreakToggle = {Value = false}
+SpoofGroup:Textbox({
+    Name = "Streak",
+    Placeholder = tostring(getgenv().Config.streak),
+    Callback = function(text)
+        SpoofStreakInput = {Text = text}
+        if SpoofStreakToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofStreakInput = {Text = tostring(getgenv().Config.streak)}
+
+-- Elo Toggle + Input
+local EloFrame = SpoofGroup:Toggle({
+    Name = "Spoof Elo",
+    Default = false,
+    Callback = function(val)
+        SpoofEloToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofEloToggle = {Value = false}
+SpoofGroup:Textbox({
+    Name = "Elo",
+    Placeholder = tostring(getgenv().Config.elo),
+    Callback = function(text)
+        SpoofEloInput = {Text = text}
+        if SpoofEloToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofEloInput = {Text = tostring(getgenv().Config.elo)}
+
+-- Keys Toggle + Input
+local KeysFrame = SpoofGroup:Toggle({
+    Name = "Spoof Keys",
+    Default = false,
+    Callback = function(val)
+        SpoofKeysToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofKeysToggle = {Value = false}
+SpoofGroup:Textbox({
+    Name = "Keys",
+    Placeholder = tostring(getgenv().Config.keys),
+    Callback = function(text)
+        SpoofKeysInput = {Text = text}
+        if SpoofKeysToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofKeysInput = {Text = tostring(getgenv().Config.keys)}
+
+-- Premium Toggle (无输入)
+SpoofGroup:Toggle({
+    Name = "Spoof Premium",
+    Default = false,
+    Callback = function(val)
+        SpoofPremiumToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofPremiumToggle = {Value = false}
+
+-- Verified Toggle
+SpoofGroup:Toggle({
+    Name = "Spoof Verified",
+    Default = false,
+    Callback = function(val)
+        SpoofVerifiedToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofVerifiedToggle = {Value = false}
+
+-- Platform Toggle + Dropdown
+local PlatFrame = SpoofGroup:Toggle({
+    Name = "Spoof Platform",
+    Default = false,
+    Callback = function(val)
+        SpoofPlatformToggle = {Value = val}
+        UpdateSpoofConfigAndApply()
+    end
+})
+SpoofPlatformToggle = {Value = false}
+local PlatformDropdown = SpoofGroup:Dropdown({
+    Name = "Platform",
+    Options = {"DESKTOP", "MOBILE", "CONSOLE", "VR"},
+    Default = "DESKTOP",
+    Callback = function(val)
+        SpoofPlatformDropdown = {Value = val}
+        if SpoofPlatformToggle.Value then UpdateSpoofConfigAndApply() end
+    end
+})
+SpoofPlatformDropdown = {Value = "DESKTOP"}
+
+-- 右侧: Actions
+local ActionGroup = SpooferTab:Group("Actions")
+
+ActionGroup:Button({
+    Name = "Reset to Defaults",
+    Callback = function()
+        local cfg = getgenv().Config
+        cfg.victim = SpoofLP.UserId
+        cfg.helper = ""
+        cfg.level = 0
+        cfg.streak = 0
+        cfg.elo = 0
+        cfg.keys = 0
+        cfg.premium = false
+        cfg.verified = false
+        cfg.platform = "DESKTOP"
+
+        -- 重置 UI 控件状态（需手动设置为已知值）
+        SpoofVictimInput.Text = tostring(cfg.victim)
+        SpoofHelperInput.Text = cfg.helper
+        SpoofLevelInput.Text = tostring(cfg.level)
+        SpoofStreakInput.Text = tostring(cfg.streak)
+        SpoofEloInput.Text = tostring(cfg.elo)
+        SpoofKeysInput.Text = tostring(cfg.keys)
+        SpoofPremiumToggle.Value = false
+        SpoofVerifiedToggle.Value = false
+        SpoofPlatformDropdown.Value = "DESKTOP"
+
+        SpoofVictimToggle.Value = false
+        SpoofHelperToggle.Value = false
+        SpoofLevelToggle.Value = false
+        SpoofStreakToggle.Value = false
+        SpoofEloToggle.Value = false
+        SpoofKeysToggle.Value = false
+        SpoofPlatformToggle.Value = false
+
+        UpdateSpoofConfigAndApply()
+        Library:Notify("Spoof settings reset to default", 3)
+    end
+})
+
+ActionGroup:Button({
+    Name = "Unlock All Weapons",
+    Callback = function()
+        ExecuteUnlockWeapons()
+    end
+})
+
+-- 初始化时应用一次默认 spoof（可选）
+task.spawn(function()
+    task.wait(1)
+    UpdateSpoofConfigAndApply()
+end)
+
+-- 监听角色重生，保持 spoof 连接存活
+SpoofLP.CharacterAdded:Connect(function(char)
+    char:WaitForChild("HumanoidRootPart", 10)
+    task.wait(1.0)
+    UpdateSpoofConfigAndApply()
+    if not getgenv()._spoofConnection then
+        ApplySpoofs()
+    end
+end)
+
+-- 原有 UI 卸载时断开 spoof 连接
+Library:OnUnload(function()
+    if getgenv()._spoofConnection then
+        pcall(function() getgenv()._spoofConnection:Disconnect() end)
+        getgenv()._spoofConnection = nil
+    end
+    print("Spoofer module unloaded")
+end)
 Library:Notify("Arch Scripts + Mobile ESP + Advanced Anti-Aim/Underground + Anti Katana + Slide Boost + Config loaded", "success")

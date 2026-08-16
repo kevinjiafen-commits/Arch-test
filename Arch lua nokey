@@ -1,0 +1,176 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- Character
+local character
+local humanoidRootPart
+local humanoid
+
+-- Orbit settings
+local isOrbiting = false
+local orbitConnection = nil
+local orbitAngle = 0
+local orbitSpeed = 500
+local orbitRadius = 2_147_483_648
+local orbitCenter = Vector3.new(0, 50, 0)
+
+-- Mute sounds
+local function muteCharacterSounds(char)
+	for _,v in pairs(char:GetDescendants()) do
+		if v:IsA("Sound") then
+			v.Volume = 0
+			v:Stop()
+		end
+	end
+end
+
+local function onDescendantAdded(desc)
+	if desc:IsA("Sound") then
+		desc.Volume = 0
+		desc:Stop()
+	end
+end
+
+-- Setup character
+local function setupCharacter(char)
+	character = char
+	humanoidRootPart = char:WaitForChild("HumanoidRootPart")
+	humanoid = char:WaitForChild("Humanoid")
+
+	muteCharacterSounds(char)
+	character.DescendantAdded:Connect(onDescendantAdded)
+
+	humanoidRootPart.Anchored = true
+	humanoid.PlatformStand = true
+	humanoid.WalkSpeed = 0
+	humanoid.JumpPower = 0
+
+	if isOrbiting then
+		if orbitConnection then orbitConnection:Disconnect() end
+		orbitAngle = 0
+		orbitConnection = RunService.Heartbeat:Connect(function(dt)
+			if not humanoidRootPart then return end
+			orbitAngle += orbitSpeed * dt
+			local x = orbitCenter.X + math.cos(orbitAngle) * orbitRadius
+			local z = orbitCenter.Z + math.sin(orbitAngle) * orbitRadius
+			humanoidRootPart.CFrame = CFrame.new(x, orbitCenter.Y, z)
+		end)
+	end
+end
+
+player.CharacterAdded:Connect(setupCharacter)
+if player.Character then
+	setupCharacter(player.Character)
+end
+
+-- Orbit control
+local function startOrbit()
+	if not humanoidRootPart then return end
+	if orbitConnection then orbitConnection:Disconnect() end
+	orbitAngle = 0
+	orbitConnection = RunService.Heartbeat:Connect(function(dt)
+		if not humanoidRootPart then return end
+		orbitAngle += orbitSpeed * dt
+		local x = orbitCenter.X + math.cos(orbitAngle) * orbitRadius
+		local z = orbitCenter.Z + math.sin(orbitAngle) * orbitRadius
+		humanoidRootPart.CFrame = CFrame.new(x, orbitCenter.Y, z)
+	end)
+end
+
+local function stopOrbit()
+	if orbitConnection then
+		orbitConnection:Disconnect()
+		orbitConnection = nil
+	end
+
+	if humanoidRootPart and humanoid then
+		humanoidRootPart.Anchored = false
+		humanoid.PlatformStand = false
+		humanoid.WalkSpeed = 16
+		humanoid.JumpPower = 50
+	end
+end
+
+local function toggleOrbit()
+	isOrbiting = not isOrbiting
+	if isOrbiting then
+		startOrbit()
+	else
+		stopOrbit()
+	end
+	updateUI()
+end
+
+-- UI
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "vzlszl_ui"  -- 可自行改为 "ArchLuaKeyless"，但不影响显示
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 80)
+mainFrame.Position = UDim2.new(0, 25, 0, 90)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner", mainFrame)
+corner.CornerRadius = UDim.new(0,6)
+
+-- Title（已改为 "arch lua keyless"）
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,20)
+title.BackgroundColor3 = Color3.fromRGB(45,45,45)
+title.Text = "arch lua keyless"   -- 修改处
+title.Font = Enum.Font.Code
+title.TextSize = 14
+title.TextColor3 = Color3.fromRGB(230,230,230)
+title.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner", title)
+titleCorner.CornerRadius = UDim.new(0,6)
+
+-- Toggle button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(1,-16,0,30)
+toggleButton.Position = UDim2.new(0,8,0,26)
+toggleButton.BackgroundColor3 = Color3.fromRGB(150,40,40)
+toggleButton.Text = "start orbit"
+toggleButton.Font = Enum.Font.Code
+toggleButton.TextSize = 14
+toggleButton.TextColor3 = Color3.fromRGB(255,255,255)
+toggleButton.Parent = mainFrame
+
+local buttonCorner = Instance.new("UICorner", toggleButton)
+buttonCorner.CornerRadius = UDim.new(0,4)
+
+-- Status text
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1,-16,0,16)
+statusText.Position = UDim2.new(0,8,0,62)
+statusText.BackgroundTransparency = 1
+statusText.Text = "status: idle"
+statusText.Font = Enum.Font.Code
+statusText.TextSize = 12
+statusText.TextColor3 = Color3.fromRGB(200,200,200)
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+statusText.TextWrapped = true
+statusText.Parent = mainFrame
+
+-- Update UI
+function updateUI()
+	if isOrbiting then
+		toggleButton.BackgroundColor3 = Color3.fromRGB(40,150,70)
+		toggleButton.Text = "stop orbit"
+		statusText.Text = "status: orbiting 2.1B studs at insane speed (fast!)"
+	else
+		toggleButton.BackgroundColor3 = Color3.fromRGB(150,40,40)
+		toggleButton.Text = "start orbit"
+		statusText.Text = "status: idle"
+	end
+end
+
+toggleButton.MouseButton1Click:Connect(toggleOrbit)

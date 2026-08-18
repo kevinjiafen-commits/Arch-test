@@ -1,0 +1,3181 @@
+-- This file was generated at discord.gg/syncrypt
+
+local t1 = {}
+local v2 = unpack or table.unpack
+t1.value1 = game:GetService("Players")
+t1.value2 = game:GetService("UserInputService")
+t1.value3 = game:GetService("RunService")
+t1.value4 = game:GetService("ReplicatedStorage")
+t1.value5 = game:GetService("TweenService")
+t1.value6 = game:GetService("Workspace")
+t1.value7 = game:GetService("HttpService")
+t1.value8 = t1.value1.LocalPlayer
+local PlayerGui = t1.value8:WaitForChild("PlayerGui")
+t1.value9 = t1.value2.TouchEnabled and not t1.value2.KeyboardEnabled
+local v4 = not t1.value2.TouchEnabled
+t1.value10 = {
+	Enabled = false,
+	_restore = {}
+}
+function t1.value10.BypassPhysicsSenderRate(_)
+    local v64 = getgenv().flags or {}
+
+    v64.DFIntS2PhysicsSenderRate = "120"
+    v64.DFIntAssemblyHistoryBufferSize = "2147483648"
+    v64.DFIntAssemblyHistorySkipSize = "0"
+    getgenv().flags = v64
+end
+function t1.value10.BypassRemoteEvents(p2)
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local GetDescendants = ReplicatedStorage.GetDescendants
+
+    for _, v in pairs(GetDescendants(ReplicatedStorage)) do
+        if v:IsA("RemoteEvent") and v.Name:match("AntiCheat") then
+            local FireServer = v.FireServer
+
+            function v.FireServer()
+            end
+
+            p2._restore[v] = FireServer
+        end
+    end
+end
+t1.value11 = {
+	_bindingsByEnum = {},
+	_restore = {}
+}
+function t1.value11.Block(p3, p4)
+    local p4_2 = game:GetService("ReplicatedStorage"):FindFirstChild(p4, true)
+
+    if not p4_2 then
+        return
+    end
+
+    local FireServer = p4_2.FireServer
+
+    function p4_2.FireServer()
+    end
+
+    p3._restore[p4_2] = FireServer
+end
+function t1.value11.Restore(p5)
+    for k, v in pairs(p5._restore) do
+        k.FireServer = v
+    end
+
+    p5._restore = {}
+end
+t1.value12 = {
+	_dummy = Color3.new(),
+	_requestBindings = {},
+	_restore = nil
+}
+function t1.value12.Initialize(p6)
+    local Modules = game:GetService("ReplicatedStorage"):FindFirstChild("Modules", true)
+
+    if Modules then
+        local Fetch = Modules.Fetch
+
+        if Fetch then
+            function Modules.Fetch()
+                return p6._dummy
+            end
+
+            p6._restore = {
+				original = Fetch,
+				viewProfile = Modules
+			}
+        end
+    end
+end
+function t1.value12.Restore(p7)
+    if p7._restore then
+        p7._restore.viewProfile.Fetch = p7._restore.original
+        p7._restore = nil
+    end
+end
+t1.value13 = {
+	Enabled = false,
+	SpoofType = "VR"
+}
+function t1.value13.Apply(p8)
+    if not p8.Enabled then
+        return
+    end
+
+    local CurrentControls = getmetatable(game.Players.LocalPlayer).CurrentControls
+
+    if CurrentControls then
+        CurrentControls = setmetatable({}, {
+			__index = function(_, p10)
+            if p10 == "CurrentControls" then
+                return p8.SpoofType
+            end
+
+            return rawget(CurrentControls, p10)
+        end
+		})
+    end
+
+    local ControlsController = game.Players.LocalPlayer.PlayerScripts.Controllers.ControlsController
+
+    if ControlsController then
+        debug.setupvalue(ControlsController._ReplicateControls, 1, CurrentControls)
+    end
+end
+t1.value14 = {
+	Enabled = false,
+	_active = false
+}
+function t1.value14.Load(p11)
+    if p11._active then
+        return
+    end
+
+    p11._active = true
+    t1.value10:BypassPhysicsSenderRate()
+    t1.value10:BypassRemoteEvents()
+    t1.value11:Block("AntiCheatCheck")
+    t1.value11:Block("ValidationRemote")
+    t1.value12:Initialize()
+    t1.value13.Enabled = true
+    t1.value13:Apply()
+end
+function t1.value14.Unload(p12)
+    p12._active = false
+    t1.value11:Restore()
+    t1.value12:Restore()
+    t1.value13.Enabled = false
+    getgenv().flags = {}
+end
+function t1.value14.Toggle(p13)
+    if p13._active then
+        p13:Unload()
+
+        return
+    end
+
+    p13:Load()
+end
+spawn(function()
+    task.wait(0.5)
+    t1.value14:Load()
+end)
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    t1.value14:Load()
+end)
+game:GetService("RunService").Heartbeat:Connect(function()
+    if t1.value14._active and not getgenv().flags.DFIntS2PhysicsSenderRate then
+        t1.value10:BypassPhysicsSenderRate()
+    end
+end)
+local color3 = Color3.fromRGB(100, 149, 237)
+local color3_2 = Color3.fromRGB(18, 18, 24)
+local color3_3 = Color3.fromRGB(28, 28, 38)
+local color3_4 = Color3.fromRGB(38, 38, 50)
+local color3_5 = Color3.fromRGB(240, 240, 245)
+local color3_6 = Color3.fromRGB(160, 160, 175)
+local color3_7 = Color3.fromRGB(46, 204, 113)
+local color3_8 = Color3.fromRGB(60, 60, 70)
+local color3_9 = Color3.fromRGB(100, 149, 237)
+local color3_10 = Color3.fromRGB(40, 40, 50)
+local color3_11 = Color3.fromRGB(45, 45, 58)
+local GothamBold = Enum.Font.GothamBold
+local GothamMedium = Enum.Font.GothamMedium
+local color3_12 = Color3.fromRGB(130, 170, 255)
+local color3_13 = Color3.fromRGB(50, 50, 65)
+local color3_14 = Color3.fromRGB(70, 230, 130)
+local color3_15 = Color3.fromRGB(80, 80, 95)
+local color3_16 = Color3.fromRGB(70, 120, 210)
+local color3_17 = Color3.fromRGB(35, 35, 45)
+local color3_18 = Color3.fromRGB(35, 170, 95)
+local color3_19 = Color3.fromRGB(45, 45, 55)
+t1.value15 = {
+	Accent = color3,
+	Background = color3_2,
+	Surface = color3_3,
+	SurfaceLight = color3_4,
+	Text = color3_5,
+	TextSecondary = color3_6,
+	ToggleOn = color3_7,
+	ToggleOff = color3_8,
+	TabActive = color3_9,
+	TabInactive = color3_10,
+	Border = color3_11,
+	Font = GothamBold,
+	FontMedium = GothamMedium,
+	HoverAccent = color3_12,
+	HoverSurface = color3_13,
+	HoverToggleOn = color3_14,
+	HoverToggleOff = color3_15,
+	ClickAccent = color3_16,
+	ClickSurface = color3_17,
+	ClickToggleOn = color3_18,
+	ClickToggleOff = color3_19
+}
+t1.value16 = {
+	Wallbang = false,
+	AutoShoot = false,
+	AutoShootShootAttempt = 0,
+	RapidFire = false,
+	KnifeBackstab = false,
+	KnifeRange = 10,
+	Fly = false,
+	FlySpeed = 80,
+	InfiniteJump = false,
+	Noclip = false,
+	NoclipSpeed = 50,
+	Esp = false,
+	EspBoxes = true,
+	EspNames = true,
+	EspHealth = true,
+	EspDistance = false,
+	EspTracers = false,
+	AnimationEnabled = false,
+	AnimationPreset = "Underground Glitch",
+	AnimationSpeed = 2,
+	AnimationLoop = true,
+	AnimationServerSide = true,
+	AnimationJitter = false
+}
+function t1.value17()
+    pcall(function()
+        if not isfolder or not makefolder then
+            return
+        end
+
+        if not isfolder("private_scripts") then
+            makefolder("private_scripts")
+        end
+
+        writefile("private_scripts/settings.json", t1.value7:JSONEncode(t1.value16))
+    end)
+end
+local v26 = (function()
+    local ok, result = pcall(function()
+        if not isfolder or not makefolder then
+            return nil
+        end
+
+        if not isfolder("private_scripts") then
+            makefolder("private_scripts")
+        end
+
+        if isfile("private_scripts/settings.json") then
+            local value7 = t1.value7
+            local t2 = { readfile("private_scripts/settings.json") }
+
+            return value7:JSONDecode(v2(t2))
+        end
+
+        return nil
+    end)
+
+    if ok and result then
+        return result
+    end
+
+    return nil
+end)()
+if v26 then
+    for k, _ in pairs(t1.value16) do
+        local v29 = k
+
+        if v26[v29] ~= nil then
+            t1.value16[v29] = v26[v29]
+        end
+    end
+end
+function t1.value18(p14)
+    if not p14 then
+        return false
+    end
+
+    local Team = t1.value8.Team
+    local v92 = Team and Team.TeamColor
+    local TeamID = t1.value8:GetAttribute("TeamID")
+    local Team2 = p14.Team
+    local v95 = Team2 and Team2.TeamColor
+    local TeamID2 = p14:GetAttribute("TeamID")
+
+    if Team then
+        Team = Team2 and Team == Team2
+    end
+
+    if Team then
+        return true
+    end
+
+    if v92 and (v95 and v92 == v95) then
+        return true
+    end
+
+    if TeamID and (TeamID2 and TeamID == TeamID2) then
+        return true
+    end
+
+    return false
+end
+if PlayerGui:FindFirstChild("private") then
+    PlayerGui.private:Destroy()
+end
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "private"
+ScreenGui.Parent = PlayerGui
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 999999
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local v31 = not v4 and 320 or 280
+local v32 = not v4 and 460 or 420
+t1.value19 = Instance.new("Frame")
+t1.value19.Size = UDim2.new(0, v31, 0, v32)
+t1.value19.Position = UDim2.new(0.5, -v31 / 2, 0.5, -v32 / 2)
+t1.value19.BackgroundColor3 = t1.value15.Background
+t1.value19.BackgroundTransparency = 0
+t1.value19.BorderSizePixel = 0
+t1.value19.Active = true
+t1.value19.Visible = true
+t1.value19.ZIndex = 10
+t1.value19.Parent = ScreenGui
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = t1.value15.Border
+UIStroke.Thickness = 1
+UIStroke.Transparency = 0.4
+UIStroke.Parent = t1.value19
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(1, 0, 0, 28)
+Frame.BackgroundColor3 = t1.value15.Surface
+Frame.BackgroundTransparency = 0
+Frame.BorderSizePixel = 0
+Frame.ZIndex = 11
+Frame.Parent = t1.value19
+local TextLabel = Instance.new("TextLabel")
+TextLabel.Size = UDim2.new(0, 100, 0, 16)
+TextLabel.Position = UDim2.new(0, 10, 0, 6)
+TextLabel.BackgroundTransparency = 1
+TextLabel.Text = "PRIVATE"
+TextLabel.Font = t1.value15.Font
+TextLabel.TextSize = 12
+TextLabel.TextColor3 = t1.value15.Text
+TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+TextLabel.ZIndex = 12
+TextLabel.Parent = Frame
+t1.value20 = Instance.new("TextButton")
+t1.value20.Size = UDim2.new(0, 18, 0, 18)
+t1.value20.Position = UDim2.new(1, -24, 0, 5)
+t1.value20.BackgroundTransparency = 1
+t1.value20.Text = "✕"
+t1.value20.Font = t1.value15.Font
+t1.value20.TextSize = 10
+t1.value20.TextColor3 = t1.value15.TextSecondary
+t1.value20.ZIndex = 12
+t1.value20.Parent = Frame
+t1.value20.MouseButton1Click:Connect(function()
+    t1.value19.Visible = false
+
+    if t1.value9 and ToggleBtn then
+        ToggleBtn.Text = "☰"
+    end
+end)
+t1.value20.MouseEnter:Connect(function()
+    t1.value5:Create(t1.value20, TweenInfo.new(0.2), {
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.5
+	}):Play()
+end)
+t1.value20.MouseLeave:Connect(function()
+    t1.value5:Create(t1.value20, TweenInfo.new(0.2), {
+		TextColor3 = t1.value15.TextSecondary,
+		BackgroundTransparency = 1
+	}):Play()
+end)
+t1.value20.MouseButton1Down:Connect(function()
+    t1.value5:Create(t1.value20, TweenInfo.new(0.05), {
+		TextColor3 = Color3.new(0.8, 0.8, 0.8),
+		TextSize = 9
+	}):Play()
+end)
+t1.value20.MouseButton1Up:Connect(function()
+    t1.value5:Create(t1.value20, TweenInfo.new(0.1), {
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 10
+	}):Play()
+end)
+local Frame2 = Instance.new("Frame")
+Frame2.Size = UDim2.new(1, 0, 0, 24)
+Frame2.Position = UDim2.new(0, 0, 0, 28)
+Frame2.BackgroundColor3 = t1.value15.Surface
+Frame2.BackgroundTransparency = 0
+Frame2.BorderSizePixel = 0
+Frame2.ZIndex = 11
+Frame2.Parent = t1.value19
+local t3 = {
+	{
+		name = "Combat",
+		icon = "⚔"
+	},
+	{
+		name = "Visuals",
+		icon = "👁"
+	},
+	{
+		name = "Movement",
+		icon = "🏃"
+	},
+	{
+		name = "Misc",
+		icon = "⚙"
+	}
+}
+t1.value21 = "Combat"
+t1.value22 = {}
+t1.value23 = {}
+for v40, v41 in ipairs(t3) do
+
+    local v42 = v41
+    local TextButton = Instance.new("TextButton")
+
+    TextButton.Size = UDim2.new(0.25, -1.5, 0, 20)
+    TextButton.Position = UDim2.new((v40 - 1) * 0.25, 0.75, 0, 2)
+    TextButton.BackgroundColor3 = v42.name == t1.value21 and t1.value15.TabActive or t1.value15.TabInactive
+    TextButton.BackgroundTransparency = v42.name ~= t1.value21 and 0.5 or 0.3
+    TextButton.BorderSizePixel = 0
+    TextButton.Text = v42.icon
+    TextButton.Font = t1.value15.Font
+    TextButton.TextSize = 9
+    TextButton.TextColor3 = t1.value15.Text
+    TextButton.ZIndex = 12
+    TextButton.AutoButtonColor = false
+    TextButton.Parent = Frame2
+    t1.value22[v42.name] = TextButton
+    TextButton.MouseEnter:Connect(function()
+        local v97 = t1.value21 == v42.name
+        local value5 = t1.value5
+        local v99 = TextButton
+        local tweenInfo = TweenInfo.new(0.2)
+        local v101 = v97 and t1.value15.HoverAccent or t1.value15.HoverSurface
+        local Create = value5.Create
+        local v103 = not v97 and 0.3 or 0.2
+
+        Create(value5, v99, tweenInfo, {
+			BackgroundColor3 = v101,
+			BackgroundTransparency = v103
+		}):Play()
+    end)
+    TextButton.MouseLeave:Connect(function()
+        local v104 = t1.value21 == v42.name
+        local value5 = t1.value5
+        local v106 = TextButton
+        local tweenInfo = TweenInfo.new(0.2)
+        local v108 = v104 and t1.value15.TabActive or t1.value15.TabInactive
+        local Create = value5.Create
+        local v110 = not v104 and 0.5 or 0.3
+
+        Create(value5, v106, tweenInfo, {
+			BackgroundColor3 = v108,
+			BackgroundTransparency = v110
+		}):Play()
+    end)
+    TextButton.MouseButton1Down:Connect(function()
+        t1.value5:Create(TextButton, TweenInfo.new(0.05), {
+			BackgroundColor3 = t1.value15.ClickAccent,
+			BackgroundTransparency = 0.1
+		}):Play()
+    end)
+    TextButton.MouseButton1Up:Connect(function()
+        local v111 = t1.value21 == v42.name
+        local value5 = t1.value5
+        local v113 = TextButton
+        local tweenInfo = TweenInfo.new(0.1)
+        local v115 = v111 and t1.value15.HoverAccent or t1.value15.HoverSurface
+        local Create = value5.Create
+        local v117 = not v111 and 0.3 or 0.2
+
+        Create(value5, v113, tweenInfo, {
+			BackgroundColor3 = v115,
+			BackgroundTransparency = v117
+		}):Play()
+    end)
+
+    local Frame3 = Instance.new("Frame")
+
+    Frame3.Size = UDim2.new(1, 0, 1, -52)
+    Frame3.Position = UDim2.new(0, 0, 0, 52)
+    Frame3.BackgroundTransparency = 1
+    Frame3.BorderSizePixel = 0
+    Frame3.Visible = v42.name == t1.value21
+    Frame3.ZIndex = 11
+    Frame3.Parent = t1.value19
+
+    local ScrollingFrame = Instance.new("ScrollingFrame")
+
+    ScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+    ScrollingFrame.BackgroundTransparency = 1
+    ScrollingFrame.BorderSizePixel = 0
+    ScrollingFrame.ScrollBarThickness = 2
+    ScrollingFrame.ScrollBarImageColor3 = t1.value15.Accent
+    ScrollingFrame.ScrollBarImageTransparency = 0.5
+    ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 200)
+    ScrollingFrame.ZIndex = 12
+    ScrollingFrame.Parent = Frame3
+
+    local UIPadding = Instance.new("UIPadding")
+
+    UIPadding.PaddingTop = UDim.new(0, 4)
+    UIPadding.PaddingLeft = UDim.new(0, 8)
+    UIPadding.PaddingRight = UDim.new(0, 8)
+    UIPadding.Parent = ScrollingFrame
+
+    local UIListLayout = Instance.new("UIListLayout")
+
+    UIListLayout.Padding = UDim.new(0, 3)
+    UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Parent = ScrollingFrame
+    t1.value23[v42.name] = {
+		frame = Frame3,
+		scroll = ScrollingFrame,
+		layout = UIListLayout
+	}
+end
+for k, v in pairs(t1.value22) do
+    v.MouseButton1Click:Connect(function()
+
+        for v120, v121 in pairs(t1.value22) do
+
+            if v120 == k then
+                t1.value5:Create(v121, TweenInfo.new(0.2), {
+					BackgroundColor3 = t1.value15.TabActive,
+					BackgroundTransparency = 0.3
+				}):Play()
+            else
+                t1.value5:Create(v121, TweenInfo.new(0.2), {
+					BackgroundColor3 = t1.value15.TabInactive,
+					BackgroundTransparency = 0.5
+				}):Play()
+            end
+        end
+        for k2, v3 in pairs(t1.value23) do
+            v3.frame.Visible = k2 == k
+        end
+    end)
+end
+local function v50(p15, p16, p17, p18, p19, p20, p21)
+    local v131 = t1.value23[p15]
+
+    if not v131 then
+        return
+    end
+
+    local Frame4 = Instance.new("Frame")
+
+    Frame4.Size = UDim2.new(1, 0, 0, 44)
+    Frame4.BackgroundColor3 = t1.value15.Surface
+    Frame4.BackgroundTransparency = 0
+    Frame4.BorderSizePixel = 0
+    Frame4.ZIndex = 12
+    Frame4.Parent = v131.scroll
+
+    local TextLabel2 = Instance.new("TextLabel")
+
+    TextLabel2.Size = UDim2.new(0, 160, 0, 14)
+    TextLabel2.Position = UDim2.new(0, 8, 0, 4)
+    TextLabel2.BackgroundTransparency = 1
+    TextLabel2.Text = p16
+    TextLabel2.Font = t1.value15.FontMedium
+    TextLabel2.TextSize = 9
+    TextLabel2.TextColor3 = t1.value15.Text
+    TextLabel2.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel2.ZIndex = 13
+    TextLabel2.Parent = Frame4
+
+    local TextLabel3 = Instance.new("TextLabel")
+
+    TextLabel3.Size = UDim2.new(0, 50, 0, 12)
+    TextLabel3.Position = UDim2.new(1, -58, 0, 5)
+    TextLabel3.BackgroundTransparency = 1
+
+    local str = tostring(t1.value16[p19] or p17)
+    local v136 = p20
+
+    if not v136 then
+        v136 = ""
+    end
+
+    TextLabel3.Text = str .. v136
+    TextLabel3.Font = t1.value15.FontMedium
+    TextLabel3.TextSize = 9
+    TextLabel3.TextColor3 = t1.value15.Accent
+    TextLabel3.TextXAlignment = Enum.TextXAlignment.Right
+    TextLabel3.ZIndex = 13
+    TextLabel3.Parent = Frame4
+
+    local Frame5 = Instance.new("Frame")
+
+    Frame5.Size = UDim2.new(1, -16, 0, 3)
+    Frame5.Position = UDim2.new(0, 8, 0, 26)
+    Frame5.BackgroundColor3 = t1.value15.SurfaceLight
+    Frame5.BorderSizePixel = 0
+    Frame5.ZIndex = 13
+    Frame5.Parent = Frame4
+
+    local Frame6 = Instance.new("Frame")
+    local v139 = (t1.value16[p19] or p17 - p17) / (p18 - p17)
+
+    Frame6.Size = UDim2.new(v139, 0, 1, 0)
+    Frame6.BackgroundColor3 = t1.value15.Accent
+    Frame6.BorderSizePixel = 0
+    Frame6.ZIndex = 14
+    Frame6.Parent = Frame5
+
+    local Frame7 = Instance.new("Frame")
+
+    Frame7.Size = UDim2.new(0, 14, 0, 14)
+    Frame7.Position = UDim2.new(1, -7, 0.5, -7)
+    Frame7.BackgroundColor3 = Color3.new(1, 1, 1)
+    Frame7.BorderSizePixel = 0
+    Frame7.ZIndex = 15
+    Frame7.Parent = Frame6
+
+    local TextLabel4 = Instance.new("TextLabel")
+
+    TextLabel4.Size = UDim2.new(0, 25, 0, 10)
+    TextLabel4.Position = UDim2.new(0, 8, 0, 32)
+    TextLabel4.BackgroundTransparency = 1
+    TextLabel4.Text = tostring(p17)
+    TextLabel4.Font = t1.value15.FontMedium
+    TextLabel4.TextSize = 7
+    TextLabel4.TextColor3 = t1.value15.TextSecondary
+    TextLabel4.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel4.ZIndex = 13
+    TextLabel4.Parent = Frame4
+
+    local TextLabel5 = Instance.new("TextLabel")
+
+    TextLabel5.Size = UDim2.new(0, 25, 0, 10)
+    TextLabel5.Position = UDim2.new(1, -33, 0, 32)
+    TextLabel5.BackgroundTransparency = 1
+    TextLabel5.Text = tostring(p18)
+    TextLabel5.Font = t1.value15.FontMedium
+    TextLabel5.TextSize = 7
+    TextLabel5.TextColor3 = t1.value15.TextSecondary
+    TextLabel5.TextXAlignment = Enum.TextXAlignment.Right
+    TextLabel5.ZIndex = 13
+    TextLabel5.Parent = Frame4
+    Frame5.MouseEnter:Connect(function()
+        t1.value5:Create(Frame5, TweenInfo.new(0.2), {
+			BackgroundColor3 = t1.value15.HoverSurface
+		}):Play()
+    end)
+    Frame5.MouseLeave:Connect(function()
+        t1.value5:Create(Frame5, TweenInfo.new(0.2), {
+			BackgroundColor3 = t1.value15.SurfaceLight
+		}):Play()
+    end)
+
+    local function v143(p22)
+        local v463 = math.clamp((p22.Position.X - Frame5.AbsolutePosition.X) / Frame5.AbsoluteSize.X, 0, 1)
+        local v464 = math.floor(p17 + (p18 - p17) * v463)
+
+        t1.value16[p19] = v464
+        t1.value17()
+        TextLabel3.Text = tostring(v464) .. (p20 or "")
+        t1.value5:Create(Frame6, TweenInfo.new(0.1), {
+			Size = UDim2.new(v463, 0, 1, 0)
+		}):Play()
+
+        if p21 then
+            p21(v464)
+        end
+    end
+
+    Frame5.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            t1.value5:Create(Frame5, TweenInfo.new(0.05), {
+				BackgroundColor3 = t1.value15.ClickSurface
+			}):Play()
+            v143(input)
+            local connection
+            local connection2 = t1.value2.InputChanged:Connect(function(input2)
+                if input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch then
+                    v143(input2)
+                end
+            end)
+            connection = t1.value2.InputEnded:Connect(function(input3)
+                if input3.UserInputType == Enum.UserInputType.MouseButton1 or input3.UserInputType == Enum.UserInputType.Touch then
+                    t1.value5:Create(Frame5, TweenInfo.new(0.1), {
+						BackgroundColor3 = t1.value15.HoverSurface
+					}):Play()
+
+                    if connection2 then
+                        connection2:Disconnect()
+                    end
+
+                    if connection then
+                        connection:Disconnect()
+                    end
+                end
+            end)
+        end
+    end)
+
+    return Frame4
+end
+local function v51(p23, p24, p25, p26)
+    local v148 = t1.value23[p23]
+
+    if not v148 then
+        return
+    end
+
+    local Frame8 = Instance.new("Frame")
+
+    Frame8.Size = UDim2.new(1, 0, 0, 32)
+    Frame8.BackgroundColor3 = t1.value15.Surface
+    Frame8.BackgroundTransparency = 0
+    Frame8.BorderSizePixel = 0
+    Frame8.ZIndex = 12
+    Frame8.Parent = v148.scroll
+
+    local TextLabel6 = Instance.new("TextLabel")
+
+    TextLabel6.Size = UDim2.new(0, 130, 0, 16)
+    TextLabel6.Position = UDim2.new(0, 8, 0, 8)
+    TextLabel6.BackgroundTransparency = 1
+    TextLabel6.Text = p24
+    TextLabel6.Font = t1.value15.FontMedium
+    TextLabel6.TextSize = 10
+    TextLabel6.TextColor3 = t1.value15.Text
+    TextLabel6.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel6.ZIndex = 13
+    TextLabel6.Parent = Frame8
+
+    local TextButton = Instance.new("TextButton")
+
+    TextButton.Size = UDim2.new(0, 34, 0, 18)
+    TextButton.Position = UDim2.new(1, -42, 0, 7)
+    TextButton.BackgroundColor3 = t1.value16[p25] and t1.value15.ToggleOn or t1.value15.ToggleOff
+    TextButton.BorderSizePixel = 0
+    TextButton.Text = ""
+    TextButton.AutoButtonColor = false
+    TextButton.ZIndex = 13
+    TextButton.Parent = Frame8
+
+    local Frame9 = Instance.new("Frame")
+
+    Frame9.Size = UDim2.new(0, 14, 0, 14)
+    Frame9.Position = t1.value16[p25] and UDim2.new(0, 18, 0, 2) or UDim2.new(0, 2, 0, 2)
+    Frame9.BackgroundColor3 = Color3.new(1, 1, 1)
+    Frame9.BorderSizePixel = 0
+    Frame9.ZIndex = 14
+    Frame9.Parent = TextButton
+    TextButton.MouseEnter:Connect(function()
+        local v468 = t1.value16[p25]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+			BackgroundColor3 = v468 and t1.value15.HoverToggleOn or t1.value15.HoverToggleOff
+		}):Play()
+    end)
+    TextButton.MouseLeave:Connect(function()
+        local v469 = t1.value16[p25]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+			BackgroundColor3 = v469 and t1.value15.ToggleOn or t1.value15.ToggleOff
+		}):Play()
+    end)
+    TextButton.MouseButton1Down:Connect(function()
+        local v470 = t1.value16[p25]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.05), {
+			BackgroundColor3 = v470 and t1.value15.ClickToggleOn or t1.value15.ClickToggleOff
+		}):Play()
+    end)
+    TextButton.MouseButton1Up:Connect(function()
+        local v471 = t1.value16[p25]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.1), {
+			BackgroundColor3 = v471 and t1.value15.HoverToggleOn or t1.value15.HoverToggleOff
+		}):Play()
+    end)
+    TextButton.MouseButton1Click:Connect(function()
+        local v472 = t1.value16[p25]
+
+        t1.value16[p25] = not v472
+        t1.value17()
+
+        if t1.value16[p25] then
+            t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+				BackgroundColor3 = t1.value15.ToggleOn
+			}):Play()
+            t1.value5:Create(Frame9, TweenInfo.new(0.2), {
+				Position = UDim2.new(0, 18, 0, 2)
+			}):Play()
+        else
+            t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+				BackgroundColor3 = t1.value15.ToggleOff
+			}):Play()
+            t1.value5:Create(Frame9, TweenInfo.new(0.2), {
+				Position = UDim2.new(0, 2, 0, 2)
+			}):Play()
+        end
+
+        if p26 then
+            p26(t1.value16[p25])
+        end
+    end)
+
+    return Frame8
+end
+local function v52(p27, p28, p29, p30, p31, p32, p33, p34, p35)
+    local v184 = t1.value23[p27]
+
+    if not v184 then
+        return
+    end
+
+    local Frame10 = Instance.new("Frame")
+
+    Frame10.Size = UDim2.new(1, 0, 0, 62)
+    Frame10.BackgroundColor3 = t1.value15.Surface
+    Frame10.BackgroundTransparency = 0
+    Frame10.BorderSizePixel = 0
+    Frame10.ZIndex = 12
+    Frame10.Parent = v184.scroll
+
+    local TextLabel7 = Instance.new("TextLabel")
+
+    TextLabel7.Size = UDim2.new(0, 120, 0, 14)
+    TextLabel7.Position = UDim2.new(0, 8, 0, 4)
+    TextLabel7.BackgroundTransparency = 1
+    TextLabel7.Text = p28
+    TextLabel7.Font = t1.value15.FontMedium
+    TextLabel7.TextSize = 10
+    TextLabel7.TextColor3 = t1.value15.Text
+    TextLabel7.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel7.ZIndex = 13
+    TextLabel7.Parent = Frame10
+
+    local TextButton = Instance.new("TextButton")
+
+    TextButton.Size = UDim2.new(0, 34, 0, 18)
+    TextButton.Position = UDim2.new(1, -42, 0, 2)
+    TextButton.BackgroundColor3 = t1.value16[p29] and t1.value15.ToggleOn or t1.value15.ToggleOff
+    TextButton.BorderSizePixel = 0
+    TextButton.Text = ""
+    TextButton.AutoButtonColor = false
+    TextButton.ZIndex = 13
+    TextButton.Parent = Frame10
+
+    local Frame11 = Instance.new("Frame")
+
+    Frame11.Size = UDim2.new(0, 14, 0, 14)
+    Frame11.Position = t1.value16[p29] and UDim2.new(0, 18, 0, 2) or UDim2.new(0, 2, 0, 2)
+    Frame11.BackgroundColor3 = Color3.new(1, 1, 1)
+    Frame11.BorderSizePixel = 0
+    Frame11.ZIndex = 14
+    Frame11.Parent = TextButton
+
+    local TextLabel8 = Instance.new("TextLabel")
+
+    TextLabel8.Size = UDim2.new(0, 50, 0, 12)
+    TextLabel8.Position = UDim2.new(1, -58, 0, 24)
+    TextLabel8.BackgroundTransparency = 1
+    TextLabel8.Text = tostring(t1.value16[p32] or p30) .. (p33 or "")
+    TextLabel8.Font = t1.value15.FontMedium
+    TextLabel8.TextSize = 9
+    TextLabel8.TextColor3 = t1.value15.Accent
+    TextLabel8.TextXAlignment = Enum.TextXAlignment.Right
+    TextLabel8.ZIndex = 13
+    TextLabel8.Parent = Frame10
+
+    local Frame12 = Instance.new("Frame")
+
+    Frame12.Size = UDim2.new(1, -16, 0, 3)
+    Frame12.Position = UDim2.new(0, 8, 0, 40)
+    Frame12.BackgroundColor3 = t1.value15.SurfaceLight
+    Frame12.BorderSizePixel = 0
+    Frame12.ZIndex = 13
+    Frame12.Parent = Frame10
+
+    local Frame13 = Instance.new("Frame")
+    local v192 = (t1.value16[p32] or p30 - p30) / (p31 - p30)
+
+    Frame13.Size = UDim2.new(v192, 0, 1, 0)
+    Frame13.BackgroundColor3 = t1.value15.Accent
+    Frame13.BorderSizePixel = 0
+    Frame13.ZIndex = 14
+    Frame13.Parent = Frame12
+
+    local Frame14 = Instance.new("Frame")
+
+    Frame14.Size = UDim2.new(0, 14, 0, 14)
+    Frame14.Position = UDim2.new(1, -7, 0.5, -7)
+    Frame14.BackgroundColor3 = Color3.new(1, 1, 1)
+    Frame14.BorderSizePixel = 0
+    Frame14.ZIndex = 15
+    Frame14.Parent = Frame13
+
+    local TextLabel9 = Instance.new("TextLabel")
+
+    TextLabel9.Size = UDim2.new(0, 25, 0, 10)
+    TextLabel9.Position = UDim2.new(0, 8, 0, 46)
+    TextLabel9.BackgroundTransparency = 1
+    TextLabel9.Text = tostring(p30)
+    TextLabel9.Font = t1.value15.FontMedium
+    TextLabel9.TextSize = 7
+    TextLabel9.TextColor3 = t1.value15.TextSecondary
+    TextLabel9.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel9.ZIndex = 13
+    TextLabel9.Parent = Frame10
+
+    local TextLabel10 = Instance.new("TextLabel")
+
+    TextLabel10.Size = UDim2.new(0, 25, 0, 10)
+    TextLabel10.Position = UDim2.new(1, -33, 0, 46)
+    TextLabel10.BackgroundTransparency = 1
+    TextLabel10.Text = tostring(p31)
+    TextLabel10.Font = t1.value15.FontMedium
+    TextLabel10.TextSize = 7
+    TextLabel10.TextColor3 = t1.value15.TextSecondary
+    TextLabel10.TextXAlignment = Enum.TextXAlignment.Right
+    TextLabel10.ZIndex = 13
+    TextLabel10.Parent = Frame10
+    TextButton.MouseEnter:Connect(function()
+        local v487 = t1.value16[p29]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+			BackgroundColor3 = v487 and t1.value15.HoverToggleOn or t1.value15.HoverToggleOff
+		}):Play()
+    end)
+    TextButton.MouseLeave:Connect(function()
+        local v488 = t1.value16[p29]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+			BackgroundColor3 = v488 and t1.value15.ToggleOn or t1.value15.ToggleOff
+		}):Play()
+    end)
+    TextButton.MouseButton1Down:Connect(function()
+        local v489 = t1.value16[p29]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.05), {
+			BackgroundColor3 = v489 and t1.value15.ClickToggleOn or t1.value15.ClickToggleOff
+		}):Play()
+    end)
+    TextButton.MouseButton1Up:Connect(function()
+        local v490 = t1.value16[p29]
+
+        t1.value5:Create(TextButton, TweenInfo.new(0.1), {
+			BackgroundColor3 = v490 and t1.value15.HoverToggleOn or t1.value15.HoverToggleOff
+		}):Play()
+    end)
+    TextButton.MouseButton1Click:Connect(function()
+        local v491 = t1.value16[p29]
+
+        t1.value16[p29] = not v491
+        t1.value17()
+
+        if t1.value16[p29] then
+            t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+				BackgroundColor3 = t1.value15.ToggleOn
+			}):Play()
+            t1.value5:Create(Frame11, TweenInfo.new(0.2), {
+				Position = UDim2.new(0, 18, 0, 2)
+			}):Play()
+        else
+            t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+				BackgroundColor3 = t1.value15.ToggleOff
+			}):Play()
+            t1.value5:Create(Frame11, TweenInfo.new(0.2), {
+				Position = UDim2.new(0, 2, 0, 2)
+			}):Play()
+        end
+
+        if p34 then
+            p34(t1.value16[p29])
+        end
+    end)
+    Frame12.MouseEnter:Connect(function()
+        t1.value5:Create(Frame12, TweenInfo.new(0.2), {
+			BackgroundColor3 = t1.value15.HoverSurface
+		}):Play()
+    end)
+    Frame12.MouseLeave:Connect(function()
+        t1.value5:Create(Frame12, TweenInfo.new(0.2), {
+			BackgroundColor3 = t1.value15.SurfaceLight
+		}):Play()
+    end)
+
+    local function v196(p36)
+        local v493 = math.clamp((p36.Position.X - Frame12.AbsolutePosition.X) / Frame12.AbsoluteSize.X, 0, 1)
+        local v494 = math.floor(p30 + (p31 - p30) * v493)
+
+        t1.value16[p32] = v494
+        t1.value17()
+        TextLabel8.Text = tostring(v494) .. (p33 or "")
+        t1.value5:Create(Frame13, TweenInfo.new(0.1), {
+			Size = UDim2.new(v493, 0, 1, 0)
+		}):Play()
+
+        if p35 then
+            p35(v494)
+        end
+    end
+
+    Frame12.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            t1.value5:Create(Frame12, TweenInfo.new(0.05), {
+				BackgroundColor3 = t1.value15.ClickSurface
+			}):Play()
+            v196(input)
+            local connection
+            local connection3 = t1.value2.InputChanged:Connect(function(input4)
+                if input4.UserInputType == Enum.UserInputType.MouseMovement or input4.UserInputType == Enum.UserInputType.Touch then
+                    v196(input4)
+                end
+            end)
+            connection = t1.value2.InputEnded:Connect(function(input5)
+                if input5.UserInputType == Enum.UserInputType.MouseButton1 or input5.UserInputType == Enum.UserInputType.Touch then
+                    t1.value5:Create(Frame12, TweenInfo.new(0.1), {
+						BackgroundColor3 = t1.value15.HoverSurface
+					}):Play()
+
+                    if connection3 then
+                        connection3:Disconnect()
+                    end
+
+                    if connection then
+                        connection:Disconnect()
+                    end
+                end
+            end)
+        end
+    end)
+
+    return Frame10
+end
+t1.value24 = {
+	Enabled = false,
+	Range = 10,
+	_hookRestores = {},
+	_isInitialized = false,
+	AutoEnabled = false
+}
+function t1.value24.Execute(p37)
+    local Character = t1.value8.Character
+    if not Character then
+        return
+    end
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then
+        return
+    end
+    local v200 = false
+    local v201
+    local GetChildren = Character.GetChildren
+    local v203, v204, v205 = pairs(GetChildren(Character))
+    local g207
+    local v206
+    repeat
+        v205, v206 = v203(v204, v205)
+
+        if not v205 then
+            g207 = true
+        end
+
+        if g207 then
+            break
+        end
+    until v206:IsA("Tool") and v206.Name == "Knife"
+    if not g207 then
+        v200 = true
+        v201 = v206
+    end
+    g207 = false
+    if not v200 or not v201 then
+        return
+    end
+    local v208
+    local n1 = 1e999
+    for v212, v213 in pairs(t1.value1:GetPlayers()) do
+
+        if v213 ~= t1.value8 and not t1.value18(v213) then
+            local Character2 = v213.Character
+
+            if Character2 then
+                local HumanoidRootPart2 = Character2:FindFirstChild("HumanoidRootPart")
+
+                if HumanoidRootPart2 then
+                    local Magnitude = (HumanoidRootPart.Position - HumanoidRootPart2.Position).Magnitude
+
+                    if Magnitude < n1 then
+                        n1 = Magnitude
+                        v208 = Character2
+                    end
+                end
+            end
+        end
+    end
+    if not v208 then
+        return
+    end
+    local HumanoidRootPart3 = v208:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart3 then
+        return
+    end
+    local LookVector = HumanoidRootPart3.CFrame.LookVector
+    local v219 = p37.Range + 2
+    local v220 = HumanoidRootPart3.Position + LookVector * -v219 + Vector3.new(0, 1, 0)
+    local HumanoidRootPartPosition = HumanoidRootPart.Position
+    if HumanoidRootPart.SetServerCFrame then
+        local t4 = { CFrame.new(v220, HumanoidRootPart3.Position) }
+
+        HumanoidRootPart:SetServerCFrame(v2(t4))
+    end
+    HumanoidRootPart.AssemblyLinearVelocity = (v220 - HumanoidRootPartPosition) * 5
+    HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, HumanoidRootPart3.Position)
+    task.wait(0.016)
+    if HumanoidRootPart.SetServerCFrame then
+        local t5 = { CFrame.new(v220, HumanoidRootPart3.Position) }
+
+        HumanoidRootPart:SetServerCFrame(v2(t5))
+    end
+    task.wait(0.05)
+    if v201 then
+        v201:Activate()
+    end
+    task.wait(0.016)
+    HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+end
+function t1.value24._HookKnife(p38, p39)
+    if p38._hookRestores[p39] ~= nil then
+        return
+    end
+
+    local mt = getmetatable(p39)
+
+    if not mt then
+        return
+    end
+
+    local __index = mt.__index
+
+    if not __index then
+        return
+    end
+
+    local _equip_cooldown = p39._equip_cooldown
+    local _attack_cooldown = p39._attack_cooldown
+    local _deflect_cooldown = p39._deflect_cooldown
+
+    p38._hookRestores[p39] = {
+		oldMetatable = mt,
+		oldIndex = __index,
+		equipCooldown = _equip_cooldown,
+		attackCooldown = _attack_cooldown,
+		deflectCooldown = _deflect_cooldown
+	}
+    setmetatable(p39, {
+		__index = function(_, p41)
+        if p41 == "_equip_cooldown" then
+            if p38.Enabled then
+                return 0
+            end
+
+            return _equip_cooldown
+        end
+
+        if p41 == "_attack_cooldown" then
+            if p38.Enabled then
+                return 0
+            end
+
+            return _attack_cooldown
+        end
+
+        if p41 == "_deflect_cooldown" then
+            if p38.Enabled then
+                return -1e999
+            end
+
+            return _deflect_cooldown
+        end
+
+        return __index[p41]
+    end,
+		__newindex = function(_, p43, p44)
+        if p43 == "_equip_cooldown" or (p43 == "_attack_cooldown" or p43 == "_deflect_cooldown") then
+            return
+        end
+
+        __index[p43] = p44
+    end
+	})
+end
+function t1.value24._HookRange(p45, p46)
+    if p45._hookRestores[p46] == nil then
+        return
+    end
+
+    local v234 = p46._range or 3
+
+    if not p45._hookRestores[p46].originalRange then
+        p45._hookRestores[p46].originalRange = v234
+    end
+
+    p46._range = p45.Range + 1
+end
+function t1.value24._ApplyToAllItems(p47)
+    local Character = t1.value8.Character
+
+    if not Character then
+        return
+    end
+
+    for _, child in pairs(Character:GetChildren()) do
+        if child:IsA("Tool") and child.Name == "Knife" then
+            p47:_HookKnife(child)
+            p47:_HookRange(child)
+        end
+    end
+end
+function t1.value24.SetEnabled(p48, p49)
+    p48.Enabled = p49
+
+    if p49 then
+        p48:_ApplyToAllItems()
+        p48._isInitialized = true
+
+        return
+    end
+
+    for k, v in pairs(p48._hookRestores) do
+        local v243 = k
+
+        if v.oldMetatable then
+            setmetatable(v243, v.oldMetatable)
+        end
+
+        if v.equipCooldown then
+            v243._equip_cooldown = v.equipCooldown
+        end
+
+        if v.attackCooldown then
+            v243._attack_cooldown = v.attackCooldown
+        end
+
+        if v.deflectCooldown then
+            v243._deflect_cooldown = v.deflectCooldown
+        end
+
+        if v.originalRange then
+            v243._range = v.originalRange
+        end
+    end
+
+    table.clear(p48._hookRestores)
+    p48._isInitialized = false
+end
+function t1.value24.SetRange(p50, p51)
+    p50.Range = p51
+
+    if p50.Enabled then
+        p50:_ApplyToAllItems()
+    end
+end
+local value8 = t1.value8
+t1.value25 = nil
+local CharacterAdded = value8.CharacterAdded
+t1.value26 = nil
+t1.value27 = nil
+CharacterAdded:Connect(function(p52)
+    if t1.value24.Enabled then
+        task.wait(0.5)
+        t1.value24:_ApplyToAllItems()
+    end
+
+    p52.ChildAdded:Connect(function(child)
+        if t1.value24.Enabled and (child:IsA("Tool") and child.Name == "Knife") then
+            task.wait(0.1)
+            t1.value24:_HookKnife(child)
+            t1.value24:_HookRange(child)
+        end
+    end)
+end)
+local function v55(p53)
+    t1.value24:SetEnabled(p53)
+    t1.value16.KnifeBackstab = p53
+    t1.value17()
+end
+t1.value27 = false
+t1.value28 = nil
+t1.value25 = nil
+function t1.value29()
+    if t1.value27 then
+        return
+    end
+
+    t1.value27 = true
+    t1.value25 = t1.value2.JumpRequest:Connect(function()
+        if not t1.value27 then
+            return
+        end
+
+        local Character = t1.value8.Character
+
+        if not Character then
+            return
+        end
+
+        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+        if Humanoid and Humanoid.Health > 0 then
+            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end)
+end
+function t1.value30()
+    if t1.value25 then
+        t1.value25:Disconnect()
+    end
+end
+t1.value26 = false
+t1.value28 = nil
+function t1.value31()
+    if t1.value26 then
+        return
+    end
+
+    t1.value26 = true
+    t1.value28 = t1.value3.Stepped:Connect(function()
+        if not t1.value26 then
+            return
+        end
+
+        local Character = t1.value8.Character
+
+        if not Character then
+            return
+        end
+
+        for _, descendant in pairs(Character:GetDescendants()) do
+            if descendant:IsA("BasePart") then
+                descendant.CanCollide = false
+            end
+        end
+    end)
+end
+function t1.value32()
+    t1.value26 = false
+
+    if t1.value28 then
+        t1.value28:Disconnect()
+        t1.value28 = nil
+    end
+end
+t1.value33 = nil
+t1.value34 = nil
+t1.value35 = Vector3.new(0, -1000, 0)
+local function v56()
+    if t1.value33 then
+        return
+    end
+
+    local value4 = t1.value4
+    local value8_2 = t1.value8
+    local Gun = require(value8_2.PlayerScripts.Modules.ItemTypes.Gun)
+    local Utility = require(value4.Modules.Utility)
+    local self = setmetatable({}, {
+		__index = function(_, p55)
+        local Character = value8_2.Character
+
+        if not Character then
+            return nil
+        end
+
+        if p55 == "root" then
+            return Character:FindFirstChild("HumanoidRootPart")
+        end
+
+        if p55 == "head" then
+            return Character:FindFirstChild("Head")
+        end
+
+        return nil
+    end
+	})
+
+    t1.value33 = {
+		Active = true
+	}
+
+    local value33 = t1.value33
+
+    function value33.FindTarget(_)
+        local Character = value8_2.Character
+        if not Character then
+            return nil
+        end
+        local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+        if not HumanoidRootPart then
+            return nil
+        end
+        local v515
+        local n2 = 1e999
+        local _next = next
+        local v518, v519 = t1.value1:GetPlayers()
+        while true do
+            local v520
+
+            v519, v520 = _next(v518, v519)
+
+            if not v519 then
+                break
+            end
+
+            if v520 ~= value8_2 and not t1.value18(v520) then
+                local Character3 = v520.Character
+
+                if Character3 then
+                    local HumanoidRootPart4 = Character3:FindFirstChild("HumanoidRootPart")
+                    local Head = Character3:FindFirstChild("Head")
+                    local Humanoid = Character3:FindFirstChildWhichIsA("Humanoid")
+                    local v525 = HumanoidRootPart4
+
+                    if v525 then
+                        v525 = Head
+
+                        if v525 then
+                            v525 = Humanoid and Humanoid.Health > 0
+                        end
+                    end
+
+                    if v525 then
+                        local Magnitude = (HumanoidRootPart.Position - HumanoidRootPart4.Position).Magnitude
+
+                        if Magnitude < n2 then
+                            v515 = v520
+                            n2 = Magnitude
+                        end
+                    end
+                end
+            end
+        end
+
+        return v515
+    end
+
+    value33.Connection = t1.value3.Heartbeat:Connect(function()
+        if not value33.Active then
+            return
+        end
+
+        value33.Target = value33:FindTarget()
+
+        if value33.Target and value33.Target.Character then
+            local Head = value33.Target.Character:FindFirstChild("Head")
+
+            if Head then
+                local root = self.root
+
+                if root then
+                    local rootCFrame = root.CFrame
+                    local rootVelocity = root.Velocity
+                    local RotVelocity = root.RotVelocity
+
+                    root.CFrame = Head.CFrame
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                    t1.value34 = Head.Position
+                    t1.value3:BindToRenderStep("WallbangRestore", 101, function()
+                        root.CFrame = rootCFrame
+                        root.Velocity = rootVelocity
+                        root.RotVelocity = RotVelocity
+                        t1.value3:UnbindFromRenderStep("WallbangRestore")
+                    end)
+
+                    return
+                end
+            end
+        else
+            local root = self.root
+
+            if root then
+                local rootCFrame = root.CFrame
+                local rootVelocity = root.Velocity
+                local RotVelocity = root.RotVelocity
+
+                root.CFrame = CFrame.new(t1.value35)
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                t1.value34 = t1.value35
+                t1.value3:BindToRenderStep("WallbangVoid", 101, function()
+                    root.CFrame = rootCFrame
+                    root.Velocity = rootVelocity
+                    root.RotVelocity = RotVelocity
+                    t1.value3:UnbindFromRenderStep("WallbangVoid")
+                end)
+            end
+        end
+    end)
+
+    local StartShooting = Gun.StartShooting
+
+    value33.OldShootFunc = StartShooting
+
+    function Gun.StartShooting(p57, ...)
+        local t6 = { StartShooting(p57, ...) }
+
+        if not p57.ClientFighter or not p57.ClientFighter.IsLocalPlayer then
+            return unpack(t6)
+        end
+
+        local v538 = t6[3]
+
+        if not v538 or typeof(v538) ~= "table" then
+            return unpack(t6)
+        end
+
+        t6[4] = true
+
+        local value33Target = value33.Target
+
+        if not value33.Active or (not value33Target or not value33Target.Character) then
+            return unpack(t6)
+        end
+
+        local Head = value33Target.Character:FindFirstChild("Head")
+
+        if not Head then
+            return unpack(t6)
+        end
+
+        local HeadPosition = Head.Position
+        local v542 = Head.CFrame:ToObjectSpace(CFrame.new(HeadPosition + Vector3.new(math.random() * 0.1, math.random() * 0.1, math.random() * 0.1)))
+
+        v538[utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(HeadPosition, HeadPosition + Head.CFrame.LookVector))
+
+        local v543 = utf8.char(1)
+        local v544 = Utility
+        local t7 = { CFrame.new(HeadPosition) }
+
+        v538[v543] = v544:EncodeCFrame(v2(t7))
+        v538[utf8.char(2)] = Head
+        v538[utf8.char(3)] = Utility:EncodeCFrame(v542)
+
+        return unpack(t6)
+    end
+    function value33.Shutdown(p58)
+        p58.Active = false
+        t1.value34 = nil
+
+        if p58.Connection then
+            p58.Connection:Disconnect()
+        end
+
+        if p58.OldShootFunc then
+            Gun.StartShooting = p58.OldShootFunc
+        end
+
+        t1.value3:UnbindFromRenderStep("WallbangRestore")
+        t1.value3:UnbindFromRenderStep("WallbangVoid")
+    end
+end
+function t1.value36()
+    if t1.value33 then
+        t1.value33:Shutdown()
+        t1.value33 = nil
+    end
+
+    t1.value34 = nil
+end
+t1.value37 = false
+t1.value38 = nil
+t1.value39 = 0
+t1.value40 = false
+t1.value41 = 0
+t1.value42 = t1.value6.CurrentCamera
+t1.value43 = require(t1.value4.Modules.Utility)
+t1.value44 = require(t1.value4.Modules.EnumLibrary)
+t1.value45 = {
+	"Medkit",
+	"Grenade",
+	"Flashbang",
+	"Jump Pad",
+	"Molotov",
+	"Satchel",
+	"Smoke Grenade",
+	"War Horn",
+	"Subspace Tripmine",
+	"Warpstone"
+}
+function t1.value46(p59, p60)
+    if not p59 or not p60 then
+        return true
+    end
+
+    local Character = p60.Character
+
+    if not Character then
+        return true
+    end
+
+    local Head = Character:FindFirstChild("Head")
+
+    if not Head then
+        return true
+    end
+
+    local Unit = (Head.Position - p59).Unit
+    local Magnitude = (Head.Position - p59).Magnitude
+    local raycastParams = RaycastParams.new()
+
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local t8 = {}
+
+    for _, player in ipairs(t1.value1:GetPlayers()) do
+        if player.Character then
+            table.insert(t8, player.Character)
+        end
+    end
+
+    raycastParams.FilterDescendantsInstances = t8
+
+    return t1.value6:Raycast(p59, Unit * Magnitude, raycastParams) ~= nil
+end
+function t1.value47()
+    local Character = t1.value8.Character
+    if not Character then
+        return nil
+    end
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then
+        return nil
+    end
+    local value34 = t1.value34
+    if not value34 then
+        local Head = Character:FindFirstChild("Head")
+
+        value34 = Head and Head.Position or HumanoidRootPart.Position
+    end
+    local v284
+    local n3 = 1e999
+    for _, player in ipairs(t1.value1:GetPlayers()) do
+        if player ~= t1.value8 and not t1.value18(player) then
+            local Character4 = player.Character
+
+            if Character4 then
+                local Humanoid = Character4:FindFirstChildOfClass("Humanoid")
+
+                if Humanoid and (Humanoid.Health > 0 and not Character4:FindFirstChildOfClass("ForceField")) then
+                    local HumanoidRootPart5 = Character4:FindFirstChild("HumanoidRootPart")
+
+                    if HumanoidRootPart5 then
+                        local Magnitude = (HumanoidRootPart.Position - HumanoidRootPart5.Position).Magnitude
+
+                        if Magnitude < n3 and (t1.value34 or not t1.value46(value34, player)) then
+                            n3 = Magnitude
+                            v284 = Character4
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return v284
+end
+function t1.value48()
+    local ViewModels = t1.value6:FindFirstChild("ViewModels")
+
+    if not ViewModels then
+        return nil
+    end
+
+    local FirstPerson = ViewModels:FindFirstChild("FirstPerson")
+
+    if not FirstPerson then
+        return nil
+    end
+
+    for _, child in ipairs(FirstPerson:GetChildren()) do
+        local v275 = child.Name:find("-")
+
+        if v275 then
+            return child.Name:sub(v275 + 1):match("^%s*(.-)%s*$")
+        end
+    end
+
+    return nil
+end
+function t1.value49()
+    local v279 = t1.value16.AutoShootShootAttempt or 0
+
+    if v279 <= 0 then
+        return true
+    end
+
+    if v279 >= 100 then
+        return math.random(1, 100) <= 1
+    end
+
+    return 100 - v279 >= math.random(1, 100)
+end
+function t1.value50()
+    local Character = t1.value8.Character
+
+    if not Character then
+        return false
+    end
+
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+    if not Humanoid or Humanoid.Health <= 0 then
+        return false
+    end
+
+    return true
+end
+function t1.value51()
+    t1.value40 = true
+    t1.value41 = tick() + 5
+    task.delay(5, function()
+        t1.value40 = false
+    end)
+end
+t1.value8.CharacterAdded:Connect(function(character)
+    if t1.value37 then
+        t1.value51()
+    end
+
+    local Humanoid = character:WaitForChild("Humanoid", 10)
+
+    if Humanoid then
+        Humanoid.Died:Connect(function()
+            if t1.value37 then
+                t1.value51()
+            end
+        end)
+    end
+end)
+if t1.value8.Character then
+    local Humanoid = t1.value8.Character:FindFirstChildOfClass("Humanoid")
+
+    if Humanoid then
+        Humanoid.Died:Connect(function()
+            if t1.value37 then
+                t1.value51()
+            end
+        end)
+    end
+end
+t1.value52 = nil
+function t1.value52()
+    if not t1.value37 then
+        return
+    end
+
+    if t1.value40 and tick() < t1.value41 then
+        return
+    end
+
+    if not t1.value50() then
+        return
+    end
+
+    local v296 = t1.value48()
+    local g299
+
+    if v296 then
+        if not v296 then
+            v296 = false
+        else
+            g299 = nil
+
+            for _, v in ipairs(t1.value45) do
+                if v296 == v then
+                    v296 = true
+                    g299 = true
+                end
+
+                if g299 then
+                    break
+                end
+            end
+
+            if not g299 then
+                v296 = false
+            end
+        end
+    end
+
+    g299 = false
+
+    if v296 then
+        return
+    end
+
+    local timestamp = tick()
+    local v301 = t1.value16.AutoShootShootAttempt or 0
+
+    if ((if not (v301 <= 0) then v301 / 100 * 0.5 else 0)) > timestamp - t1.value39 then
+        return
+    end
+
+    if not t1.value49() then
+        return
+    end
+
+    local v302 = t1.value47()
+
+    if not v302 then
+        return
+    end
+
+    local Head = v302:FindFirstChild("Head")
+
+    if not Head then
+        return
+    end
+
+    local player = t1.value1:GetPlayerFromCharacter(v302)
+
+    if not player or t1.value18(player) then
+        return
+    end
+
+    pcall(function()
+        local FighterController = require(t1.value8.PlayerScripts.Controllers.FighterController)
+        local v548 = FighterController.LocalFighter and FighterController.LocalFighter.EquippedItem
+
+        if not v548 then
+            return
+        end
+
+        local v549 = v548:Get("ObjectID")
+
+        if not v549 then
+            return
+        end
+
+        local Character = t1.value8.Character
+        local v551 = Character and Character:FindFirstChild("HumanoidRootPart")
+        local v552 = t1.value34 or (v551 and v551.Position or Head.Position)
+        local v553 = utf8.char(1)
+        local v554 = utf8.char(0)
+        local v555 = t1.value43:EncodeCFrame(CFrame.new(v552, Head.Position))
+        local v556 = utf8.char(1)
+        local v557 = t1.value43:EncodeCFrame(CFrame.new(v552, Head.Position))
+        local v558 = utf8.char(2)
+        local v559 = Head
+        local v560 = utf8.char(3)
+        local v561 = t1.value43:EncodeCFrame(CFrame.new(0.43, 0.25, 0.42))
+        local t9 = {
+			[v553] = {
+				[v554] = v555,
+				[v556] = v557,
+				[v558] = v559,
+				[v560] = v561
+			}
+		}
+
+        t1.value4.Remotes.Replication.Fighter.UseItem:FireServer(v549, t1.value44:ToEnum("StartShooting"), t9, nil)
+    end)
+end
+function t1.value53()
+    if t1.value37 then
+        return
+    end
+
+    t1.value37 = true
+    t1.value40 = false
+    t1.value3.Heartbeat:Connect(function()
+        if t1.value37 then
+            t1.value52()
+        end
+    end)
+end
+t1.value54 = nil
+function t1.value55()
+    t1.value37 = false
+    t1.value40 = false
+
+    if t1.value38 then
+        t1.value38:Disconnect()
+    end
+end
+t1.value54 = false
+t1.value56 = nil
+function t1.value57()
+    if t1.value54 then
+        return
+    end
+
+    pcall(function()
+        local Items = require(game:GetService("ReplicatedStorage").Modules.ItemLibrary).Items
+
+        for _, v in pairs(Items) do
+            if typeof(v) == "table" then
+                if v.ShootSpread then
+                    v.ShootSpread = 0
+                end
+
+                if v.ShootAccuracy then
+                    v.ShootAccuracy = 0
+                end
+
+                if v.ShootRecoil then
+                    v.ShootRecoil = 0
+                end
+
+                if v.ShootCooldown then
+                    v.ShootCooldown = 0.001
+                end
+
+                if v.ShootBurstCooldown then
+                    v.ShootBurstCooldown = 0.001
+                end
+
+                if v.AttackCooldown then
+                    v.AttackCooldown = 0.001
+                end
+
+                if v.SwingCooldown then
+                    v.SwingCooldown = 0.001
+                end
+
+                if v.MeleeCooldown then
+                    v.MeleeCooldown = 0.001
+                end
+
+                if v.Cooldown then
+                    v.Cooldown = 0.001
+                end
+
+                if v.RecoveryTime then
+                    v.RecoveryTime = 0.001
+                end
+
+                if v.ResetTime then
+                    v.ResetTime = 0.001
+                end
+
+                if v.ReloadTime then
+                    v.ReloadTime = 0.001
+                end
+
+                if v.ChargeTime then
+                    v.ChargeTime = 0.001
+                end
+            end
+        end
+    end)
+end
+function t1.value58()
+    t1.value54 = false
+end
+t1.value59 = false
+t1.value60 = nil
+t1.value61 = nil
+t1.value62 = nil
+t1.value63 = nil
+t1.value64 = nil
+local function v58()
+    local v307 = t1.value8.Character or t1.value8.CharacterAdded:Wait()
+
+    t1.value63 = v307:WaitForChild("Humanoid")
+    t1.value64 = v307:WaitForChild("HumanoidRootPart")
+
+    if t1.value59 then
+        if t1.value60 then
+            t1.value60:Destroy()
+        end
+
+        t1.value63.PlatformStand = true
+        t1.value60 = Instance.new("Attachment", t1.value64)
+        t1.value61 = Instance.new("LinearVelocity", t1.value60)
+        t1.value61.MaxForce = 9000000000
+        t1.value61.VectorVelocity = Vector3.zero
+        t1.value61.Attachment0 = t1.value60
+        t1.value62 = Instance.new("AlignOrientation", t1.value60)
+        t1.value62.MaxTorque = 9000000000
+        t1.value62.Responsiveness = 200
+        t1.value62.Mode = Enum.OrientationAlignmentMode.OneAttachment
+        t1.value62.Attachment0 = t1.value60
+    end
+end
+t1.value8.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    v58()
+end)
+v58()
+t1.value65 = require(v2({ t1.value8.PlayerScripts:WaitForChild("PlayerModule") })):GetControls()
+t1.value3.RenderStepped:Connect(function()
+    local value59 = t1.value59
+
+    if value59 then
+        value59 = t1.value64 and (t1.value6.CurrentCamera and (t1.value61 and t1.value62))
+    end
+
+    if value59 then
+        local CurrentCamera = t1.value6.CurrentCamera
+        local MoveVector = t1.value65:GetMoveVector()
+        local v333 = t1.value16.FlySpeed or 80
+
+        if MoveVector.Magnitude > 0 then
+            t1.value61.VectorVelocity = (CurrentCamera.CFrame.LookVector * -MoveVector.Z + CurrentCamera.CFrame.RightVector * MoveVector.X).Unit * v333
+        else
+            t1.value61.VectorVelocity = Vector3.zero
+        end
+
+        t1.value62.CFrame = CurrentCamera.CFrame
+    end
+end)
+t1.value66 = nil
+function t1.value67()
+    v58()
+end
+function t1.value68()
+    if t1.value63 then
+        t1.value63.PlatformStand = false
+    end
+
+    if t1.value60 then
+        t1.value60:Destroy()
+    end
+end
+t1.value69 = false
+t1.value70 = {}
+t1.value66 = nil
+function t1.value71(p61, p62)
+    local drawing = Drawing.new(p61)
+
+    for k, v in pairs(p62) do
+        drawing[k] = v
+    end
+
+    return drawing
+end
+function t1.value72(_)
+    local t10 = {}
+
+    if t1.value16.EspBoxes then
+        local value71 = t1.value71
+        local color3_20 = Color3.new(0, 0, 0)
+
+        t10.BoxOutline = value71("Square", {
+			Visible = false,
+			Thickness = 3,
+			Filled = false,
+			Color = color3_20
+		})
+
+        local value71_2 = t1.value71
+        local color3_21 = Color3.new(1, 1, 1)
+
+        t10.Box = value71_2("Square", {
+			Visible = false,
+			Thickness = 1.5,
+			Filled = false,
+			Color = color3_21
+		})
+    end
+
+    if t1.value16.EspNames then
+        local value71 = t1.value71
+        local color3_22 = Color3.new(0, 0, 0)
+        local color3_23 = Color3.new(1, 1, 1)
+
+        t10.Name = value71("Text", {
+			Visible = false,
+			Center = true,
+			Outline = true,
+			OutlineColor = color3_22,
+			Size = 13,
+			Font = 2,
+			Color = color3_23
+		})
+    end
+
+    if t1.value16.EspHealth then
+        local value71 = t1.value71
+        local color3_24 = Color3.new(0, 0, 0)
+
+        t10.HealthBarBG = value71("Line", {
+			Visible = false,
+			Thickness = 5,
+			Color = color3_24
+		})
+
+        local value71_3 = t1.value71
+        local color3_25 = Color3.new(0, 1, 0)
+
+        t10.HealthBar = value71_3("Line", {
+			Visible = false,
+			Thickness = 3,
+			Color = color3_25
+		})
+    end
+
+    if t1.value16.EspDistance then
+        local value71 = t1.value71
+        local color3_26 = Color3.new(0, 0, 0)
+        local color3_27 = Color3.new(1, 1, 1)
+
+        t10.Distance = value71("Text", {
+			Visible = false,
+			Center = true,
+			Outline = true,
+			OutlineColor = color3_26,
+			Size = 11,
+			Font = 2,
+			Color = color3_27
+		})
+    end
+
+    if t1.value16.EspTracers then
+        local value71 = t1.value71
+        local color3_28 = Color3.new(1, 1, 1)
+
+        t10.Tracer = value71("Line", {
+			Visible = false,
+			Thickness = 1,
+			Color = color3_28
+		})
+    end
+
+    return t10
+end
+function t1.value73(p64, p65)
+    local v310 = p65 / 2
+    local t11 = {}
+    local v312 = true
+
+    for i = -1, 1, 2 do
+        for j = -1, 1, 2 do
+            for k = -1, 1, 2 do
+                local v316 = p64 * Vector3.new(v310.X * i, v310.Y * j, v310.Z * k)
+                local v317, v318 = t1.value42:WorldToViewportPoint(v316)
+
+                if not v318 then
+                    v312 = false
+                end
+
+                table.insert(t11, Vector2.new(v317.X, v317.Y))
+            end
+        end
+    end
+
+    return t11, v312
+end
+function t1.value74(p66)
+    for _, v in pairs(p66) do
+        if v and v.Visible then
+            v.Visible = false
+        end
+    end
+end
+local function v59()
+    if not t1.value69 then
+        for _, v in pairs(t1.value70) do
+            t1.value74(v)
+        end
+
+        return
+    end
+
+    for _, player in ipairs(t1.value1:GetPlayers()) do
+        if player ~= t1.value8 then
+            if t1.value18(player) then
+                if t1.value70[player] then
+                    t1.value74(t1.value70[player])
+                end
+            else
+                local Character = player.Character
+                local v363 = Character and Character:FindFirstChildOfClass("Humanoid")
+
+                if Character and (v363 and v363.Health > 0) then
+                    local ok, result, v366 = pcall(Character.GetBoundingBox, Character)
+
+                    if ok then
+                        ok = result and v366
+                    end
+
+                    if ok then
+                        local v367, v368 = t1.value73(result, v366)
+
+                        if not v368 then
+                            if t1.value70[player] then
+                                t1.value74(t1.value70[player])
+                            end
+                        else
+                            local v369 = t1.value70[player] or t1.value72(player)
+
+                            t1.value70[player] = v369
+
+                            local n4 = 1e999
+                            local n5 = -1e999
+                            local n6 = -1e999
+                            local n7 = 1e999
+
+                            for _, v in ipairs(v367) do
+                                n7 = math.min(n7, v.X)
+                                n4 = math.min(n4, v.Y)
+                                n5 = math.max(n5, v.X)
+                                n6 = math.max(n6, v.Y)
+                            end
+
+                            local v376 = n6 - n4
+                            local v377 = n5 - n7
+                            local v378 = v377 * 0.7
+                            local v379 = n7 + (v377 - v378) / 2
+                            local v380 = math.clamp(v363.Health / v363.MaxHealth, 0, 1)
+                            local Head = Character:FindFirstChild("Head")
+
+                            if v369.BoxOutline and t1.value16.EspBoxes then
+                                v369.BoxOutline.Visible = true
+                                v369.BoxOutline.Position = Vector2.new(v379 - 1, n4 - 1)
+                                v369.BoxOutline.Size = Vector2.new(v378 + 2, v376 + 2)
+                            end
+
+                            if v369.Box and t1.value16.EspBoxes then
+                                v369.Box.Visible = true
+                                v369.Box.Position = Vector2.new(v379, n4)
+                                v369.Box.Size = Vector2.new(v378, v376)
+                            end
+
+                            if v369.Name and t1.value16.EspNames then
+                                v369.Name.Visible = true
+                                v369.Name.Text = player.Name
+                                v369.Name.Position = Vector2.new(v379 + v378 / 2, n4 - 16)
+                            end
+
+                            local v382 = v376 * v380
+
+                            if v369.HealthBarBG and t1.value16.EspHealth then
+                                v369.HealthBarBG.Visible = true
+                                v369.HealthBarBG.From = Vector2.new(v379 - 6, n6)
+                                v369.HealthBarBG.To = Vector2.new(v379 - 6, n4)
+                            end
+
+                            if v369.HealthBar and t1.value16.EspHealth then
+                                v369.HealthBar.Visible = true
+
+                                if v380 > 0.7 then
+                                    v369.HealthBar.Color = Color3.fromRGB(0, 255, 0)
+                                elseif v380 > 0.3 then
+                                    v369.HealthBar.Color = Color3.fromRGB(255, 165, 0)
+                                else
+                                    v369.HealthBar.Color = Color3.fromRGB(255, 0, 0)
+                                end
+
+                                v369.HealthBar.From = Vector2.new(v379 - 6, n6)
+                                v369.HealthBar.To = Vector2.new(v379 - 6, n6 - v382)
+                            end
+
+                            if v369.Distance and (t1.value16.EspDistance and Head) then
+                                local v383 = t1.value8.Character and t1.value8.Character:FindFirstChild("HumanoidRootPart")
+
+                                if v383 then
+                                    local v384 = math.floor((v383.Position - Head.Position).Magnitude)
+
+                                    v369.Distance.Visible = true
+                                    v369.Distance.Text = v384 .. "m"
+                                    v369.Distance.Position = Vector2.new(v379 + v378 / 2, n6 + 4)
+                                end
+                            end
+
+                            if v369.Tracer and (t1.value16.EspTracers and Head) then
+                                local v385, v386 = t1.value42:WorldToViewportPoint(Head.Position)
+
+                                if v386 then
+                                    v369.Tracer.Visible = true
+                                    v369.Tracer.From = Vector2.new(t1.value42.ViewportSize.X / 2, t1.value42.ViewportSize.Y)
+                                    v369.Tracer.To = Vector2.new(v385.X, v385.Y)
+                                else
+                                    v369.Tracer.Visible = false
+                                end
+                            end
+                        end
+                    end
+                elseif t1.value70[player] then
+                    t1.value74(t1.value70[player])
+                end
+            end
+        end
+    end
+end
+function t1.value75()
+    t1.value69 = true
+
+    if t1.value66 then
+        t1.value66:Disconnect()
+    end
+
+    t1.value3.RenderStepped:Connect(v59)
+end
+function t1.value76()
+    t1.value69 = false
+
+    if t1.value66 then
+        t1.value66:Disconnect()
+        t1.value66 = nil
+    end
+
+    for _, v in pairs(t1.value70) do
+        local v339 = v
+
+        pcall(function()
+            for _, v5 in pairs(v339) do
+                if v5 and v5.Remove then
+                    v5:Remove()
+                end
+            end
+        end)
+    end
+
+    t1.value70 = {}
+end
+function t1.value56()
+    if t1.value69 then
+        t1.value76()
+        t1.value75()
+    end
+end
+t1.value1.PlayerRemoving:Connect(function(player)
+    if t1.value70[player] then
+        for _, v in pairs(t1.value70[player]) do
+            local v392 = v
+
+            pcall(function()
+                if v392 and v392.Remove then
+                    v392:Remove()
+                end
+            end)
+        end
+
+        t1.value70[player] = nil
+    end
+end)
+t1.value77 = {
+	enabled = false,
+	animationId = "",
+	loop = true,
+	speed = 2,
+	serverSide = true,
+	jitter = false,
+	jitterId = "",
+	jitterSpeed = 0.1,
+	spawnProof = true
+}
+t1.value78 = {}
+t1.value79 = 1
+t1.value80 = 0
+t1.value81 = {
+	["Underground Glitch"] = "138847307095534",
+	Orbit = "133811691098518",
+	Tweaking = "114353590132838",
+	["Kicking Feet"] = "131879764029003",
+	["Low Cortisol"] = "125822752810863",
+	Floss = "72174079036035",
+	["Take the L"] = "112884830175040",
+	["Upside Down"] = "128616002281906",
+	["Michael Myers Shake"] = "123682198526131",
+	Headless = "74738520664045",
+	["Wall Peek L"] = "123671647250039",
+	["Glitch Through"] = "85364072005108"
+}
+function t1.value82()
+    for _, v in ipairs(t1.value78) do
+        local v395 = v
+
+        pcall(function()
+            v395:Stop(0)
+            v395:Destroy()
+        end)
+    end
+
+    t1.value78 = {}
+end
+function t1.value83(p67)
+    if not p67 then
+        return nil
+    end
+
+    local Humanoid = p67:FindFirstChildOfClass("Humanoid")
+
+    if not Humanoid then
+        return nil
+    end
+
+    local Animator = Humanoid:FindFirstChildOfClass("Animator")
+
+    if not Animator then
+        Animator = Instance.new("Animator")
+        Animator.Parent = Humanoid
+    end
+
+    return Animator
+end
+t1.value84 = nil
+function t1.value84(p68)
+    local u410 = p68
+    local ok, result = pcall(function()
+        return game:GetObjects("rbxassetid://" .. u410)
+    end)
+    local v413 = not ok
+    if not v413 then
+        v413 = not result or #result == 0
+    end
+    if v413 then
+        return nil
+    end
+    local v414, v415, v416 = ipairs(result)
+    local v417
+    repeat
+        v416, v417 = v414(v415, v416)
+
+        if not v416 then
+            for _, v in ipairs(result) do
+                for _, descendant in ipairs(v:GetDescendants()) do
+                    if descendant:IsA("Animation") and descendant.AnimationId ~= "" then
+                        return descendant
+                    end
+                end
+            end
+
+            return nil
+        end
+    until v417:IsA("Animation") and v417.AnimationId ~= ""
+
+    return v417
+end
+function t1.value85(p69, p70, p71, p72)
+    local v403 = not p69
+
+    if not v403 then
+        v403 = p70 == ""
+    end
+
+    if v403 then
+        return nil
+    end
+
+    local v404 = t1.value83(p69)
+
+    if not v404 then
+        return nil
+    end
+
+    local u405 = t1.value84(p70)
+
+    if not u405 then
+        u405 = Instance.new("Animation")
+        u405.AnimationId = "rbxassetid://" .. p70
+    end
+
+    local ok, result = pcall(function()
+        return v404:LoadAnimation(u405)
+    end)
+    local v408 = not ok
+
+    if not v408 then
+        v408 = not result
+    end
+
+    if v408 then
+        pcall(function()
+            u405:Destroy()
+        end)
+
+        return nil
+    end
+
+    result.Looped = p72
+    result.Priority = Enum.AnimationPriority.Action4
+    result:Play(0.1, 1, p71)
+
+    return result
+end
+function t1.value86()
+    t1.value82()
+
+    if not t1.value77.enabled or t1.value77.animationId == "" then
+        return
+    end
+
+    local Character = t1.value8.Character
+
+    if Character then
+        local v423 = t1.value85(Character, t1.value77.animationId, t1.value77.speed, t1.value77.loop)
+
+        if v423 then
+            table.insert(t1.value78, v423)
+        end
+    end
+
+    if t1.value77.serverSide then
+        local Live = t1.value6:FindFirstChild("Live")
+
+        if Live then
+            local t1value8Name = Live:FindFirstChild(t1.value8.Name)
+
+            if t1value8Name then
+                local v426 = t1.value85(t1value8Name, t1.value77.animationId, t1.value77.speed, t1.value77.loop)
+
+                if v426 then
+                    table.insert(t1.value78, v426)
+                end
+            end
+        end
+    end
+end
+function t1.value87()
+    if not t1.value77.jitter or t1.value77.jitterId == "" then
+        return
+    end
+
+    if tick() - t1.value80 >= t1.value77.jitterSpeed then
+        t1.value79 = t1.value79 ~= 1 and 1 or 2
+        t1.value82()
+
+        local Character = t1.value8.Character
+
+        if Character then
+            local v428 = t1.value79 == 1 and t1.value77.animationId or t1.value77.jitterId
+            local v429 = t1.value85(Character, v428, t1.value77.speed, t1.value77.loop)
+
+            if v429 then
+                table.insert(t1.value78, v429)
+            end
+
+            if t1.value77.serverSide then
+                local Live = t1.value6:FindFirstChild("Live")
+
+                if Live then
+                    local t1value8Name = Live:FindFirstChild(t1.value8.Name)
+
+                    if t1value8Name then
+                        local v432 = t1.value85(t1value8Name, v428, t1.value77.speed, t1.value77.loop)
+
+                        if v432 then
+                            table.insert(t1.value78, v432)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+t1.value3.Heartbeat:Connect(function()
+    if not t1.value77.enabled then
+        return
+    end
+
+    if t1.value77.jitter then
+        t1.value87()
+    end
+
+    if #t1.value78 == 0 and t1.value77.animationId ~= "" then
+        t1.value86()
+    end
+
+    for _, v in ipairs(t1.value78) do
+        local v435 = v
+
+        pcall(function()
+            v435:AdjustSpeed(t1.value77.speed)
+        end)
+    end
+end)
+t1.value8.CharacterAdded:Connect(function()
+    task.wait(0.5)
+
+    if t1.value77.enabled and t1.value77.spawnProof then
+        t1.value86()
+    end
+end)
+getgenv().AnimPlayer = {
+	Enable = function()
+    t1.value77.enabled = true
+    t1.value86()
+end,
+	Disable = function()
+    t1.value77.enabled = false
+    t1.value82()
+end,
+	SetAnimation = function(p73)
+    t1.value77.animationId = p73
+
+    if t1.value77.enabled then
+        t1.value86()
+    end
+end,
+	SetSpeed = function(p74)
+    t1.value77.speed = p74
+end,
+	Play = t1.value86,
+	Stop = t1.value82,
+	Presets = t1.value81,
+	Config = t1.value77
+}
+local function v60(p75)
+    if p75 then
+        t1.value77.enabled = true
+
+        local v439 = t1.value81[t1.value16.AnimationPreset]
+
+        if v439 then
+            t1.value77.animationId = v439
+        end
+
+        t1.value77.speed = t1.value16.AnimationSpeed
+        t1.value77.loop = t1.value16.AnimationLoop
+        t1.value77.serverSide = t1.value16.AnimationServerSide
+        t1.value77.jitter = t1.value16.AnimationJitter
+        t1.value86()
+
+        return
+    end
+
+    t1.value77.enabled = false
+    t1.value82()
+end
+v51("Combat", "Wallbang", "Wallbang", function(p76)
+    if p76 then
+        v56()
+
+        return
+    end
+
+    t1.value36()
+end)
+v52("Combat", "Auto Shoot", "AutoShoot", 0, 100, "AutoShootShootAttempt", "%", function(p77)
+    if p77 then
+        t1.value53()
+
+        return
+    end
+
+    t1.value55()
+end, function(p78)
+    t1.value16.AutoShootShootAttempt = p78
+    t1.value17()
+end)
+v51("Combat", "Rapid Fire", "RapidFire", function(p79)
+    if p79 then
+        t1.value57()
+
+        return
+    end
+
+    t1.value58()
+end)
+v51("Combat", "Knife Backstab", "KnifeBackstab", v55)
+v50("Combat", "Knife Range", 5, 20, "KnifeRange", " studs", function(p80)
+    t1.value24:SetRange(p80)
+    t1.value16.KnifeRange = p80
+    t1.value17()
+end)
+v51("Visuals", "Player ESP", "Esp", function(p81)
+    if p81 then
+        t1.value75()
+
+        return
+    end
+
+    t1.value76()
+end)
+v51("Visuals", "ESP Boxes", "EspBoxes", function(p82)
+    t1.value16.EspBoxes = p82
+    t1.value17()
+    t1.value56()
+end)
+v51("Visuals", "ESP Names", "EspNames", function(p83)
+    t1.value16.EspNames = p83
+    t1.value17()
+    t1.value56()
+end)
+v51("Visuals", "ESP Health", "EspHealth", function(p84)
+    t1.value16.EspHealth = p84
+    t1.value17()
+    t1.value56()
+end)
+v51("Visuals", "ESP Distance", "EspDistance", function(p85)
+    t1.value16.EspDistance = p85
+    t1.value17()
+    t1.value56()
+end)
+v51("Visuals", "ESP Tracers", "EspTracers", function(p86)
+    t1.value16.EspTracers = p86
+    t1.value17()
+    t1.value56()
+end)
+v52("Movement", "Fly Mode", "Fly", 20, 200, "FlySpeed", "", function(p87)
+    if p87 then
+        t1.value67()
+
+        return
+    end
+
+    t1.value68()
+end, function(p88)
+    t1.value16.FlySpeed = p88
+    t1.value17()
+end)
+v51("Movement", "Infinite Jump", "InfiniteJump", function(p89)
+    if p89 then
+        t1.value29()
+
+        return
+    end
+
+    t1.value30()
+end)
+v51("Movement", "Noclip", "Noclip", function(p90)
+    if p90 then
+        t1.value31()
+
+        return
+    end
+
+    t1.value32()
+end)
+v50("Movement", "Noclip Speed", 10, 200, "NoclipSpeed", "", function(p91)
+    t1.value16.NoclipSpeed = p91
+    t1.value17()
+end)
+v51("Misc", "Animation", "AnimationEnabled", v60);
+(function(p92, p93, p94, p95, p96)
+    local v158 = t1.value23[p92]
+
+    if not v158 then
+        return
+    end
+
+    local Frame15 = Instance.new("Frame")
+
+    Frame15.Size = UDim2.new(1, 0, 0, 62)
+    Frame15.BackgroundColor3 = t1.value15.Surface
+    Frame15.BackgroundTransparency = 0
+    Frame15.BorderSizePixel = 0
+    Frame15.ZIndex = 12
+    Frame15.Parent = v158.scroll
+
+    local TextLabel11 = Instance.new("TextLabel")
+
+    TextLabel11.Size = UDim2.new(0, 120, 0, 14)
+    TextLabel11.Position = UDim2.new(0, 8, 0, 4)
+    TextLabel11.BackgroundTransparency = 1
+    TextLabel11.Text = p93
+    TextLabel11.Font = t1.value15.FontMedium
+    TextLabel11.TextSize = 10
+    TextLabel11.TextColor3 = t1.value15.Text
+    TextLabel11.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel11.ZIndex = 13
+    TextLabel11.Parent = Frame15
+
+    local TextButton = Instance.new("TextButton")
+
+    TextButton.Size = UDim2.new(1, -16, 0, 24)
+    TextButton.Position = UDim2.new(0, 8, 0, 22)
+    TextButton.BackgroundColor3 = t1.value15.SurfaceLight
+    TextButton.BorderSizePixel = 0
+    TextButton.Text = t1.value16[p94] or p95[1]
+    TextButton.Font = t1.value15.FontMedium
+    TextButton.TextSize = 9
+    TextButton.TextColor3 = t1.value15.Text
+    TextButton.ZIndex = 13
+    TextButton.AutoButtonColor = false
+    TextButton.Parent = Frame15
+
+    local TextLabel12 = Instance.new("TextLabel")
+
+    TextLabel12.Size = UDim2.new(0, 16, 0, 16)
+    TextLabel12.Position = UDim2.new(1, -20, 0, 4)
+    TextLabel12.BackgroundTransparency = 1
+    TextLabel12.Text = "▼"
+    TextLabel12.Font = t1.value15.Font
+    TextLabel12.TextSize = 8
+    TextLabel12.TextColor3 = t1.value15.TextSecondary
+    TextLabel12.ZIndex = 14
+    TextLabel12.Parent = TextButton
+    TextButton.MouseEnter:Connect(function()
+        t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+			BackgroundColor3 = t1.value15.HoverSurface
+		}):Play()
+    end)
+    TextButton.MouseLeave:Connect(function()
+        t1.value5:Create(TextButton, TweenInfo.new(0.2), {
+			BackgroundColor3 = t1.value15.SurfaceLight
+		}):Play()
+    end)
+    TextButton.MouseButton1Down:Connect(function()
+        t1.value5:Create(TextButton, TweenInfo.new(0.05), {
+			BackgroundColor3 = t1.value15.ClickSurface
+		}):Play()
+    end)
+    TextButton.MouseButton1Up:Connect(function()
+        t1.value5:Create(TextButton, TweenInfo.new(0.1), {
+			BackgroundColor3 = t1.value15.HoverSurface
+		}):Play()
+    end)
+
+    local TextButton2 = Instance.new("TextButton")
+
+    TextButton2.Size = UDim2.new(1, 0, 1, 0)
+    TextButton2.BackgroundTransparency = 1
+    TextButton2.Text = ""
+    TextButton2.Visible = false
+    TextButton2.ZIndex = 99
+    TextButton2.Parent = v158.frame
+
+    local Frame16 = Instance.new("Frame")
+
+    Frame16.Size = UDim2.new(1, 0, 0, 0)
+    Frame16.Position = UDim2.new(0, 0, 1, 2)
+    Frame16.BackgroundColor3 = t1.value15.Surface
+    Frame16.BackgroundTransparency = 0
+    Frame16.BorderSizePixel = 0
+    Frame16.ClipsDescendants = true
+    Frame16.Visible = false
+    Frame16.ZIndex = 100
+    Frame16.Parent = v158.frame
+
+    local UIStroke2 = Instance.new("UIStroke")
+
+    UIStroke2.Color = t1.value15.Border
+    UIStroke2.Thickness = 1
+    UIStroke2.Transparency = 0.5
+    UIStroke2.Parent = Frame16
+
+    local ScrollingFrame = Instance.new("ScrollingFrame")
+
+    ScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+    ScrollingFrame.BackgroundTransparency = 1
+    ScrollingFrame.BorderSizePixel = 0
+    ScrollingFrame.ScrollBarThickness = 3
+    ScrollingFrame.ScrollBarImageColor3 = t1.value15.Accent
+    ScrollingFrame.ScrollBarImageTransparency = 0.5
+    ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, #p95 * 24)
+    ScrollingFrame.ZIndex = 101
+    ScrollingFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    ScrollingFrame.Parent = Frame16
+
+    local UIListLayout = Instance.new("UIListLayout")
+
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 1)
+    UIListLayout.Parent = ScrollingFrame
+
+    local u168 = false
+    local t12 = {}
+
+    local function v170()
+        u168 = true
+
+        local v473 = math.min(#p95 * 24, 200)
+
+        Frame16.Size = UDim2.new(1, -16, 0, v473)
+        Frame16.Position = UDim2.new(0, 8, 0, 48)
+        Frame16.Visible = true
+        TextButton2.Visible = true
+        ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, #p95 * 24)
+        Frame15.Size = UDim2.new(1, 0, 0, 62)
+        TextLabel12.Text = "▲"
+    end
+
+    TextButton2.MouseButton1Click:Connect(function()
+        u168 = false
+        Frame16.Visible = false
+        TextButton2.Visible = false
+        Frame15.Size = UDim2.new(1, 0, 0, 62)
+        TextLabel12.Text = "▼"
+    end)
+
+    for _, v in ipairs(p95) do
+        local v173 = v
+        local TextButton3 = Instance.new("TextButton")
+
+        TextButton3.Size = UDim2.new(1, 0, 0, 22)
+        TextButton3.BackgroundColor3 = v173 == t1.value16[p94] and t1.value15.Accent or t1.value15.SurfaceLight
+        TextButton3.BackgroundTransparency = v173 ~= t1.value16[p94] and 0.2 or 0.4
+        TextButton3.BorderSizePixel = 0
+        TextButton3.Text = v173
+        TextButton3.Font = t1.value15.FontMedium
+        TextButton3.TextSize = 9
+        TextButton3.TextColor3 = v173 == t1.value16[p94] and Color3.new(1, 1, 1) or t1.value15.Text
+        TextButton3.ZIndex = 102
+        TextButton3.AutoButtonColor = false
+        TextButton3.Parent = ScrollingFrame
+        TextButton3.MouseButton1Click:Connect(function()
+            t1.value16[p94] = v173
+            t1.value17()
+            TextButton.Text = v173
+
+            for _, v6 in ipairs(t12) do
+                if v6.Text == v173 then
+                    v6.BackgroundColor3 = t1.value15.Accent
+                    v6.BackgroundTransparency = 0.4
+                    v6.TextColor3 = Color3.new(1, 1, 1)
+                else
+                    v6.BackgroundColor3 = t1.value15.SurfaceLight
+                    v6.BackgroundTransparency = 0.2
+                    v6.TextColor3 = t1.value15.Text
+                end
+            end
+
+            u168 = false
+            Frame16.Visible = false
+            TextButton2.Visible = false
+            Frame15.Size = UDim2.new(1, 0, 0, 62)
+            TextLabel12.Text = "▼"
+
+            if p96 then
+                p96(v173)
+            end
+        end)
+        TextButton3.MouseEnter:Connect(function()
+            if TextButton3.Text ~= t1.value16[p94] then
+                local value5 = t1.value5
+                local v477 = TextButton3
+                local tweenInfo = TweenInfo.new(0.15)
+                local Accent = t1.value15.Accent
+                local color3_29 = Color3.new(1, 1, 1)
+
+                value5:Create(v477, tweenInfo, {
+					BackgroundColor3 = Accent,
+					BackgroundTransparency = 0.6,
+					TextColor3 = color3_29
+				}):Play()
+            end
+        end)
+        TextButton3.MouseLeave:Connect(function()
+            if TextButton3.Text ~= t1.value16[p94] then
+                local value5 = t1.value5
+                local v482 = TextButton3
+                local tweenInfo = TweenInfo.new(0.15)
+                local SurfaceLight = t1.value15.SurfaceLight
+                local Create = value5.Create
+                local value15Text = t1.value15.Text
+
+                Create(value5, v482, tweenInfo, {
+					BackgroundColor3 = SurfaceLight,
+					BackgroundTransparency = 0.2,
+					TextColor3 = value15Text
+				}):Play()
+            end
+        end)
+        TextButton3.MouseButton1Down:Connect(function()
+            t1.value5:Create(TextButton3, TweenInfo.new(0.05), {
+				BackgroundColor3 = t1.value15.ClickAccent,
+				BackgroundTransparency = 0.3
+			}):Play()
+        end)
+        TextButton3.MouseButton1Up:Connect(function()
+            if TextButton3.Text == t1.value16[p94] then
+                t1.value5:Create(TextButton3, TweenInfo.new(0.1), {
+					BackgroundColor3 = t1.value15.Accent,
+					BackgroundTransparency = 0.4
+				}):Play()
+
+                return
+            end
+
+            t1.value5:Create(TextButton3, TweenInfo.new(0.1), {
+				BackgroundColor3 = t1.value15.Accent,
+				BackgroundTransparency = 0.6
+			}):Play()
+        end)
+        table.insert(t12, TextButton3)
+    end
+
+    TextButton.MouseButton1Click:Connect(function()
+        if u168 then
+            u168 = false
+            Frame16.Visible = false
+            TextButton2.Visible = false
+            Frame15.Size = UDim2.new(1, 0, 0, 62)
+            TextLabel12.Text = "▼"
+
+            return
+        end
+
+        v170()
+    end)
+    v158.scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        if u168 then
+            u168 = false
+            Frame16.Visible = false
+            TextButton2.Visible = false
+            Frame15.Size = UDim2.new(1, 0, 0, 62)
+            TextLabel12.Text = "▼"
+        end
+    end)
+
+    return Frame15
+end)("Misc", "Animation Preset", "AnimationPreset", {
+	"Underground Glitch",
+	"Orbit",
+	"Tweaking",
+	"Kicking Feet",
+	"Low Cortisol",
+	"Floss",
+	"Take the L",
+	"Upside Down",
+	"Michael Myers Shake",
+	"Headless",
+	"Wall Peek L",
+	"Glitch Through"
+}, function(p97)
+    t1.value16.AnimationPreset = p97
+    t1.value17()
+
+    local v443 = t1.value81[p97]
+
+    if v443 then
+        t1.value77.animationId = v443
+
+        if t1.value77.enabled then
+            t1.value86()
+        end
+    end
+end)
+v50("Misc", "Animation Speed", 1, 10, "AnimationSpeed", "x", function(p98)
+    t1.value16.AnimationSpeed = p98
+    t1.value17()
+    t1.value77.speed = p98
+end)
+v51("Misc", "Loop Animation", "AnimationLoop", function(p99)
+    t1.value16.AnimationLoop = p99
+    t1.value17()
+    t1.value77.loop = p99
+
+    if t1.value77.enabled then
+        t1.value86()
+    end
+end)
+v51("Misc", "Server Side", "AnimationServerSide", function(p100)
+    t1.value16.AnimationServerSide = p100
+    t1.value17()
+    t1.value77.serverSide = p100
+
+    if t1.value77.enabled then
+        t1.value86()
+    end
+end)
+v51("Misc", "Jitter Mode", "AnimationJitter", function(p101)
+    t1.value16.AnimationJitter = p101
+    t1.value17()
+    t1.value77.jitter = p101
+end)
+task.wait(0.1)
+for _, v in pairs(t1.value23) do
+    v.scroll.CanvasSize = UDim2.new(0, 0, 0, v.layout.AbsoluteContentSize.Y + 10)
+end
+t1.value88 = false
+t1.value89 = nil
+t1.value90 = nil
+t1.value19.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        t1.value88 = true
+        t1.value89 = input.Position
+        t1.value90 = t1.value19.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                t1.value88 = false
+            end
+        end)
+    end
+end)
+t1.value2.InputChanged:Connect(function(input)
+    local value88 = t1.value88
+
+    if value88 then
+        value88 = input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch
+    end
+
+    if value88 then
+        local v449 = input.Position - t1.value89
+
+        t1.value19.Position = UDim2.new(t1.value90.X.Scale, t1.value90.X.Offset + v449.X, t1.value90.Y.Scale, t1.value90.Y.Offset + v449.Y)
+    end
+end)
+t1.value91 = nil
+if t1.value9 then
+    t1.value91 = Instance.new("TextButton")
+    t1.value91.Size = UDim2.new(0, 28, 0, 28)
+    t1.value91.Position = UDim2.new(0, 6, 0.5, -14)
+    t1.value91.BackgroundColor3 = t1.value15.Surface
+    t1.value91.BackgroundTransparency = 0
+    t1.value91.BorderSizePixel = 0
+    t1.value91.Text = "✕"
+    t1.value91.Font = t1.value15.Font
+    t1.value91.TextSize = 14
+    t1.value91.TextColor3 = t1.value15.Text
+    t1.value91.ZIndex = 999999
+    t1.value91.AutoButtonColor = false
+    t1.value91.Parent = ScreenGui
+    t1.value91.MouseButton1Click:Connect(function()
+        t1.value19.Visible = not t1.value19.Visible
+        t1.value91.Text = not t1.value19.Visible and "☰" or "✕"
+    end)
+end
+if v4 then
+    t1.value2.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then
+            return
+        end
+
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            t1.value19.Visible = not t1.value19.Visible
+        end
+    end)
+end
+if t1.value16.Wallbang then
+    v56()
+end
+if t1.value16.AutoShoot then
+    t1.value53()
+end
+if t1.value16.RapidFire then
+    t1.value57()
+end
+if t1.value16.KnifeBackstab then
+    v55(true)
+end
+if t1.value16.Fly then
+    t1.value67()
+end
+if t1.value16.InfiniteJump then
+    t1.value29()
+end
+if t1.value16.Noclip then
+    t1.value31()
+end
+if t1.value16.Esp then
+    t1.value75()
+end
+if t1.value16.AnimationEnabled then
+    v60(true)
+end
+pcall(function()
+    if writefile and (isfolder and makefolder) then
+        if not isfolder("autoexec") then
+            makefolder("autoexec")
+        end
+
+        local source = debug.getinfo(1, "S").source
+
+        if source and source:sub(1, 1) == "@" then
+            local v453 = source:sub(2)
+
+            if isfile(v453) then
+                local v454 = readfile(v453)
+
+                writefile("autoexec/private_ui.lua", v454)
+            end
+        end
+    end
+end)

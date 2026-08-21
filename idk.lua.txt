@@ -1,0 +1,4364 @@
+-- This file was generated at discord.gg/syncrypt
+
+local t1 = {}
+local v2 = unpack or table.unpack
+if getgenv().P1X_MM2_Window then
+    pcall(function()
+        getgenv().P1X_MM2_Window:Destroy()
+    end)
+end
+if getgenv().P1X_MM2_Connections then
+    for _, v in pairs(getgenv().P1X_MM2_Connections) do
+        local v5 = v
+
+        pcall(function()
+            if v5 then
+                v5:Disconnect()
+            end
+        end)
+    end
+end
+getgenv().P1X_MM2_Connections = {}
+local GameId = game.GameId
+local n1 = 66654135
+if GameId ~= n1 then
+    local v8 = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+    local v9 = v8:CreateWindow({
+		Name = "P1xelPeak's MM2 Script - ERROR",
+		Icon = 0,
+		LoadingTitle = "P1xelPeak's MM2 Script",
+		LoadingSubtitle = "Wrong Game Detected",
+		Theme = "Default"
+	}):CreateTab("Error", 4483362458)
+
+    v9:CreateLabel("❌ This script only works in Murder Mystery 2!")
+    v9:CreateLabel("Current Game ID: " .. tostring(GameId))
+    v9:CreateLabel("Required Game ID: " .. tostring(n1))
+    v9:CreateLabel("Please join Murder Mystery 2 to use this hub.")
+    v8:Notify({
+		Title = "Wrong Game",
+		Content = "This script only works in Murder Mystery 2!",
+		Duration = 10
+	})
+
+    return
+end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+game:GetService("Lighting")
+game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+t1.value32 = Color3.fromRGB(85, 170, 255)
+t1.value34 = Color3.fromRGB(255, 50, 50)
+t1.value36 = Color3.fromRGB(50, 255, 50)
+t1.value38 = Color3.fromRGB(255, 255, 50)
+t1.value40 = Color3.fromRGB(150, 150, 150)
+local color3 = Color3.fromRGB(255, 255, 255)
+local t2 = {
+	Enabled = true,
+	ShowDistance = true,
+	ShowName = true,
+	ShowHealth = true,
+	ShowWeapon = true,
+	ShowRole = true,
+	ShowBox = true,
+	ShowTracers = false,
+	ShowSkeleton = false,
+	ShowHighlight = false,
+	MaxDistance = 500,
+	TeamCheck = false,
+	ColorMode = "Role",
+	UpdateRate = 0.1,
+	Font = 2,
+	TextSize = 14,
+	TextOutline = true,
+	BoxThickness = 1,
+	HighlightFillTransparency = 0.8,
+	HighlightOutlineTransparency = 0,
+	InnocentColor = t1.value32,
+	MurdererColor = t1.value34,
+	SheriffColor = t1.value36,
+	HeroColor = t1.value38,
+	SpectatorColor = t1.value40,
+	UnknownColor = color3
+}
+local color3_2 = Color3.fromRGB(255, 215, 0)
+local t3 = {
+	ShowCoinESP = false,
+	OutlineColor = color3_2
+}
+t1.value5 = Color3.fromRGB(50, 255, 50)
+local t4 = {
+	Enabled = false,
+	UseOutline = true,
+	OutlineColor = t1.value5,
+	UpdateRate = 0.5,
+	Aimbot = {
+		Enabled = false,
+		TargetPart = "HumanoidRootPart",
+		FOV = 200,
+		ShowFOV = true,
+		WallCheck = false
+	}
+}
+t1.value1 = {
+	Enabled = false,
+	Smoothing = 0.2,
+	FOV = 200,
+	TargetPart = "HumanoidRootPart"
+}
+t1.value4 = {
+	Enabled = false,
+	Range = 30,
+	HoldDistance = 2.5
+}
+t1.value3 = {
+	Blackhole = t1.value4,
+	AutoFlingMurderer = {
+		Enabled = false,
+		UpdateRate = 0.1
+	}
+}
+t1.value4 = {
+	Enabled = false,
+	Delay = 5,
+	MaxAttempts = 3
+}
+t1.value6 = {
+	Enabled = false,
+	Method = "Movement",
+	Interval = 30
+}
+t1.value9 = {
+	Enabled = false,
+	Speed = 50,
+	VerticalSpeed = 25,
+	Smoothness = 0.15,
+	Controls = {
+		Up = "Space",
+		Down = "LeftControl",
+		Forward = "W",
+		Backward = "S",
+		Left = "A",
+		Right = "D"
+	}
+}
+t1.value10 = {
+	Enabled = false,
+	Transparency = 0.5,
+	ShowIndicator = true
+}
+t1.value17 = Vector3.new(-25.95, 400, 3537.55)
+t1.value12 = {
+	Enabled = false,
+	SeatTeleportPosition = t1.value17,
+	Transparency = 0.75
+}
+t1.value14 = {
+	Enabled = false,
+	SpeedMultiplier = 2,
+	WalkSpeed = 16,
+	JumpPower = 50
+}
+t1.value16 = {
+	Enabled = false,
+	SuperJump = false,
+	InfiniteJump = false,
+	JumpMultiplier = 3,
+	LowGravity = false
+}
+t1.value18 = {
+	Enabled = false,
+	Mode = "Jitter",
+	Speed = 5,
+	Intensity = 10
+}
+t1.value7 = {
+	Flight = t1.value9,
+	Noclip = t1.value10,
+	Invis = t1.value12,
+	Speed = t1.value14,
+	Jump = t1.value16,
+	AntiAim = t1.value18,
+	WalkFling = {
+		Enabled = false
+	}
+}
+local t5 = {
+	ESP = t2,
+	Coin = t3,
+	GunESP = t4,
+	AutoAim = t1.value1,
+	Teleport = t1.value3,
+	AutoRejoin = t1.value4,
+	AntiAFK = t1.value6,
+	Movement = t1.value7,
+	Combat = {
+		HitboxExpander = {
+			Enabled = false,
+			Size = 10,
+			Transparency = 0.7
+		}
+	}
+}
+function t1.value2(p1, p2, p3)
+    for k, v in pairs(p3) do
+        local v130 = k
+        local v131 = type(v) == "table"
+
+        if v131 then
+            v131 = p2[v130]
+
+            if v131 then
+                v131 = type(p2[v130]) == "table"
+            end
+        end
+
+        if v131 then
+            p1:MergeConfigs(p2[v130], v)
+        else
+            p2[v130] = v
+        end
+    end
+end
+function t1.value5(p4, p5, p6, p7)
+    if t5[p5] then
+        t5[p5][p6] = p7
+    elseif t5.Movement[p5] then
+        t5.Movement[p5][p6] = p7
+    elseif t5.GunESP[p5] then
+        t5.GunESP[p5][p6] = p7
+    end
+
+    p4:Save()
+end
+local t7 = {
+	FileName = "P1xelPeak_MM2_Config.json",
+	FolderName = "P1xelPeak_MM2",
+	Save = function(p8)
+    local u119 = p8
+    local success, result = pcall(function()
+        if not isfolder(u119.FolderName) then
+            makefolder(u119.FolderName)
+        end
+
+        local json = HttpService:JSONEncode(t5)
+
+        writefile(u119.FolderName .. "/" .. u119.FileName, json)
+
+        return true
+    end)
+    if not success then
+        warn("Failed to save config: " .. tostring(result))
+
+        return false
+    end
+
+    return true
+end,
+	Load = function(p9)
+    local ok, result = pcall(function()
+        local v605 = not isfolder(p9.FolderName)
+
+        if not v605 then
+            v605 = not isfile(p9.FolderName .. "/" .. p9.FileName)
+        end
+
+        if v605 then
+            return false
+        end
+
+        local v606 = readfile(p9.FolderName .. "/" .. p9.FileName)
+        local data = HttpService:JSONDecode(v606)
+
+        p9:MergeConfigs(t5, data)
+
+        return true
+    end)
+
+    if not ok then
+        warn("Failed to load config: " .. tostring(result))
+
+        return false
+    end
+
+    return true
+end,
+	MergeConfigs = t1.value2,
+	SaveSetting = t1.value5
+}
+t7:Load()
+local v22 = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local v23 = v22
+t1.value11 = {
+	Enabled = false
+}
+local CreateWindow = v23.CreateWindow
+t1.value13 = {
+	Enabled = false,
+	Invite = "noinvitelink",
+	RememberJoins = true
+}
+local v25 = CreateWindow(v23, {
+	Name = "P1xelPeak MM2 Hub (V2)",
+	Icon = 0,
+	LoadingTitle = "P1xelPeak MM2 Hub",
+	LoadingSubtitle = "by P1xelPeak",
+	Theme = "Default",
+	DisableRayfieldPrompts = false,
+	DisableBuildWarnings = false,
+	ConfigurationSaving = t1.value11,
+	Discord = t1.value13,
+	KeySystem = false
+})
+getgenv().P1X_MM2_Window = v25
+local v26 = v25:CreateTab("Movement", 4483362458)
+local v27 = v25:CreateTab("Teleport", 4483362458)
+local v28 = v25:CreateTab("Combat", 4483362458)
+local v29 = v25:CreateTab("Visuals", 4483362458)
+t1.value1 = v25:CreateTab("Utility", 4483362458)
+local LocalPlayer = Players.LocalPlayer
+t1.value5 = LocalPlayer
+if not t1.value5.Character then
+    LocalPlayer.CharacterAdded:Wait()
+end
+Color3.fromRGB(85, 170, 255)
+Color3.fromRGB(255, 50, 50)
+Color3.fromRGB(50, 255, 50)
+Color3.fromRGB(255, 255, 50)
+Color3.fromRGB(150, 150, 150)
+Color3.fromRGB(255, 255, 255)
+t1.value6 = {
+	Icon = "🔪"
+}
+t1.value7 = {
+	Icon = "🔫"
+}
+t1.value9 = {
+	Icon = "🔫"
+}
+local t8 = {
+	Knife = t1.value6,
+	Gun = t1.value7,
+	Default = t1.value9,
+	None = {
+		Icon = ""
+	}
+}
+local t9 = {}
+local t10 = {}
+t1.value7 = getgenv()
+t1.value4 = "P1X_MM2_Connections"
+t1.value8 = getgenv().P1X_MM2_Connections or {}
+t1.value7[t1.value4] = t1.value8
+t1.value8 = getgenv()
+t1.value4 = t1.value8.P1X_MM2_Connections
+local value4 = t1.value4
+local t11 = {}
+local t12 = {}
+local t13 = {}
+local t14 = {}
+function t1.value33(p10)
+    local Character = LocalPlayer.Character
+
+    if Character then
+        local GetDescendants = Character.GetDescendants
+
+        for _, v in pairs(GetDescendants(Character)) do
+            local v141 = v:IsA("BasePart")
+
+            if v141 then
+                v141 = v.Name ~= "HumanoidRootPart"
+            end
+
+            if v141 then
+                v.Transparency = p10
+            end
+        end
+    end
+end
+t1.value12 = {
+	Active = false,
+	BodyVelocity = nil,
+	BodyGyro = nil,
+	Connections = {}
+}
+t1.value18 = {}
+t1.value14 = {
+	Active = false,
+	OriginalCollisions = t1.value18,
+	Indicator = nil,
+	Connections = {}
+}
+t1.value16 = {
+	Active = false,
+	OriginalWalkSpeed = 16,
+	OriginalJumpPower = 50
+}
+t1.value18 = {
+	Active = false,
+	CanInfiniteJump = false,
+	Connections = {}
+}
+t1.value20 = {
+	Active = false,
+	OriginalC0 = nil
+}
+t1.value22 = {
+	Active = false,
+	OriginalCFrame = nil,
+	SpinAngle = 0,
+	Connections = {}
+}
+t1.value24 = {
+	Active = false,
+	Connections = {}
+}
+t1.value4 = {
+	Flight = t1.value12,
+	Noclip = t1.value14,
+	Speed = t1.value16,
+	Jump = t1.value18,
+	Invis = t1.value20,
+	AntiAim = t1.value22,
+	WalkFling = t1.value24,
+	Blackhole = {
+		Active = false,
+		Connections = {}
+	}
+}
+local value4_2 = t1.value4
+local t15 = {
+	Attempts = 0,
+	Connection = nil
+}
+t1.value17 = tick()
+local t16 = {
+	Connection = nil,
+	LastActivity = t1.value17
+}
+t1.value17 = Drawing.Fonts.UI
+t1.value19 = Drawing.Fonts.System
+t1.value23 = Drawing
+t1.value21 = t1.value23.Fonts.Monospace
+t1.value24 = Drawing.Fonts
+function t1.value30(p11)
+    local HumanoidRootPart = p11:FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart then
+        HumanoidRootPart = p11:FindFirstChild("Torso") or p11:FindFirstChild("UpperTorso")
+    end
+
+    return HumanoidRootPart
+end
+t1.value23 = t1.value24.Monospace
+t1.value4 = {
+	Fonts = {
+		[0] = t1.value17,
+		[1] = t1.value19,
+		[2] = t1.value21,
+		[3] = t1.value23
+	}
+}
+function t1.value19(p12)
+    local Character = p12.Character
+
+    if not Character then
+        return 0, 0
+    end
+
+    local Humanoid = Character:FindFirstChild("Humanoid")
+
+    if Humanoid then
+        return Humanoid.Health, Humanoid.MaxHealth
+    end
+
+    return 0, 100
+end
+function t1.value18(p13)
+    local Character = p13.Character
+
+    if not Character then
+        return "None"
+    end
+
+    if Character:FindFirstChild("Knife") then
+        return "Knife"
+    end
+
+    local Gun = Character:FindFirstChild("Gun")
+
+    if not Gun then
+        Gun = Character:FindFirstChild("Default")
+    end
+
+    if Gun then
+        return "Gun"
+    end
+
+    local Backpack = p13:FindFirstChild("Backpack")
+
+    if Backpack then
+        if Backpack:FindFirstChild("Knife") then
+            return "Knife"
+        end
+
+        local Gun2 = Backpack:FindFirstChild("Gun")
+
+        if not Gun2 then
+            Gun2 = Backpack:FindFirstChild("Default")
+        end
+
+        if Gun2 then
+            return "Gun"
+        end
+    end
+
+    return "None"
+end
+function t1.value27(p14)
+    if p14 == value4_2.Speed.Active then
+        return
+    end
+
+    value4_2.Speed.Active = p14
+    t5.Movement.Speed.Enabled = p14
+    t7:SaveSetting("Movement", "Speed", t5.Movement.Speed)
+
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        if p14 then
+            v22:Notify({
+				Title = "Speed Hack",
+				Content = "Waiting for character to load...",
+				Duration = 2
+			})
+        end
+
+        return
+    end
+
+    local Humanoid = Character:FindFirstChild("Humanoid")
+
+    if not Humanoid then
+        return
+    end
+
+    if p14 then
+        value4_2.Speed.OriginalWalkSpeed = Humanoid.WalkSpeed
+        value4_2.Speed.OriginalJumpPower = Humanoid.JumpPower
+        Humanoid.WalkSpeed = t5.Movement.Speed.WalkSpeed * t5.Movement.Speed.SpeedMultiplier
+        Humanoid.JumpPower = t5.Movement.Speed.JumpPower
+
+        local v156 = v22
+        local v157 = string.format("Speed enabled! WalkSpeed: %d", Humanoid.WalkSpeed)
+
+        v156:Notify({
+			Title = "Speed Hack",
+			Content = v157,
+			Duration = 3
+		})
+
+        return
+    end
+
+    Humanoid.WalkSpeed = value4_2.Speed.OriginalWalkSpeed
+    Humanoid.JumpPower = value4_2.Speed.OriginalJumpPower
+    v22:Notify({
+		Title = "Speed Hack",
+		Content = "Speed disabled",
+		Duration = 2
+	})
+end
+function t1.value17(p15)
+    local Character = p15.Character
+
+    if not Character then
+        return "Unknown"
+    end
+
+    if Character:FindFirstChild("Knife") then
+        return "Murderer"
+    end
+
+    local Backpack = p15:FindFirstChild("Backpack")
+
+    if Backpack and Backpack:FindFirstChild("Knife") then
+        return "Murderer"
+    end
+
+    if Character:FindFirstChild("Gun") or Character:FindFirstChild("Default") then
+        return "Sheriff"
+    end
+
+    if Backpack then
+        local Gun = Backpack:FindFirstChild("Gun")
+
+        if not Gun then
+            Gun = Backpack:FindFirstChild("Default")
+        end
+
+        Backpack = Gun
+    end
+
+    if Backpack then
+        return "Sheriff"
+    end
+
+    return "Innocent"
+end
+local value4_3 = t1.value4
+function t1.value28(p16)
+    if p16 == value4_2.Jump.Active then
+        return
+    end
+
+    value4_2.Jump.Active = p16
+    t5.Movement.Jump.Enabled = p16
+    t7:SaveSetting("Movement", "Jump", t5.Movement.Jump)
+
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        if p16 then
+            v22:Notify({
+				Title = "Jump Hack",
+				Content = "Waiting for character to load...",
+				Duration = 2
+			})
+        end
+
+        return
+    end
+
+    local Humanoid = Character:FindFirstChild("Humanoid")
+
+    if not Humanoid then
+        return
+    end
+
+    if p16 then
+        value4_2.Jump.OriginalJumpPower = Humanoid.JumpPower
+        value4_2.Jump.OriginalGravity = Workspace.Gravity
+
+        if t5.Movement.Jump.SuperJump then
+            Humanoid.JumpPower = value4_2.Jump.OriginalJumpPower * t5.Movement.Jump.JumpMultiplier
+        end
+
+        if t5.Movement.Jump.LowGravity then
+            Workspace.Gravity = value4_2.Jump.OriginalGravity * 0.3
+        end
+
+        if t5.Movement.Jump.InfiniteJump then
+            value4_2.Jump.CanInfiniteJump = true
+
+            if value4_2.Jump.Connections.JumpRequest then
+                value4_2.Jump.Connections.JumpRequest:Disconnect()
+            end
+
+            if value4_2.Jump.Connections.InputBegan then
+                value4_2.Jump.Connections.InputBegan:Disconnect()
+            end
+
+            if value4_2.Jump.Connections.InputEnded then
+                value4_2.Jump.Connections.InputEnded:Disconnect()
+            end
+
+            value4_2.Jump.Connections.JumpRequest = Humanoid.Jumping:Connect(function()
+                if value4_2.Jump.CanInfiniteJump then
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end)
+            value4_2.Jump.Connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                local v613 = not gameProcessed
+
+                if v613 then
+                    v613 = input.KeyCode == Enum.KeyCode.Space
+                end
+
+                if v613 then
+                    value4_2.Jump.CanInfiniteJump = true
+                end
+            end)
+            value4_2.Jump.Connections.InputEnded = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                local v616 = not gameProcessed
+
+                if v616 then
+                    v616 = input.KeyCode == Enum.KeyCode.Space
+                end
+
+                if v616 then
+                    value4_2.Jump.CanInfiniteJump = false
+                end
+            end)
+        end
+
+        v22:Notify({
+			Title = "Jump Hack",
+			Content = "Jump modifications enabled",
+			Duration = 3
+		})
+
+        return
+    end
+
+    Humanoid.JumpPower = value4_2.Jump.OriginalJumpPower
+    Workspace.Gravity = value4_2.Jump.OriginalGravity
+
+    for _, v in pairs(value4_2.Jump.Connections) do
+        if v then
+            v:Disconnect()
+        end
+    end
+
+    value4_2.Jump.Connections = {}
+    value4_2.Jump.CanInfiniteJump = false
+    v22:Notify({
+		Title = "Jump Hack",
+		Content = "Jump modifications disabled",
+		Duration = 2
+	})
+end
+t1.value15 = value4_3
+function t1.value4(_, p18, p19)
+    local drawing = Drawing.new(p18)
+
+    if p19 then
+        for k, v in pairs(p19) do
+            drawing[k] = v
+        end
+    end
+
+    return drawing
+end
+t1.value15.Create = t1.value4
+function t1.value4(p20)
+    if not p20 then
+        return nil
+    end
+
+    local HumanoidRootPart = p20:FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart then
+        HumanoidRootPart = p20:FindFirstChild("Torso") or p20:FindFirstChild("UpperTorso")
+    end
+
+    return HumanoidRootPart
+end
+function t1.value29(p21)
+    if p21 == value4_2.AntiAim.Active then
+        return
+    end
+
+    value4_2.AntiAim.Active = p21
+    t5.Movement.AntiAim.Enabled = p21
+    t7:SaveSetting("Movement", "AntiAim", t5.Movement.AntiAim)
+
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        if p21 then
+            v22:Notify({
+				Title = "Anti-Aim",
+				Content = "Waiting for character to load...",
+				Duration = 2
+			})
+        end
+
+        return
+    end
+
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart then
+        return
+    end
+
+    if p21 then
+        value4_2.AntiAim.OriginalCFrame = HumanoidRootPart.CFrame
+        value4_2.AntiAim.SpinAngle = 0
+
+        if value4_2.AntiAim.Connections.AntiAimUpdate then
+            value4_2.AntiAim.Connections.AntiAimUpdate:Disconnect()
+        end
+
+        value4_2.AntiAim.Connections.AntiAimUpdate = RunService.RenderStepped:Connect(function(dt)
+            if not value4_2.AntiAim.Active or not HumanoidRootPart then
+                if value4_2.AntiAim.Connections.AntiAimUpdate then
+                    value4_2.AntiAim.Connections.AntiAimUpdate:Disconnect()
+                    value4_2.AntiAim.Connections.AntiAimUpdate = nil
+                end
+
+                return
+            end
+
+            local AntiAimMode = t5.Movement.AntiAim.Mode
+            local AntiAimSpeed = t5.Movement.AntiAim.Speed
+            local Intensity = t5.Movement.AntiAim.Intensity
+
+            if AntiAimMode == "Jitter" then
+                local vector3 = Vector3.new(math.random(-Intensity, Intensity) / 100, math.random(-Intensity, Intensity) / 100, math.random(-Intensity, Intensity) / 100)
+
+                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame * CFrame.new(vector3)
+
+                return
+            end
+
+            if AntiAimMode == "Spin" then
+                value4_2.AntiAim.SpinAngle = (value4_2.AntiAim.SpinAngle + AntiAimSpeed * dt * 10) % 360
+
+                local v622 = math.rad(value4_2.AntiAim.SpinAngle)
+                local vector3 = Vector3.new(math.sin(v622) * 2, 0, math.cos(v622) * 2)
+
+                HumanoidRootPart.CFrame = CFrame.lookAt(HumanoidRootPart.Position + vector3, HumanoidRootPart.Position)
+
+                return
+            end
+
+            if AntiAimMode == "Desync" then
+                local timestamp = tick()
+                local v625 = math.sin(timestamp * AntiAimSpeed) * Intensity / 50
+
+                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame * CFrame.Angles(0, v625, 0)
+            end
+        end)
+
+        local AntiAimMode = t5.Movement.AntiAim.Mode
+        local v179 = v22
+        local Notify = v179.Notify
+        local v181 = "Anti-Aim enabled! Mode: " .. AntiAimMode
+
+        Notify(v179, {
+			Title = "Anti-Aim",
+			Content = v181,
+			Duration = 3
+		})
+
+        return
+    end
+
+    local v182 = HumanoidRootPart
+
+    if v182 then
+        v182 = value4_2.AntiAim.OriginalCFrame
+    end
+
+    if v182 then
+        HumanoidRootPart.CFrame = value4_2.AntiAim.OriginalCFrame
+    end
+
+    if value4_2.AntiAim.Connections.AntiAimUpdate then
+        value4_2.AntiAim.Connections.AntiAimUpdate:Disconnect()
+        value4_2.AntiAim.Connections.AntiAimUpdate = nil
+    end
+
+    v22:Notify({
+		Title = "Anti-Aim",
+		Content = "Anti-Aim disabled",
+		Duration = 2
+	})
+end
+function t1.value16(p22)
+    local v184, v185 = workspace.CurrentCamera:WorldToViewportPoint(p22)
+
+    return Vector2.new(v184.X, v184.Y), v185, v184.Z
+end
+local value16 = t1.value16
+local value17 = t1.value17
+function t1.value25(p23)
+    if p23 == value4_2.Flight.Active then
+        return
+    end
+
+    value4_2.Flight.Active = p23
+    t5.Movement.Flight.Enabled = p23
+    t7:SaveSetting("Movement", "Flight", t5.Movement.Flight)
+
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        if p23 then
+            v22:Notify({
+				Title = "Flight Mode",
+				Content = "Waiting for character to load...",
+				Duration = 2
+			})
+        end
+
+        return
+    end
+
+    local Humanoid = Character:FindFirstChild("Humanoid")
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+
+    if not Humanoid or not HumanoidRootPart then
+        return
+    end
+
+    if p23 then
+        if value4_2.Flight.BodyVelocity then
+            value4_2.Flight.BodyVelocity:Destroy()
+            value4_2.Flight.BodyVelocity = nil
+        end
+
+        if value4_2.Flight.BodyGyro then
+            value4_2.Flight.BodyGyro:Destroy()
+            value4_2.Flight.BodyGyro = nil
+        end
+
+        value4_2.Flight.BodyVelocity = Instance.new("BodyVelocity")
+        value4_2.Flight.BodyGyro = Instance.new("BodyGyro")
+        value4_2.Flight.BodyVelocity.Parent = HumanoidRootPart
+        value4_2.Flight.BodyGyro.Parent = HumanoidRootPart
+        value4_2.Flight.BodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
+        value4_2.Flight.BodyVelocity.P = 1000
+        value4_2.Flight.BodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+        value4_2.Flight.BodyGyro.P = 1000
+        value4_2.Flight.BodyGyro.D = 50
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+
+        if value4_2.Flight.Connections.FlightUpdate then
+            value4_2.Flight.Connections.FlightUpdate:Disconnect()
+        end
+
+        value4_2.Flight.Connections.FlightUpdate = RunService.RenderStepped:Connect(function(_)
+            local v627 = not value4_2.Flight.Active
+
+            if not v627 then
+                v627 = not Character or not HumanoidRootPart
+            end
+
+            if v627 then
+                if value4_2.Flight.Connections.FlightUpdate then
+                    value4_2.Flight.Connections.FlightUpdate:Disconnect()
+                    value4_2.Flight.Connections.FlightUpdate = nil
+                end
+
+                return
+            end
+
+            local CurrentCamera = Workspace.CurrentCamera
+            local vector3 = Vector3.new(0, 0, 0)
+
+            if UserInputService:IsKeyDown(Enum.KeyCode[t5.Movement.Flight.Controls.Forward]) then
+                vector3 += CurrentCamera.CFrame.LookVector
+            end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode[t5.Movement.Flight.Controls.Backward]) then
+                vector3 -= CurrentCamera.CFrame.LookVector
+            end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode[t5.Movement.Flight.Controls.Left]) then
+                vector3 -= CurrentCamera.CFrame.RightVector
+            end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode[t5.Movement.Flight.Controls.Right]) then
+                vector3 += CurrentCamera.CFrame.RightVector
+            end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode[t5.Movement.Flight.Controls.Up]) then
+                vector3 += Vector3.new(0, 1, 0)
+            end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode[t5.Movement.Flight.Controls.Down]) then
+                vector3 -= Vector3.new(0, 1, 0)
+            end
+
+            if vector3.Magnitude > 0 then
+                local Unit = vector3.Unit
+
+                value4_2.Flight.BodyVelocity.Velocity = Unit * t5.Movement.Flight.Speed
+            else
+                value4_2.Flight.BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
+
+            value4_2.Flight.BodyGyro.CFrame = CurrentCamera.CFrame
+        end)
+        v22:Notify({
+			Title = "Flight Mode",
+			Content = "Flight enabled! Use WASD + Space/LCtrl to fly",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if value4_2.Flight.BodyVelocity then
+        value4_2.Flight.BodyVelocity:Destroy()
+        value4_2.Flight.BodyVelocity = nil
+    end
+
+    if value4_2.Flight.BodyGyro then
+        value4_2.Flight.BodyGyro:Destroy()
+        value4_2.Flight.BodyGyro = nil
+    end
+
+    if Humanoid then
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+    end
+
+    for _, v in pairs(value4_2.Flight.Connections) do
+        if v then
+            v:Disconnect()
+        end
+    end
+
+    value4_2.Flight.Connections = {}
+    v22:Notify({
+		Title = "Flight Mode",
+		Content = "Flight disabled",
+		Duration = 2
+	})
+end
+function t1.value20(p25, p26, p27)
+    local InnocentColor = t5.ESP.InnocentColor
+    local MurdererColor = t5.ESP.MurdererColor
+    local SheriffColor = t5.ESP.SheriffColor
+    local HeroColor = t5.ESP.HeroColor
+    local SpectatorColor = t5.ESP.SpectatorColor
+    local UnknownColor = t5.ESP.UnknownColor
+    local t17 = {
+		Innocent = InnocentColor,
+		Murderer = MurdererColor,
+		Sheriff = SheriffColor,
+		Hero = HeroColor,
+		Spectator = SpectatorColor,
+		Unknown = UnknownColor
+	}
+
+    if t5.ESP.ColorMode == "Role" then
+        local v202 = t17[p26] or t17.Unknown
+
+        if p27 == "Knife" then
+            return t17.Murderer
+        end
+
+        if p27 == "Gun" then
+            return t17.Sheriff
+        end
+
+        return v202
+    end
+
+    if t5.ESP.ColorMode == "Team" then
+        return p25.TeamColor.Color
+    end
+
+    if p26 == "Innocent" then
+        return t5.ESP.InnocentColor
+    end
+
+    if p26 == "Murderer" then
+        return t5.ESP.MurdererColor
+    end
+
+    if p26 == "Sheriff" then
+        return t5.ESP.SheriffColor
+    end
+
+    if p26 == "Hero" then
+        return t5.ESP.HeroColor
+    end
+
+    if p26 == "Spectator" then
+        return t5.ESP.SpectatorColor
+    end
+
+    return t5.ESP.UnknownColor
+end
+function t1.value23(p28, p29)
+    local _mousemoverel = mousemoverel
+
+    if not _mousemoverel then
+        _mousemoverel = Input
+
+        if _mousemoverel then
+            _mousemoverel = Input.MouseMoveRelative
+        end
+
+        if not _mousemoverel then
+            _mousemoverel = MouseMoveRelative or MouseMoveRel
+        end
+    end
+
+    if _mousemoverel then
+        _mousemoverel(p28, p29)
+
+        return
+    end
+
+    if not getgenv().MM2_Aimbot_ErrorNotified then
+        getgenv().MM2_Aimbot_ErrorNotified = true
+        v22:Notify({
+			Title = "Aimbot Error",
+			Content = "Your executor lacks a mouse movement function",
+			Duration = 5
+		})
+    end
+end
+local value18 = t1.value18
+function t1.value21(p30, _)
+    local players = Players:GetPlayers()
+    local t18 = {}
+    for v212, v213 in ipairs(players) do
+
+        if v213 ~= LocalPlayer and v213.Character then
+            value17(v213)
+
+            local v214 = value18(v213)
+
+            if p30 == "Murderer" and v214 == "Knife" then
+                table.insert(t18, {
+					Player = v213,
+					Distance = 0
+				})
+            elseif p30 == "Sheriff" and v214 == "Gun" then
+                table.insert(t18, {
+					Player = v213,
+					Distance = 0
+				})
+            end
+        end
+    end
+    local Character = LocalPlayer.Character
+    if Character then
+        local Position = Character:GetPivot().Position
+
+        for _, v in ipairs(t18) do
+            if v.Player.Character then
+                v.Distance = (Position - v.Player.Character:GetPivot().Position).Magnitude
+            end
+        end
+
+        table.sort(t18, function(p32, p33)
+            return p32.Distance < p33.Distance
+        end)
+    end
+
+    return t18
+end
+function t1.value24(p34)
+    if not t5.GunESP.Aimbot.WallCheck then
+        return true
+    end
+
+    local CurrentCamera = workspace.CurrentCamera
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        return false
+    end
+
+    local raycastParams = RaycastParams.new()
+
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {
+		Character,
+		CurrentCamera
+	}
+
+    local CFramePosition = CurrentCamera.CFrame.Position
+    local v224 = p34.Position - CFramePosition
+    local raycastResult = workspace:Raycast(CFramePosition, v224, raycastParams)
+
+    if raycastResult then
+        return raycastResult.Instance:IsDescendantOf(p34.Parent)
+    end
+
+    return true
+end
+local value19 = t1.value19
+local value20 = t1.value20
+local value21 = t1.value21
+function t1.value21(p35)
+    local Character = LocalPlayer.Character
+
+    if Character then
+        local GetDescendants = Character.GetDescendants
+
+        for _, v in pairs(GetDescendants(Character)) do
+            local v231 = v:IsA("BasePart")
+
+            if v231 then
+                v231 = v.Name ~= "HumanoidRootPart"
+            end
+
+            if v231 then
+                v.Transparency = p35
+            end
+        end
+    end
+end
+local value23 = t1.value23
+local value24 = t1.value24
+local value25 = t1.value25
+function t1.value24()
+    LocalPlayer.CharacterAdded:Connect(function(_)
+        wait(1)
+
+        if t5.Movement.Flight.Enabled then
+            task.wait(0.5)
+            ToggleFlight(true)
+        end
+
+        if t5.Movement.Noclip.Enabled then
+            task.wait(0.5)
+            ToggleNoclip(true)
+        end
+
+        if t5.Movement.Speed.Enabled then
+            task.wait(0.5)
+            ToggleSpeed(true)
+        end
+
+        if t5.Movement.Jump.Enabled then
+            task.wait(0.5)
+            ToggleJump(true)
+        end
+
+        if t5.Movement.AntiAim.Enabled then
+            task.wait(0.5)
+            ToggleAntiAim(true)
+        end
+
+        if t5.Movement.WalkFling.Enabled then
+            task.wait(0.5)
+            ToggleWalkFling(true)
+        end
+
+        if t5.Teleport.Blackhole.Enabled then
+            task.wait(0.5)
+            ToggleBlackhole(true)
+        end
+    end)
+end
+function t1.value26(p37)
+    if p37 == value4_2.Noclip.Active then
+        return
+    end
+
+    value4_2.Noclip.Active = p37
+    t5.Movement.Noclip.Enabled = p37
+    t7:SaveSetting("Movement", "Noclip", t5.Movement.Noclip)
+
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        if p37 then
+            v22:Notify({
+				Title = "Noclip",
+				Content = "Waiting for character to load...",
+				Duration = 2
+			})
+        end
+
+        return
+    end
+
+    if p37 then
+        for _, descendant in pairs(Character:GetDescendants()) do
+            if descendant:IsA("BasePart") then
+                value4_2.Noclip.OriginalCollisions[descendant] = descendant.CanCollide
+                descendant.CanCollide = false
+
+                if t5.Movement.Noclip.Transparency > 0 then
+                    descendant.Transparency = t5.Movement.Noclip.Transparency
+                end
+            end
+        end
+
+        local ShowIndicator = t5.Movement.Noclip.ShowIndicator
+
+        if ShowIndicator then
+            ShowIndicator = not value4_2.Noclip.Indicator
+        end
+
+        if ShowIndicator then
+            local Noclip = value4_2.Noclip
+            local v238 = value4_3
+            local v239 = value4_3.Fonts[2]
+            local color3_3 = Color3.fromRGB(255, 50, 50)
+            local Create = v238.Create
+            local vector2 = Vector2.new(10, 50)
+
+            Noclip.Indicator = Create(v238, "Text", {
+				Text = "NOCLIP ACTIVE",
+				Size = 18,
+				Font = v239,
+				Outline = true,
+				Color = color3_3,
+				Position = vector2,
+				Visible = true
+			})
+        end
+
+        if value4_2.Noclip.Connections.NoclipUpdate then
+            value4_2.Noclip.Connections.NoclipUpdate:Disconnect()
+        end
+
+        value4_2.Noclip.Connections.NoclipUpdate = RunService.Stepped:Connect(function()
+            if not value4_2.Noclip.Active or not Character then
+                if value4_2.Noclip.Connections.NoclipUpdate then
+                    value4_2.Noclip.Connections.NoclipUpdate:Disconnect()
+                    value4_2.Noclip.Connections.NoclipUpdate = nil
+                end
+
+                return
+            end
+
+            for _, descendant in pairs(Character:GetDescendants()) do
+                if descendant:IsA("BasePart") then
+                    descendant.CanCollide = false
+                end
+            end
+        end)
+        v22:Notify({
+			Title = "Noclip",
+			Content = "Noclip enabled! You can walk through walls",
+			Duration = 3
+		})
+
+        return
+    end
+
+    for k, v in pairs(value4_2.Noclip.OriginalCollisions) do
+        local v245 = k
+
+        if v245 and v245.Parent then
+            v245.CanCollide = v
+            v245.Transparency = 0
+        end
+    end
+
+    value4_2.Noclip.OriginalCollisions = {}
+
+    if value4_2.Noclip.Indicator then
+        value4_2.Noclip.Indicator:Remove()
+        value4_2.Noclip.Indicator = nil
+    end
+
+    if value4_2.Noclip.Connections.NoclipUpdate then
+        value4_2.Noclip.Connections.NoclipUpdate:Disconnect()
+        value4_2.Noclip.Connections.NoclipUpdate = nil
+    end
+
+    v22:Notify({
+		Title = "Noclip",
+		Content = "Noclip disabled",
+		Duration = 2
+	})
+end
+local value26 = t1.value26
+function t1.value35()
+    if not t5.GunESP.Enabled then
+        return
+    end
+
+    for _, v in pairs(t11) do
+        local Highlight = v.Highlight
+
+        if Highlight then
+            Highlight = v.Highlight.Parent
+        end
+
+        if Highlight then
+            v.Highlight:Destroy()
+        end
+    end
+
+    t11 = {}
+
+    for _, descendant in pairs(workspace:GetDescendants()) do
+        local v251 = descendant.Name == "GunDrop"
+
+        if not v251 then
+            v251 = descendant.Name == "Gun"
+
+            if not v251 then
+                v251 = descendant.Name == "Default"
+            end
+        end
+
+        if v251 then
+            local v252 = true
+            local Model = descendant:FindFirstAncestorWhichIsA("Model")
+
+            if Model and Players:GetPlayerFromCharacter(Model) then
+                v252 = false
+            end
+
+            if v252 then
+                local Highlight = Instance.new("Highlight")
+
+                Highlight.Name = "GunESP_" .. tostring(descendant)
+                Highlight.FillColor = t5.GunESP.OutlineColor
+                Highlight.OutlineColor = t5.GunESP.OutlineColor
+                Highlight.FillTransparency = 0.8
+                Highlight.OutlineTransparency = 0
+                Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+                if descendant:IsA("Model") then
+                    Highlight.Parent = descendant
+                elseif descendant:IsA("BasePart") then
+                    Highlight.Adornee = descendant
+                    Highlight.Parent = workspace
+                end
+
+                table.insert(t11, {
+					Object = descendant,
+					Highlight = Highlight
+				})
+            end
+        end
+    end
+end
+local value27 = t1.value27
+local value28 = t1.value28
+local value29 = t1.value29
+local value30 = t1.value30
+function t1.value31(p38)
+    if p38 == value4_2.WalkFling.Active then
+        return
+    end
+
+    value4_2.WalkFling.Active = p38
+    t5.Movement.WalkFling.Enabled = p38
+    t7:SaveSetting("Movement", "WalkFling", t5.Movement.WalkFling)
+
+    if p38 then
+        value4_2.WalkFling.Connections.WalkUpdate = RunService.Heartbeat:Connect(function()
+            if not value4_2.WalkFling.Active then
+                return
+            end
+
+            local Character = LocalPlayer.Character
+            local v637 = value30(Character)
+
+            if Character and v637 then
+                local Velocity = v637.Velocity
+
+                v637.Velocity = Velocity * 10000 + Vector3.new(0, 10000, 0)
+                RunService.RenderStepped:Wait()
+
+                if v637.Parent then
+                    v637.Velocity = Velocity
+                end
+            end
+        end)
+        v22:Notify({
+			Title = "Walk Fling Enabled",
+			Content = "Fling players while walking!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    for _, v in pairs(value4_2.WalkFling.Connections) do
+        if v then
+            v:Disconnect()
+        end
+    end
+
+    value4_2.WalkFling.Connections = {}
+
+    local Character = LocalPlayer.Character
+    local v259 = value30(Character)
+
+    if v259 then
+        v259.Velocity = Vector3.new(0, 0, 0)
+        v259.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        v259.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end
+
+    v22:Notify({
+		Title = "Walk Fling Disabled",
+		Content = "Walk fling logic deactivated and velocity reset",
+		Duration = 2
+	})
+end
+local value31 = t1.value31
+local connection
+function t1.value31(p39)
+    if p39 == value4_2.Blackhole.Active then
+        return
+    end
+    value4_2.Blackhole.Active = p39
+    t5.Teleport.Blackhole.Enabled = p39
+    t7:SaveSetting("Teleport", "Blackhole", t5.Teleport.Blackhole)
+    if value4_2.Blackhole.VisualPart then
+        value4_2.Blackhole.VisualPart:Destroy()
+        value4_2.Blackhole.VisualPart = nil
+    end
+    for v263, v264 in pairs(value4_2.Blackhole.Connections) do
+
+        if v264 then
+            v264:Disconnect()
+        end
+    end
+    value4_2.Blackhole.Connections = {}
+    if p39 then
+        local Character = LocalPlayer.Character
+
+        if not value30(Character) then
+            v22:Notify({
+				Title = "Error",
+				Content = "Character not loaded! Reset or wait.",
+				Duration = 2
+			})
+            value4_2.Blackhole.Active = false
+
+            return
+        end
+
+        local Part = Instance.new("Part")
+
+        Part.Name = "VortexVisual_Local"
+        Part.Shape = Enum.PartType.Ball
+        Part.Size = Vector3.new(5, 5, 5)
+        Part.Transparency = 0.7
+        Part.Color = Color3.fromRGB(0, 0, 0)
+        Part.CanCollide = false
+        Part.Anchored = true
+        Part.Material = Enum.Material.ForceField
+        Part.Parent = Character
+        value4_2.Blackhole.VisualPart = Part
+        value4_2.Blackhole.Connections.Update = RunService.RenderStepped:Connect(function()
+            if not value4_2.Blackhole.Active then
+                return
+            end
+
+            local Character2 = LocalPlayer.Character
+            local v640 = value30(Character2)
+
+            if not Character2 or not v640 then
+                return
+            end
+
+            local v641 = v640.CFrame * CFrame.new(0, 0, -t5.Teleport.Blackhole.HoldDistance)
+
+            Part.CFrame = v641
+
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local v644 = value30(player.Character)
+                    local Humanoid = player.Character:FindFirstChild("Humanoid")
+                    local v646 = v644
+
+                    if v644 then
+                        v646 = Humanoid and Humanoid.Health > 0
+                    end
+
+                    if v646 then
+                        if (v640.Position - v644.Position).Magnitude <= t5.Teleport.Blackhole.Range then
+                            v644.CFrame = v641
+                            v644.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                            v644.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                            Humanoid.PlatformStand = true
+
+                            for _, descendant in ipairs(player.Character:GetDescendants()) do
+                                if descendant:IsA("BasePart") and descendant.CanCollide then
+                                    descendant.CanCollide = false
+                                end
+                            end
+                        elseif Humanoid.PlatformStand then
+                            Humanoid.PlatformStand = false
+                        end
+                    end
+                end
+            end
+        end)
+        v22:Notify({
+			Title = "Vortex ON",
+			Content = "Players are now stuck to you on your screen!",
+			Duration = 3
+		})
+
+        return
+    end
+    for v269, v270 in ipairs(Players:GetPlayers()) do
+
+        local Character = v270.Character
+
+        if Character then
+            Character = v270.Character:FindFirstChild("Humanoid")
+        end
+
+        if Character then
+            v270.Character.Humanoid.PlatformStand = false
+        end
+    end
+    for _, v in pairs(value4_2.Blackhole.Connections) do
+        if v then
+            v:Disconnect()
+        end
+    end
+    value4_2.Blackhole.Connections = {}
+    v22:Notify({
+		Title = "Vortex OFF",
+		Content = "Players released",
+		Duration = 2
+	})
+end
+local function v59(p40)
+    t5.Teleport.AutoFlingMurderer.Enabled = p40
+    t7:SaveSetting("Teleport", "AutoFlingMurderer", t5.Teleport.AutoFlingMurderer)
+
+    if p40 then
+        if connection then
+            connection:Disconnect()
+        end
+
+        if not value4_2.WalkFling.Active then
+            value31(true)
+        end
+
+        local n2 = 0
+
+        connection = RunService.Heartbeat:Connect(function()
+            if not t5.Teleport.AutoFlingMurderer.Enabled then
+                return
+            end
+
+            local Character = LocalPlayer.Character
+            local v650 = value30(Character)
+
+            if not v650 then
+                return
+            end
+
+            local v651 = value21("Murderer", "Knife")
+
+            if #v651 > 0 then
+                local Character3 = v651[1].Player.Character
+
+                if Character3 then
+                    local v653 = value30(Character3)
+
+                    if v653 then
+                        n2 = (n2 + 1) % 4
+
+                        local v654 = if n2 ~= 0 then if n2 ~= 1 then if n2 ~= 2 then Vector3.new(-1.5, 0, 0) else Vector3.new(1.5, 0, 0) else Vector3.new(0, 1.5, 0) else Vector3.new(0, -1.5, 0)
+                        local v655 = math.rad((math.random(0, 360)))
+
+                        v650.CFrame = v653.CFrame * CFrame.new(v654) * CFrame.Angles(v655, v655, v655)
+                        v650.AssemblyLinearVelocity = Vector3.new(0, 15000, 0)
+                        v650.AssemblyAngularVelocity = Vector3.new(15000, 15000, 15000)
+                    end
+                end
+            end
+        end)
+        v22:Notify({
+			Title = "Auto-Win Active",
+			Content = "Stutter-Slam Fling Engaged!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if connection then
+        connection:Disconnect()
+    end
+
+    if value4_2.WalkFling.Active then
+        value31(false)
+    end
+
+    local Character = LocalPlayer.Character
+    local v277 = value30(Character)
+
+    if v277 then
+        v277.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        v277.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end
+
+    v22:Notify({
+		Title = "Auto-Win Disabled",
+		Content = "Tracking and Flinging deactivated",
+		Duration = 2
+	})
+end
+local value33 = t1.value33
+function t1.value34(p41)
+    if p41 == value4_2.Invis.Active then
+        return
+    end
+
+    value4_2.Invis.Active = p41
+    t5.Movement.Invis.Enabled = p41
+    t7:SaveSetting("Movement", "Invis", t5.Movement.Invis)
+
+    if not LocalPlayer.Character then
+        return
+    end
+
+    if p41 then
+        local Character = LocalPlayer.Character
+        local v280 = Character
+
+        if Character then
+            v280 = Character:FindFirstChild("HumanoidRootPart")
+        end
+
+        local v281 = Character
+
+        if Character then
+            v281 = Character:FindFirstChild("Torso") or Character:FindFirstChild("UpperTorso")
+        end
+
+        if v280 and v281 then
+            value33(t5.Movement.Invis.Transparency)
+
+            local CFrame2 = v280.CFrame
+
+            task.wait(0.05)
+            Character:MoveTo(t5.Movement.Invis.SeatTeleportPosition)
+            task.wait(0.05)
+
+            local Seat = Instance.new("Seat")
+
+            Seat.Parent = workspace
+            Seat.Anchored = false
+            Seat.CanCollide = false
+            Seat.Name = "invischair"
+            Seat.Transparency = 1
+            Seat.Position = t5.Movement.Invis.SeatTeleportPosition
+
+            local Weld = Instance.new("Weld")
+
+            Weld.Part0 = Seat
+            Weld.Part1 = v281
+            Weld.Parent = Seat
+            task.wait()
+            Seat.CFrame = CFrame2
+            v22:Notify({
+				Title = "Invisibility ON",
+				Content = "Seat Method active! You are now hidden to others.",
+				Duration = 3
+			})
+
+            return
+        end
+
+        v22:Notify({
+			Title = "Error",
+			Content = "Character or Torso not found!",
+			Duration = 3
+		})
+        value4_2.Invis.Active = false
+        t5.Movement.Invis.Enabled = false
+
+        return
+    end
+
+    value33(0)
+
+    local invischair = workspace:FindFirstChild("invischair")
+
+    if invischair then
+        invischair:Destroy()
+    end
+
+    v22:Notify({
+		Title = "Invisibility OFF",
+		Content = "Character visibility restored!",
+		Duration = 3
+	})
+end
+local value34 = t1.value34
+local value35 = t1.value35
+local function v63(p42)
+    t5.GunESP.Enabled = p42
+    t7:SaveSetting("GunESP", "Enabled", p42)
+
+    if p42 then
+        if t12.Update then
+            t12.Update:Disconnect()
+        end
+
+        value35()
+        t12.Update = RunService.Heartbeat:Connect(function()
+            if not t5.GunESP.Enabled then
+                return
+            end
+
+            value35()
+        end)
+        v22:Notify({
+			Title = "Gun ESP",
+			Content = "Gun ESP enabled (Outline Mode)",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if t12.Update then
+        t12.Update:Disconnect()
+        t12.Update = nil
+    end
+
+    for _, v in pairs(t11) do
+        if v.Highlight then
+            v.Highlight:Destroy()
+        end
+    end
+end
+t1.value37 = Drawing.new("Circle")
+local value37 = t1.value37
+t1.value37 = value37
+t1.value38 = "Thickness"
+t1.value37[t1.value38] = 1
+t1.value37 = value37
+t1.value38 = "Color"
+t1.value40 = Color3.fromRGB(255, 255, 255)
+t1.value37[t1.value38] = t1.value40
+t1.value37 = value37
+t1.value38 = "Transparency"
+t1.value37[t1.value38] = 1
+t1.value37 = value37
+t1.value38 = "Filled"
+t1.value37[t1.value38] = false
+t1.value37 = value37
+t1.value38 = "Visible"
+t1.value37[t1.value38] = false
+local u65
+function t1.value39()
+    if t5.GunESP.Aimbot.Enabled then
+        local v292 = u65()
+
+        if v292 and v292.Character then
+            local t5GunESPAimbotTargetPart = v292.Character:FindFirstChild(t5.GunESP.Aimbot.TargetPart)
+
+            if not t5GunESPAimbotTargetPart then
+                t5GunESPAimbotTargetPart = v292.Character:FindFirstChild("HumanoidRootPart")
+            end
+
+            if t5GunESPAimbotTargetPart and value24(t5GunESPAimbotTargetPart) then
+                local v294, v295 = value16(t5GunESPAimbotTargetPart.Position)
+
+                if v295 then
+                    local v296 = v294 - UserInputService:GetMouseLocation()
+
+                    value23(v296.X * 0.25, v296.Y * 0.25)
+                end
+            end
+        end
+
+        if t5.GunESP.Aimbot.ShowFOV then
+            value37.Visible = true
+            value37.Radius = t5.GunESP.Aimbot.FOV
+            value37.Position = UserInputService:GetMouseLocation()
+
+            return
+        end
+    end
+
+    value37.Visible = false
+end
+function u65()
+    local v297
+    local FOV = t5.GunESP.Aimbot.FOV
+    local MouseLocation = UserInputService:GetMouseLocation()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and value17(player) == "Murderer" then
+            local t5GunESPAimbotTargetPart = player.Character:FindFirstChild(t5.GunESP.Aimbot.TargetPart)
+
+            if not t5GunESPAimbotTargetPart then
+                t5GunESPAimbotTargetPart = player.Character:FindFirstChild("HumanoidRootPart")
+            end
+
+            if t5GunESPAimbotTargetPart then
+                local v304, t19Result = value16(t5GunESPAimbotTargetPart.Position)
+                if t19Result then
+                    local Magnitude = (MouseLocation - v304).Magnitude
+
+                    if Magnitude < FOV then
+                        FOV = Magnitude
+                        v297 = player
+                    end
+                end
+            end
+        end
+    end
+
+    return v297
+end
+local value39
+function t1.value40(p43)
+    t5.GunESP.Aimbot.Enabled = p43
+    t7:SaveSetting("GunESP", "Aimbot", t5.GunESP.Aimbot)
+
+    if p43 then
+        getgenv().MM2_Aimbot_ErrorNotified = false
+
+        if t12.Aimbot then
+            t12.Aimbot:Disconnect()
+        end
+
+        t12.Aimbot = RunService.RenderStepped:Connect(value39)
+        v22:Notify({
+			Title = "Aimbot",
+			Content = "Sheriff Aimbot enabled! Works while holding Revolver.",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if t12.Aimbot then
+        t12.Aimbot:Disconnect()
+        t12.Aimbot = nil
+    end
+
+    value37.Visible = false
+    v22:Notify({
+		Title = "Aimbot",
+		Content = "Aimbot disabled",
+		Duration = 2
+	})
+end
+value39 = t1.value39
+local value40 = t1.value40
+local connection2
+local n3 = 0
+local function v70()
+    if not t5.Combat.HitboxExpander.Enabled then
+        return
+    end
+
+    local v310 = false
+
+    if tick() - n3 > 0.1 then
+        n3 = tick()
+        v310 = true
+    end
+
+    local Character = LocalPlayer.Character
+    local v312 = Character and Character:FindFirstChild("Knife")
+
+    if v312 then
+        v312 = v312:FindFirstChild("Handle")
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local HumanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+
+            if HumanoidRootPart then
+                HumanoidRootPart.Size = Vector3.new(t5.Combat.HitboxExpander.Size, t5.Combat.HitboxExpander.Size, t5.Combat.HitboxExpander.Size)
+                HumanoidRootPart.Transparency = t5.Combat.HitboxExpander.Transparency
+                HumanoidRootPart.CanCollide = false
+
+                if firetouchinterest and v312 then
+                    local Torso = player.Character:FindFirstChild("Torso")
+
+                    if not Torso then
+                        Torso = player.Character:FindFirstChild("UpperTorso")
+                    end
+
+                    local Head = player.Character:FindFirstChild("Head")
+
+                    if HumanoidRootPart then
+                        firetouchinterest(HumanoidRootPart, v312, 0)
+                        firetouchinterest(HumanoidRootPart, v312, 1)
+                    end
+
+                    if Torso then
+                        firetouchinterest(Torso, v312, 0)
+                        firetouchinterest(Torso, v312, 1)
+                    end
+
+                    if Head then
+                        firetouchinterest(Head, v312, 0)
+                        firetouchinterest(Head, v312, 1)
+                    end
+                end
+
+                if v310 then
+                    HumanoidRootPart.CanTouch = false
+                    task.delay(0.01, function()
+                        if HumanoidRootPart then
+                            HumanoidRootPart.CanTouch = true
+                        end
+                    end)
+                end
+            end
+        end
+    end
+end
+local function v71()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local HumanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+
+            if HumanoidRootPart then
+                HumanoidRootPart.Size = Vector3.new(2, 2, 1)
+                HumanoidRootPart.Transparency = 1
+                HumanoidRootPart.CanCollide = true
+            end
+        end
+    end
+end
+local function v72(p44)
+    t5.Combat.HitboxExpander.Enabled = p44
+    t7:SaveSetting("Combat", "HitboxExpander", t5.Combat.HitboxExpander)
+
+    if p44 then
+        if connection2 then
+            connection2:Disconnect()
+        end
+
+        connection2 = RunService.RenderStepped:Connect(v70)
+        v22:Notify({
+			Title = "Combat Features",
+			Content = "Hitbox Expander enabled! Targets are now easier to hit.",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if connection2 then
+        connection2:Disconnect()
+    end
+
+    v71()
+    v22:Notify({
+		Title = "Combat Features",
+		Content = "Hitbox Expander disabled",
+		Duration = 2
+	})
+end
+local function v73()
+    if not t5.Coin.ShowCoinESP then
+        return
+    end
+
+    for _, v in pairs(t13) do
+        local Highlight = v.Highlight
+
+        if Highlight then
+            Highlight = v.Highlight.Parent
+        end
+
+        if Highlight then
+            v.Highlight:Destroy()
+        end
+    end
+
+    t13 = {}
+
+    for _, descendant in pairs(workspace:GetDescendants()) do
+        local v323 = descendant.Name:find("Coin")
+        if not v323 then
+            v323 = descendant.Name:find("Money")
+        end
+        if not v323 then
+            continue
+        end
+        local v324 = false
+        local GetDescendants = descendant.GetDescendants
+        for v328, v329 in pairs(GetDescendants(descendant)) do
+
+            local v330 = v329:IsA("TouchTransmitter")
+
+            if not v330 then
+                v330 = v329.Name:find("Touch")
+            end
+
+            if v330 then
+                v324 = true
+
+                break
+            end
+        end
+        if v324 then
+            local Highlight = Instance.new("Highlight")
+
+            Highlight.Name = "CoinESP_" .. tostring(descendant)
+            Highlight.FillColor = t5.Coin.OutlineColor
+            Highlight.OutlineColor = t5.Coin.OutlineColor
+            Highlight.FillTransparency = 0.9
+            Highlight.OutlineTransparency = 0
+            Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+            if descendant:IsA("Model") then
+                Highlight.Parent = descendant
+            elseif descendant:IsA("BasePart") then
+                Highlight.Adornee = descendant
+                Highlight.Parent = workspace
+            end
+
+            table.insert(t13, {
+				Object = descendant,
+				Highlight = Highlight
+			})
+        end
+    end
+end
+local function v74(p45)
+    t5.Coin.ShowCoinESP = p45
+    t7:SaveSetting("Coin", "ShowCoinESP", p45)
+
+    if p45 then
+        if t14.Update then
+            t14.Update:Disconnect()
+        end
+
+        v73()
+        t14.Update = RunService.Heartbeat:Connect(function()
+            if not t5.Coin.ShowCoinESP then
+                return
+            end
+
+            v73()
+        end)
+        v22:Notify({
+			Title = "Coin ESP",
+			Content = "Coin ESP enabled (Outline Mode)",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if t14.Update then
+        t14.Update:Disconnect()
+        t14.Update = nil
+    end
+
+    for _, v in pairs(t13) do
+        if v.Highlight then
+            v.Highlight:Destroy()
+        end
+    end
+
+    v22:Notify({
+		Title = "Coin ESP",
+		Content = "Coin ESP disabled",
+		Duration = 2
+	})
+end
+local function v75(p46)
+    t5.AutoRejoin.Enabled = p46
+    t7:SaveSetting("AutoRejoin", "Enabled", p46)
+
+    if p46 then
+        t15.Attempts = 0
+        t15.Connection = game:GetService("CoreGui").ChildRemoved:Connect(function(child)
+            if child.Name == "RobloxGui" then
+                v22:Notify({
+					Title = "Disconnected",
+					Content = "Attempting to rejoin...",
+					Duration = 3
+				})
+                wait(t5.AutoRejoin.Delay)
+
+                if t15.Attempts < t5.AutoRejoin.MaxAttempts then
+                    local v609 = t15
+                    local s1 = "Attempts"
+
+                    v609[s1] = v609[s1] + 1
+                    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+
+                    return
+                end
+
+                v22:Notify({
+					Title = "Rejoin Failed",
+					Content = "Max rejoin attempts reached",
+					Duration = 5
+				})
+            end
+        end)
+        v22:Notify({
+			Title = "Auto-Rejoin",
+			Content = "Auto-rejoin enabled",
+			Duration = 3
+		})
+
+        return
+    end
+
+    if t15.Connection then
+        t15.Connection:Disconnect()
+        t15.Connection = nil
+    end
+
+    v22:Notify({
+		Title = "Auto-Rejoin",
+		Content = "Auto-rejoin disabled",
+		Duration = 2
+	})
+end
+local function v76(p47)
+    t5.AntiAFK.Enabled = p47
+    t7:SaveSetting("AntiAFK", "Enabled", p47)
+
+    if p47 then
+        t16.LastActivity = tick()
+
+        if t5.AntiAFK.Method == "Movement" then
+            t16.Connection = RunService.Heartbeat:Connect(function()
+                if tick() - t16.LastActivity > t5.AntiAFK.Interval then
+                    local Character = LocalPlayer.Character
+
+                    if Character then
+                        local Humanoid = Character:FindFirstChild("Humanoid")
+
+                        if Humanoid then
+                            local t20 = { Vector3.new(0, 0, 0.01) }
+
+                            Humanoid:Move(v2(t20))
+                        end
+                    end
+
+                    t16.LastActivity = tick()
+                end
+            end)
+        else
+            t16.Connection = RunService.Heartbeat:Connect(function()
+                if tick() - t16.LastActivity > t5.AntiAFK.Interval then
+                    local CurrentCamera = workspace.CurrentCamera
+
+                    if CurrentCamera then
+                        CurrentCamera.CFrame = CurrentCamera.CFrame * CFrame.Angles(0, 0.017453292519943295, 0)
+                    end
+
+                    t16.LastActivity = tick()
+                end
+            end)
+        end
+
+        UserInputService.InputBegan:Connect(function()
+            t16.LastActivity = tick()
+        end)
+
+        local v287 = v22
+        local v288 = "Anti-AFK enabled (" .. t5.AntiAFK.Method .. " method)"
+
+        v287:Notify({
+			Title = "Anti-AFK",
+			Content = v288,
+			Duration = 3
+		})
+
+        return
+    end
+
+    if t16.Connection then
+        t16.Connection:Disconnect()
+        t16.Connection = nil
+    end
+
+    v22:Notify({
+		Title = "Anti-AFK",
+		Content = "Anti-AFK disabled",
+		Duration = 2
+	})
+end
+function CreateESP(p48)
+    if t9[p48] then
+        return
+    end
+
+    local v337 = value4_3:Create("Square", {
+		Thickness = t5.ESP.BoxThickness,
+		Filled = false,
+		Visible = false
+	})
+    local v338 = value4_3
+    local p48Name = p48.Name
+    local ESPTextSize = t5.ESP.TextSize
+    local v341 = value4_3.Fonts[t5.ESP.Font]
+    local Create = v338.Create
+    local TextOutline = t5.ESP.TextOutline
+    local v344 = Create(v338, "Text", {
+		Text = p48Name,
+		Size = ESPTextSize,
+		Font = v341,
+		Outline = TextOutline,
+		Visible = false
+	})
+    local v345 = value4_3
+    local v346 = t5.ESP.TextSize - 2
+    local Fonts = value4_3.Fonts
+    local Create2 = v345.Create
+    local v349 = Fonts[t5.ESP.Font]
+    local TextOutline2 = t5.ESP.TextOutline
+    local v351 = Create2(v345, "Text", {
+		Size = v346,
+		Font = v349,
+		Outline = TextOutline2,
+		Visible = false
+	})
+    local v352 = value4_3
+    local v353 = t5.ESP.TextSize - 2
+    local Create3 = v352.Create
+    local v355 = value4_3.Fonts[t5.ESP.Font]
+    local TextOutline3 = t5.ESP.TextOutline
+    local v357 = Create3(v352, "Text", {
+		Size = v353,
+		Font = v355,
+		Outline = TextOutline3,
+		Visible = false
+	})
+    local v358 = value4_3
+    local ESPTextSize2 = t5.ESP.TextSize
+    local v360 = value4_3.Fonts[t5.ESP.Font]
+    local TextOutline4 = t5.ESP.TextOutline
+    local v362 = v358:Create("Text", {
+		Size = ESPTextSize2,
+		Font = v360,
+		Outline = TextOutline4,
+		Visible = false
+	})
+    local v363 = value4_3
+    local ESP = t5.ESP
+    local Create4 = v363.Create
+    local ESPTextSize3 = ESP.TextSize
+    local v367 = value4_3.Fonts[t5.ESP.Font]
+    local TextOutline5 = t5.ESP.TextOutline
+    local v369 = Create4(v363, "Text", {
+		Size = ESPTextSize3,
+		Font = v367,
+		Outline = TextOutline5,
+		Visible = false
+	})
+    local v370 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local v371 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local v372 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local v373 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local v374 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local v375 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local v376 = value4_3:Create("Line", {
+		Thickness = 1,
+		Visible = false
+	})
+    local t21 = {
+		Head = v371,
+		Torso = v372,
+		LeftArm = v373,
+		RightArm = v374,
+		LeftLeg = v375,
+		RightLeg = v376
+	}
+
+    t9[p48] = {
+		Box = v337,
+		Name = v344,
+		Distance = v351,
+		Health = v357,
+		Weapon = v362,
+		Role = v369,
+		Tracer = v370,
+		Skeleton = t21,
+		Highlight = nil
+	}
+    t10[p48] = {
+		LastUpdate = 0,
+		Role = "Unknown",
+		Weapon = "None",
+		LastColor = nil
+	}
+end
+function UpdateESP(p49)
+    if not t9[p49] then
+        return
+    end
+
+    local v379 = t9[p49]
+    local Character = p49.Character
+    local v381 = t10[p49]
+
+    if not Character then
+        SetESPVisible(v379, false)
+
+        return
+    end
+
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    local v383 = not HumanoidRootPart
+    local Humanoid = Character:FindFirstChild("Humanoid")
+
+    if not v383 then
+        v383 = not Humanoid or Humanoid.Health <= 0
+    end
+
+    if v383 then
+        SetESPVisible(v379, false)
+
+        if v379.Highlight then
+            v379.Highlight.Enabled = false
+        end
+
+        return
+    end
+
+    local v385 = value17(p49)
+    local v386 = value18(p49)
+    local v387, v388 = value19(p49)
+    local Magnitude = (HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Magnitude
+
+    if Magnitude > t5.ESP.MaxDistance then
+        SetESPVisible(v379, false)
+
+        if v379.Highlight then
+            v379.Highlight.Enabled = false
+        end
+
+        return
+    end
+
+    v381.Role = v385
+    v381.Weapon = v386
+    v381.LastUpdate = tick()
+
+    local v390 = value20(p49, v385, v386)
+
+    if v390 ~= v381.LastColor then
+        v381.LastColor = v390
+    end
+
+    local v391, v392, v393 = value16(HumanoidRootPart.Position)
+
+    if not v392 then
+        SetESPVisible(v379, false)
+
+        if v379.Highlight then
+            v379.Highlight.Enabled = false
+        end
+
+        return
+    end
+
+    if t5.ESP.ShowHighlight then
+        if not v379.Highlight then
+            v379.Highlight = Instance.new("Highlight")
+            v379.Highlight.Name = "ESP_Highlight_" .. p49.UserId
+            v379.Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            v379.Highlight.Parent = Character
+        end
+
+        if Character ~= v379.Highlight.Parent then
+            v379.Highlight.Parent = Character
+        end
+
+        if t5.ESP.ColorMode == "Role" then
+            v379.Highlight.FillColor = v390
+            v379.Highlight.OutlineColor = v390
+        elseif t5.ESP.ColorMode == "Custom" then
+            if v385 == "Murderer" then
+                v379.Highlight.FillColor = t5.ESP.MurdererColor
+                v379.Highlight.OutlineColor = t5.ESP.MurdererColor
+            elseif v385 == "Sheriff" then
+                v379.Highlight.FillColor = t5.ESP.SheriffColor
+                v379.Highlight.OutlineColor = t5.ESP.SheriffColor
+            elseif v385 == "Innocent" then
+                v379.Highlight.FillColor = t5.ESP.InnocentColor
+                v379.Highlight.OutlineColor = t5.ESP.InnocentColor
+            else
+                v379.Highlight.FillColor = v390
+                v379.Highlight.OutlineColor = v390
+            end
+        else
+            v379.Highlight.FillColor = v390
+            v379.Highlight.OutlineColor = v390
+        end
+
+        v379.Highlight.FillTransparency = t5.ESP.HighlightFillTransparency
+        v379.Highlight.OutlineTransparency = t5.ESP.HighlightOutlineTransparency
+        v379.Highlight.Enabled = true
+    elseif v379.Highlight then
+        v379.Highlight.Enabled = false
+    end
+
+    local vector2 = Vector2.new(2000 / v393, 3000 / v393)
+    local vector2_2 = Vector2.new(v391.X - vector2.X / 2, v391.Y - vector2.Y / 2)
+
+    if t5.ESP.ShowBox then
+        v379.Box.Size = vector2
+        v379.Box.Position = vector2_2
+        v379.Box.Color = v390
+        v379.Box.Visible = true
+    else
+        v379.Box.Visible = false
+    end
+
+    local n4 = 0
+    local n5 = 2
+
+    if t5.ESP.ShowName then
+        v379.Name.Position = Vector2.new(v391.X, v391.Y - vector2.Y / 2 - n5 - n4)
+        v379.Name.Text = p49.Name
+        v379.Name.Color = v390
+        v379.Name.Visible = true
+        n4 = n4 + t5.ESP.TextSize + n5
+    else
+        v379.Name.Visible = false
+    end
+
+    if t5.ESP.ShowRole then
+        v379.Role.Position = Vector2.new(v391.X, v391.Y - vector2.Y / 2 - n5 - n4)
+        v379.Role.Text = v385
+        v379.Role.Color = v390
+        v379.Role.Visible = true
+        n4 = n4 + t5.ESP.TextSize + n5
+    else
+        v379.Role.Visible = false
+    end
+
+    if t5.ESP.ShowWeapon then
+        v379.Weapon.Position = Vector2.new(v391.X, v391.Y - vector2.Y / 2 - n5 - n4)
+        v379.Weapon.Text = t8[v386].Icon .. " " .. v386
+        v379.Weapon.Color = v390
+        v379.Weapon.Visible = true
+        n4 = n4 + t5.ESP.TextSize + n5
+    else
+        v379.Weapon.Visible = false
+    end
+
+    if t5.ESP.ShowHealth then
+        v379.Health.Position = Vector2.new(v391.X, v391.Y - vector2.Y / 2 - n5 - n4)
+        v379.Health.Text = string.format("❤\239\184\143 %d/%d", math.floor(v387), (math.floor(v388)))
+
+        local v398 = v387 / v388
+
+        v379.Health.Color = Color3.fromRGB(255 * (1 - v398), 255 * v398, 0)
+        v379.Health.Visible = true
+
+        local _ = n4 + t5.ESP.TextSize + n5
+    else
+        v379.Health.Visible = false
+    end
+
+    if t5.ESP.ShowDistance then
+        v379.Distance.Position = Vector2.new(v391.X, v391.Y + vector2.Y / 2 + n5)
+        v379.Distance.Text = string.format("[%d studs]", (math.floor(Magnitude)))
+        v379.Distance.Color = Color3.fromRGB(255, 255, 255)
+        v379.Distance.Visible = true
+    else
+        v379.Distance.Visible = false
+    end
+
+    if t5.ESP.ShowTracers then
+        local ViewportSize = workspace.CurrentCamera.ViewportSize
+        local v401 = ViewportSize.X / 2
+        local v402 = ViewportSize.Y / 2
+
+        v379.Tracer.From = Vector2.new(v401, v402)
+        v379.Tracer.To = v391
+        v379.Tracer.Color = v390
+        v379.Tracer.Visible = true
+    else
+        v379.Tracer.Visible = false
+    end
+
+    if t5.ESP.ShowSkeleton then
+        UpdateSkeleton(v379, Character, v390)
+
+        return
+    end
+
+    SetSkeletonVisible(v379, false)
+end
+function SetESPVisible(p50, p51)
+    if p50.Box then
+        p50.Box.Visible = p51
+    end
+
+    if p50.Name then
+        p50.Name.Visible = p51
+    end
+
+    if p50.Distance then
+        p50.Distance.Visible = p51
+    end
+
+    if p50.Health then
+        p50.Health.Visible = p51
+    end
+
+    if p50.Weapon then
+        p50.Weapon.Visible = p51
+    end
+
+    if p50.Role then
+        p50.Role.Visible = p51
+    end
+
+    if p50.Tracer then
+        p50.Tracer.Visible = p51
+    end
+
+    if p50.Highlight then
+        local Highlight = p50.Highlight
+        local v406 = p51
+
+        if p51 then
+            v406 = t5.ESP.ShowHighlight
+        end
+
+        Highlight.Enabled = v406
+    end
+
+    if p50.Skeleton then
+        for _, v in pairs(p50.Skeleton) do
+            if v then
+                local v409 = p51
+
+                if p51 then
+                    v409 = t5.ESP.ShowSkeleton
+                end
+
+                v.Visible = v409
+            end
+        end
+    end
+end
+function SetSkeletonVisible(p52, p53)
+    if p52.Skeleton then
+        for _, v in pairs(p52.Skeleton) do
+            if v then
+                v.Visible = p53
+            end
+        end
+    end
+end
+function UpdateSkeleton(p54, p55, p56)
+    local HumanoidRootPart = p55:FindFirstChild("HumanoidRootPart")
+    local Head = p55:FindFirstChild("Head")
+
+    if HumanoidRootPart and Head then
+        local v419, v420 = value16(HumanoidRootPart.Position)
+        local v421, v422 = value16(Head.Position)
+
+        if v420 and v422 then
+            p54.Skeleton.Head.From = Vector2.new(v421.X, v421.Y)
+            p54.Skeleton.Head.To = Vector2.new(v419.X, v419.Y)
+            p54.Skeleton.Head.Color = p56
+            p54.Skeleton.Head.Visible = true
+
+            return
+        end
+
+        SetSkeletonVisible(p54, false)
+
+        return
+    end
+
+    SetSkeletonVisible(p54, false)
+end
+function CleanupESP(p57)
+    local v424 = t9[p57]
+
+    if v424 then
+        for _, v in pairs(v424) do
+            if typeof(v) ~= "table" or v == v424.Skeleton then
+                if typeof(v) == "table" and v == v424.Skeleton then
+                    for _, v3 in pairs(v) do
+                        if v3 and v3.Remove then
+                            v3:Remove()
+                        end
+                    end
+                elseif v and v.Remove then
+                    v:Remove()
+                end
+            end
+        end
+
+        if v424.Highlight then
+            v424.Highlight:Destroy()
+        end
+
+        t9[p57] = nil
+        t10[p57] = nil
+    end
+end
+function ToggleESP(p58)
+    t5.ESP.Enabled = p58
+    t7:SaveSetting("ESP", "Enabled", p58)
+
+    if p58 then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateESP(player)
+            end
+        end
+
+        value4.ESPUpdate = RunService.RenderStepped:Connect(function()
+            if not t5.ESP.Enabled then
+                return
+            end
+
+            for k, _ in pairs(t9) do
+                local v662 = k
+
+                if v662 and v662.Parent then
+                    UpdateESP(v662)
+                else
+                    CleanupESP(v662)
+                end
+            end
+        end)
+    else
+        if value4.ESPUpdate then
+            value4.ESPUpdate:Disconnect()
+            value4.ESPUpdate = nil
+        end
+
+        for _, v in pairs(t9) do
+            SetESPVisible(v, false)
+        end
+    end
+
+    local v434 = v22
+    local v435 = not p58 and "Disabled" or "Enabled"
+
+    v434:Notify({
+		Title = "Advanced ESP",
+		Content = v435,
+		Duration = 2
+	})
+end
+local function v77(p59)
+    if p59 ~= LocalPlayer then
+        CreateESP(p59)
+    end
+end
+for _, player in ipairs(Players:GetPlayers()) do
+    v77(player)
+end
+Players.PlayerAdded:Connect(v77)
+Players.PlayerRemoving:Connect(function(player)
+    CleanupESP(player)
+end)
+local ESPEnabled = t5.ESP.Enabled
+local CreateToggle = v29.CreateToggle
+function t1.value41(p60)
+    ToggleESP(p60)
+end
+CreateToggle(v29, {
+	Name = "Enable Advanced ESP",
+	CurrentValue = ESPEnabled,
+	Flag = "EnableESP",
+	Callback = t1.value41
+})
+v29:CreateSection("Basic ESP Settings")
+local CreateToggle2 = v29.CreateToggle
+local ShowName = t5.ESP.ShowName
+function t1.value42(p61)
+    t5.ESP.ShowName = p61
+    t7:SaveSetting("ESP", "ShowName", p61)
+end
+CreateToggle2(v29, {
+	Name = "Show Player Names",
+	CurrentValue = ShowName,
+	Flag = "ShowNames",
+	Callback = t1.value42
+})
+local ShowDistance = t5.ESP.ShowDistance
+function t1.value42(p62)
+    t5.ESP.ShowDistance = p62
+    t7:SaveSetting("ESP", "ShowDistance", p62)
+end
+v29:CreateToggle({
+	Name = "Show Distance",
+	CurrentValue = ShowDistance,
+	Flag = "ShowDistance",
+	Callback = t1.value42
+})
+local ShowHealth = t5.ESP.ShowHealth
+local CreateToggle3 = v29.CreateToggle
+function t1.value42(p63)
+    t5.ESP.ShowHealth = p63
+    t7:SaveSetting("ESP", "ShowHealth", p63)
+end
+CreateToggle3(v29, {
+	Name = "Show Health",
+	CurrentValue = ShowHealth,
+	Flag = "ShowHealth",
+	Callback = t1.value42
+})
+local ShowWeapon = t5.ESP.ShowWeapon
+local CreateToggle4 = v29.CreateToggle
+function t1.value42(p64)
+    t5.ESP.ShowWeapon = p64
+    t7:SaveSetting("ESP", "ShowWeapon", p64)
+end
+CreateToggle4(v29, {
+	Name = "Show Weapon",
+	CurrentValue = ShowWeapon,
+	Flag = "ShowWeapon",
+	Callback = t1.value42
+})
+local ShowRole = t5.ESP.ShowRole
+function t1.value42(p65)
+    t5.ESP.ShowRole = p65
+    t7:SaveSetting("ESP", "ShowRole", p65)
+end
+v29:CreateToggle({
+	Name = "Show Role",
+	CurrentValue = ShowRole,
+	Flag = "ShowRole",
+	Callback = t1.value42
+})
+local ESP = t5.ESP
+local CreateToggle5 = v29.CreateToggle
+local ShowBox = ESP.ShowBox
+function t1.value42(p66)
+    t5.ESP.ShowBox = p66
+    t7:SaveSetting("ESP", "ShowBox", p66)
+end
+CreateToggle5(v29, {
+	Name = "Show Box",
+	CurrentValue = ShowBox,
+	Flag = "ShowBox",
+	Callback = t1.value42
+})
+v29:CreateSection("Advanced ESP Settings")
+t1.value44 = t5.ESP
+local CreateToggle6 = v29.CreateToggle
+local ShowTracers = t1.value44.ShowTracers
+function t1.value43(p67)
+    t5.ESP.ShowTracers = p67
+    t7:SaveSetting("ESP", "ShowTracers", p67)
+end
+CreateToggle6(v29, {
+	Name = "Show Tracers",
+	CurrentValue = ShowTracers,
+	Flag = "ShowTracers",
+	Callback = t1.value43
+})
+local ShowSkeleton = t5.ESP.ShowSkeleton
+function t1.value43(p68)
+    t5.ESP.ShowSkeleton = p68
+    t7:SaveSetting("ESP", "ShowSkeleton", p68)
+end
+v29:CreateToggle({
+	Name = "Show Skeleton",
+	CurrentValue = ShowSkeleton,
+	Flag = "ShowSkeleton",
+	Callback = t1.value43
+})
+local ShowHighlight = t5.ESP.ShowHighlight
+local CreateToggle7 = v29.CreateToggle
+function t1.value43(p69)
+    t5.ESP.ShowHighlight = p69
+    t7:SaveSetting("ESP", "ShowHighlight", p69)
+end
+CreateToggle7(v29, {
+	Name = "Show Full Body Highlight",
+	CurrentValue = ShowHighlight,
+	Flag = "ShowHighlight",
+	Callback = t1.value43
+})
+t1.value41 = t5.ESP.ColorMode
+function t1.value46(p70)
+    t5.ESP.ColorMode = p70
+    t7:SaveSetting("ESP", "ColorMode", p70)
+
+    for k, _ in pairs(t9) do
+        local v451 = k
+
+        if v451 and v451.Parent then
+            UpdateESP(v451)
+        end
+    end
+end
+v29:CreateDropdown({
+	Name = "Color Mode",
+	Options = {
+		"Role",
+		"Team",
+		"Custom"
+	},
+	CurrentOption = t1.value41,
+	Flag = "ColorMode",
+	Callback = t1.value46
+})
+t1.value46 = t5.ESP.MaxDistance
+local CreateSlider = v29.CreateSlider
+function t1.value49(p71)
+    t5.ESP.MaxDistance = p71
+    t7:SaveSetting("ESP", "MaxDistance", p71)
+end
+CreateSlider(v29, {
+	Name = "Max Distance",
+	Range = {
+		0,
+		2000
+	},
+	Increment = 50,
+	Suffix = "studs",
+	CurrentValue = t1.value46,
+	Flag = "MaxDistance",
+	Callback = t1.value49
+})
+t1.value46 = t5.ESP.TextSize
+local CreateSlider2 = v29.CreateSlider
+function t1.value49(p72)
+    t5.ESP.TextSize = p72
+    t7:SaveSetting("ESP", "TextSize", p72)
+
+    for _, v in pairs(t9) do
+        if v.Name then
+            v.Name.Size = p72
+        end
+
+        if v.Role then
+            v.Role.Size = p72
+        end
+
+        if v.Weapon then
+            v.Weapon.Size = p72
+        end
+
+        if v.Health then
+            v.Health.Size = p72 - 2
+        end
+
+        if v.Distance then
+            v.Distance.Size = p72 - 2
+        end
+    end
+end
+CreateSlider2(v29, {
+	Name = "Text Size",
+	Range = {
+		8,
+		24
+	},
+	Increment = 1,
+	Suffix = "px",
+	CurrentValue = t1.value46,
+	Flag = "TextSize",
+	Callback = t1.value49
+})
+v29:CreateSection("Color Customization")
+t1.value44 = t5.ESP.InnocentColor
+local CreateColorPicker = v29.CreateColorPicker
+function t1.value45(p73)
+    t5.ESP.InnocentColor = p73
+
+    local v457 = t7
+    local SaveSetting = v457.SaveSetting
+    local R = p73.R
+    local G = p73.G
+    local B = p73.B
+
+    SaveSetting(v457, "ESP", "InnocentColor", {
+		R = R,
+		G = G,
+		B = B
+	})
+
+    if t5.ESP.ColorMode == "Custom" then
+        for k, _ in pairs(t9) do
+            UpdateESP(k)
+        end
+    end
+end
+CreateColorPicker(v29, {
+	Name = "Innocent Color (Custom Mode Only)",
+	Color = t1.value44,
+	Flag = "InnocentColor",
+	Callback = t1.value45
+})
+t1.value44 = t5.ESP.MurdererColor
+local CreateColorPicker2 = v29.CreateColorPicker
+function t1.value45(p74)
+    t5.ESP.MurdererColor = p74
+
+    local v465 = t7
+    local R = p74.R
+    local G = p74.G
+    local SaveSetting = v465.SaveSetting
+    local B = p74.B
+
+    SaveSetting(v465, "ESP", "MurdererColor", {
+		R = R,
+		G = G,
+		B = B
+	})
+
+    if t5.ESP.ColorMode == "Custom" then
+        for k, _ in pairs(t9) do
+            UpdateESP(k)
+        end
+    end
+end
+CreateColorPicker2(v29, {
+	Name = "Murderer Color (Custom Mode Only)",
+	Color = t1.value44,
+	Flag = "MurdererColor",
+	Callback = t1.value45
+})
+t1.value44 = t5.ESP.SheriffColor
+local CreateColorPicker3 = v29.CreateColorPicker
+function t1.value45(p75)
+    t5.ESP.SheriffColor = p75
+
+    local v473 = t7
+    local R = p75.R
+    local G = p75.G
+    local SaveSetting = v473.SaveSetting
+    local B = p75.B
+
+    SaveSetting(v473, "ESP", "SheriffColor", {
+		R = R,
+		G = G,
+		B = B
+	})
+
+    if t5.ESP.ColorMode == "Custom" then
+        for k, _ in pairs(t9) do
+            UpdateESP(k)
+        end
+    end
+end
+CreateColorPicker3(v29, {
+	Name = "Sheriff Color (Custom Mode Only)",
+	Color = t1.value44,
+	Flag = "SheriffColor",
+	Callback = t1.value45
+})
+v29:CreateSection("Highlight Settings")
+t1.value41 = {
+	0,
+	1
+}
+local CreateSlider3 = v29.CreateSlider
+t1.value48 = t5.ESP.HighlightFillTransparency
+function t1.value51(p76)
+    t5.ESP.HighlightFillTransparency = p76
+    t7:SaveSetting("ESP", "HighlightFillTransparency", p76)
+
+    for _, v in pairs(t9) do
+        if v.Highlight then
+            v.Highlight.FillTransparency = p76
+        end
+    end
+end
+CreateSlider3(v29, {
+	Name = "Highlight Fill Transparency",
+	Range = t1.value41,
+	Increment = 0.1,
+	Suffix = "",
+	CurrentValue = t1.value48,
+	Flag = "HighlightFillTransparency",
+	Callback = t1.value51
+})
+t1.value41 = {
+	0,
+	1
+}
+t1.value48 = t5.ESP.HighlightOutlineTransparency
+function t1.value51(p77)
+    t5.ESP.HighlightOutlineTransparency = p77
+    t7:SaveSetting("ESP", "HighlightOutlineTransparency", p77)
+
+    for _, v in pairs(t9) do
+        if v.Highlight then
+            v.Highlight.OutlineTransparency = p77
+        end
+    end
+end
+v29:CreateSlider({
+	Name = "Highlight Outline Transparency",
+	Range = t1.value41,
+	Increment = 0.1,
+	Suffix = "",
+	CurrentValue = t1.value48,
+	Flag = "HighlightOutlineTransparency",
+	Callback = t1.value51
+})
+v29:CreateSection("Object ESP Settings")
+t1.value42 = t5.GunESP.Enabled
+v29:CreateToggle({
+	Name = "🔫 Enable Gun ESP",
+	CurrentValue = t1.value42,
+	Flag = "GunESPEnabled",
+	Callback = v63
+})
+t1.value43 = t5.GunESP
+local CreateColorPicker4 = v29.CreateColorPicker
+t1.value42 = t1.value43.OutlineColor
+function t1.value47(p78)
+    t5.GunESP.OutlineColor = p78
+
+    local v487 = t7
+    local SaveSetting = v487.SaveSetting
+    local R = p78.R
+    local G = p78.G
+    local B = p78.B
+
+    SaveSetting(v487, "GunESP", "OutlineColor", {
+		R = R,
+		G = G,
+		B = B
+	})
+
+    if t5.GunESP.Enabled then
+        t5.GunESP.Enabled = false
+        t7:SaveSetting("GunESP", "Enabled", false)
+
+        if t12.Update then
+            t12.Update:Disconnect()
+            t12.Update = nil
+        end
+
+        for _, v in pairs(t11) do
+            if v.Highlight then
+                v.Highlight:Destroy()
+            end
+        end
+
+        v63(true)
+    end
+end
+CreateColorPicker4(v29, {
+	Name = "Gun Outline Color",
+	Color = t1.value42,
+	Flag = "GunOutlineColor",
+	Callback = t1.value47
+})
+t1.value43 = t5.Coin
+local CreateToggle8 = v29.CreateToggle
+t1.value42 = t1.value43.ShowCoinESP
+CreateToggle8(v29, {
+	Name = "💰 Show Coins (Outline)",
+	CurrentValue = t1.value42,
+	Flag = "ShowCoinESP",
+	Callback = v74
+})
+local CreateColorPicker5 = v29.CreateColorPicker
+t1.value42 = t5.Coin.OutlineColor
+function t1.value47(p79)
+    t5.Coin.OutlineColor = p79
+
+    local v495 = t7
+    local R = p79.R
+    local G = p79.G
+    local B = p79.B
+
+    v495:SaveSetting("Coin", "OutlineColor", {
+		R = R,
+		G = G,
+		B = B
+	})
+
+    if t5.Coin.ShowCoinESP then
+        v74(false)
+        v74(true)
+    end
+end
+CreateColorPicker5(v29, {
+	Name = "Coin Outline Color",
+	Color = t1.value42,
+	Flag = "CoinOutlineColor",
+	Callback = t1.value47
+})
+v28:CreateSection("Hitbox Expander")
+t1.value43 = t5.Combat.HitboxExpander.Enabled
+v28:CreateToggle({
+	Name = "📢 Enable Hitbox Expander",
+	CurrentValue = t1.value43,
+	Flag = "HitboxExpanderEnabled",
+	Callback = v72
+})
+t1.value43 = {
+	1,
+	1000
+}
+local CreateSlider4 = v28.CreateSlider
+t1.value49 = t5.Combat.HitboxExpander.Size
+function t1.value54(p80)
+    t5.Combat.HitboxExpander.Size = p80
+    t7:SaveSetting("Combat", "HitboxExpander", t5.Combat.HitboxExpander)
+end
+CreateSlider4(v28, {
+	Name = "Hitbox Size",
+	Range = t1.value43,
+	Increment = 1,
+	Suffix = "studs",
+	CurrentValue = t1.value49,
+	Flag = "HitboxExpanderSize",
+	Callback = t1.value54
+})
+t1.value43 = {
+	0,
+	1
+}
+t1.value49 = t5.Combat.HitboxExpander.Transparency
+local CreateSlider5 = v28.CreateSlider
+function t1.value54(p81)
+    t5.Combat.HitboxExpander.Transparency = p81
+    t7:SaveSetting("Combat", "HitboxExpander", t5.Combat.HitboxExpander)
+end
+CreateSlider5(v28, {
+	Name = "Hitbox Transparency",
+	Range = t1.value43,
+	Increment = 0.1,
+	Suffix = "",
+	CurrentValue = t1.value49,
+	Flag = "HitboxExpanderTransparency",
+	Callback = t1.value54
+})
+v28:CreateSection("Aimbot")
+t1.value48 = t5
+local CreateToggle9 = v28.CreateToggle
+t1.value45 = t1.value48.GunESP.Aimbot.Enabled
+CreateToggle9(v28, {
+	Name = "🎯 Enable Aimbot",
+	CurrentValue = t1.value45,
+	Flag = "AimbotEnabled",
+	Callback = value40
+})
+t1.value45 = t5.GunESP.Aimbot.WallCheck
+local CreateToggle10 = v28.CreateToggle
+function t1.value52(p82)
+    t5.GunESP.Aimbot.WallCheck = p82
+    t7:SaveSetting("GunESP", "Aimbot", t5.GunESP.Aimbot)
+end
+CreateToggle10(v28, {
+	Name = "🧱 Wall Check",
+	CurrentValue = t1.value45,
+	Flag = "AimbotWallCheck",
+	Callback = t1.value52
+})
+t1.value46 = t5.GunESP.Aimbot
+local CreateToggle11 = v28.CreateToggle
+t1.value45 = t1.value46.ShowFOV
+function t1.value52(p83)
+    t5.GunESP.Aimbot.ShowFOV = p83
+    t7:SaveSetting("GunESP", "Aimbot", t5.GunESP.Aimbot)
+end
+CreateToggle11(v28, {
+	Name = "⭕ Show FOV Circle",
+	CurrentValue = t1.value45,
+	Flag = "AimbotShowFOV",
+	Callback = t1.value52
+})
+t1.value45 = {
+	10,
+	800
+}
+t1.value50 = t5.GunESP.Aimbot.FOV
+local CreateSlider6 = v28.CreateSlider
+function t1.value55(p84)
+    t5.GunESP.Aimbot.FOV = p84
+    t7:SaveSetting("GunESP", "Aimbot", t5.GunESP.Aimbot)
+end
+CreateSlider6(v28, {
+	Name = "Aimbot FOV",
+	Range = t1.value45,
+	Increment = 10,
+	Suffix = "px",
+	CurrentValue = t1.value50,
+	Flag = "AimbotFOV",
+	Callback = t1.value55
+})
+t1.value45 = {
+	"Head",
+	"HumanoidRootPart"
+}
+t1.value47 = t5.GunESP.Aimbot.TargetPart
+function t1.value50(p85)
+    t5.GunESP.Aimbot.TargetPart = p85
+    t7:SaveSetting("GunESP", "Aimbot", t5.GunESP.Aimbot)
+end
+v28:CreateDropdown({
+	Name = "Target Part",
+	Options = t1.value45,
+	CurrentOption = t1.value47,
+	Flag = "AimbotTargetPart",
+	Callback = t1.value50
+})
+v26:CreateSection("Server-Side Invisibility")
+t1.value46 = t5.Movement.Invis.Enabled
+v26:CreateToggle({
+	Name = "Enable Invisibility (Glitch)",
+	CurrentValue = t1.value46,
+	Flag = "InvisEnabled",
+	Callback = value34
+})
+t1.value46 = t5.Movement.WalkFling.Enabled
+v26:CreateToggle({
+	Name = "Enable Walk Fling",
+	CurrentValue = t1.value46,
+	Flag = "WalkFlingEnabled",
+	Callback = value31
+})
+v26:CreateSection("Flight Mode")
+t1.value47 = t5.Movement.Flight.Enabled
+v26:CreateToggle({
+	Name = "Enable Flight Mode",
+	CurrentValue = t1.value47,
+	Flag = "FlightEnabled",
+	Callback = value25
+})
+t1.value47 = {
+	10,
+	200
+}
+t1.value53 = t5.Movement.Flight.Speed
+function t1.value57(p86)
+    t5.Movement.Flight.Speed = p86
+    t7:SaveSetting("Movement", "Flight", t5.Movement.Flight)
+end
+v26:CreateSlider({
+	Name = "Flight Speed",
+	Range = t1.value47,
+	Increment = 5,
+	Suffix = "studs/sec",
+	CurrentValue = t1.value53,
+	Flag = "FlightSpeed",
+	Callback = t1.value57
+})
+t1.value47 = {
+	10,
+	100
+}
+t1.value53 = t5.Movement.Flight.VerticalSpeed
+t1.value41 = v26.CreateSlider
+function t1.value57(p87)
+    t5.Movement.Flight.VerticalSpeed = p87
+    t7:SaveSetting("Movement", "Flight", t5.Movement.Flight)
+end
+t1.value41(v26, {
+	Name = "Vertical Speed",
+	Range = t1.value47,
+	Increment = 5,
+	Suffix = "studs/sec",
+	CurrentValue = t1.value53,
+	Flag = "FlightVerticalSpeed",
+	Callback = t1.value57
+})
+v26:CreateSection("Noclip")
+t1.value48 = t5.Movement.Noclip.Enabled
+v26:CreateToggle({
+	Name = "Enable Noclip",
+	CurrentValue = t1.value48,
+	Flag = "NoclipEnabled",
+	Callback = value26
+})
+t1.value48 = {
+	0,
+	1
+}
+t1.value42 = v26.CreateSlider
+t1.value54 = t5.Movement.Noclip.Transparency
+function t1.value58(p88)
+    t5.Movement.Noclip.Transparency = p88
+    t7:SaveSetting("Movement", "Noclip", t5.Movement.Noclip)
+end
+t1.value42(v26, {
+	Name = "Transparency",
+	Range = t1.value48,
+	Increment = 0.1,
+	Suffix = "",
+	CurrentValue = t1.value54,
+	Flag = "NoclipTransparency",
+	Callback = t1.value58
+})
+t1.value52 = t5.Movement.Noclip
+t1.value42 = v26.CreateToggle
+t1.value48 = t1.value52.ShowIndicator
+function t1.value51(p89)
+    t5.Movement.Noclip.ShowIndicator = p89
+    t7:SaveSetting("Movement", "Noclip", t5.Movement.Noclip)
+end
+t1.value42(v26, {
+	Name = "Show Indicator",
+	CurrentValue = t1.value48,
+	Flag = "NoclipIndicator",
+	Callback = t1.value51
+})
+v26:CreateSection("Speed Hack")
+t1.value52 = t5.Movement.Speed.Enabled
+v26:CreateToggle({
+	Name = "Enable Speed Hack",
+	CurrentValue = t1.value52,
+	Flag = "SpeedEnabled",
+	Callback = value27
+})
+t1.value43 = v26.CreateSlider
+t1.value52 = {
+	1,
+	10
+}
+t1.value55 = t5.Movement.Speed.SpeedMultiplier
+function t1.value59(p90)
+    t5.Movement.Speed.SpeedMultiplier = p90
+    t7:SaveSetting("Movement", "Speed", t5.Movement.Speed)
+
+    if t5.Movement.Speed.Enabled then
+        value27(false)
+        value27(true)
+    end
+end
+t1.value43(v26, {
+	Name = "Speed Multiplier",
+	Range = t1.value52,
+	Increment = 0.5,
+	Suffix = "x",
+	CurrentValue = t1.value55,
+	Flag = "SpeedMultiplier",
+	Callback = t1.value59
+})
+t1.value52 = {
+	16,
+	100
+}
+t1.value55 = t5.Movement.Speed.WalkSpeed
+t1.value43 = v26.CreateSlider
+function t1.value59(p91)
+    t5.Movement.Speed.WalkSpeed = p91
+    t7:SaveSetting("Movement", "Speed", t5.Movement.Speed)
+
+    if t5.Movement.Speed.Enabled then
+        value27(false)
+        value27(true)
+    end
+end
+t1.value43(v26, {
+	Name = "Base Walk Speed",
+	Range = t1.value52,
+	Increment = 2,
+	Suffix = "studs/sec",
+	CurrentValue = t1.value55,
+	Flag = "BaseWalkSpeed",
+	Callback = t1.value59
+})
+v26:CreateSection("Jump Hack")
+t1.value49 = t5.Movement.Jump.Enabled
+v26:CreateToggle({
+	Name = "Enable Jump Hack",
+	CurrentValue = t1.value49,
+	Flag = "JumpEnabled",
+	Callback = value28
+})
+t1.value50 = t5.Movement.Jump
+t1.value45 = v26.CreateToggle
+t1.value49 = t1.value50.SuperJump
+function t1.value54(p92)
+    t5.Movement.Jump.SuperJump = p92
+    t7:SaveSetting("Movement", "Jump", t5.Movement.Jump)
+
+    if t5.Movement.Jump.Enabled then
+        value28(false)
+        value28(true)
+    end
+end
+t1.value45(v26, {
+	Name = "Super Jump",
+	CurrentValue = t1.value49,
+	Flag = "SuperJump",
+	Callback = t1.value54
+})
+t1.value49 = t5.Movement.Jump.InfiniteJump
+function t1.value54(p93)
+    t5.Movement.Jump.InfiniteJump = p93
+    t7:SaveSetting("Movement", "Jump", t5.Movement.Jump)
+
+    if t5.Movement.Jump.Enabled then
+        value28(false)
+        value28(true)
+    end
+end
+v26:CreateToggle({
+	Name = "Infinite Jump",
+	CurrentValue = t1.value49,
+	Flag = "InfiniteJump",
+	Callback = t1.value54
+})
+t1.value49 = t5.Movement.Jump.LowGravity
+t1.value45 = v26.CreateToggle
+function t1.value54(p94)
+    t5.Movement.Jump.LowGravity = p94
+    t7:SaveSetting("Movement", "Jump", t5.Movement.Jump)
+
+    if t5.Movement.Jump.Enabled then
+        value28(false)
+        value28(true)
+    end
+end
+t1.value45(v26, {
+	Name = "Low Gravity",
+	CurrentValue = t1.value49,
+	Flag = "LowGravity",
+	Callback = t1.value54
+})
+t1.value49 = {
+	1,
+	5
+}
+t1.value56 = t5.Movement.Jump.JumpMultiplier
+t1.value45 = v26.CreateSlider
+function t1.value60(p95)
+    t5.Movement.Jump.JumpMultiplier = p95
+    t7:SaveSetting("Movement", "Jump", t5.Movement.Jump)
+
+    local JumpEnabled = t5.Movement.Jump.Enabled
+
+    if JumpEnabled then
+        JumpEnabled = t5.Movement.Jump.SuperJump
+    end
+
+    if JumpEnabled then
+        value28(false)
+        value28(true)
+    end
+end
+t1.value45(v26, {
+	Name = "Jump Multiplier",
+	Range = t1.value49,
+	Increment = 0.5,
+	Suffix = "x",
+	CurrentValue = t1.value56,
+	Flag = "JumpMultiplier",
+	Callback = t1.value60
+})
+v26:CreateSection("Anti-Aim")
+t1.value50 = t5.Movement.AntiAim.Enabled
+v26:CreateToggle({
+	Name = "Enable Anti-Aim",
+	CurrentValue = t1.value50,
+	Flag = "AntiAimEnabled",
+	Callback = value29
+})
+t1.value50 = {
+	"Jitter",
+	"Spin",
+	"Desync"
+}
+t1.value53 = t5.Movement.AntiAim.Mode
+t1.value46 = v26.CreateDropdown
+function t1.value57(p96)
+    t5.Movement.AntiAim.Mode = p96
+    t7:SaveSetting("Movement", "AntiAim", t5.Movement.AntiAim)
+
+    if t5.Movement.AntiAim.Enabled then
+        value29(false)
+        value29(true)
+    end
+end
+t1.value46(v26, {
+	Name = "Anti-Aim Mode",
+	Options = t1.value50,
+	CurrentOption = t1.value53,
+	Flag = "AntiAimMode",
+	Callback = t1.value57
+})
+t1.value50 = {
+	1,
+	20
+}
+t1.value57 = t5.Movement.AntiAim.Speed
+function t1.value61(p97)
+    t5.Movement.AntiAim.Speed = p97
+    t7:SaveSetting("Movement", "AntiAim", t5.Movement.AntiAim)
+
+    if t5.Movement.AntiAim.Enabled then
+        value29(false)
+        value29(true)
+    end
+end
+v26:CreateSlider({
+	Name = "Anti-Aim Speed",
+	Range = t1.value50,
+	Increment = 1,
+	Suffix = "",
+	CurrentValue = t1.value57,
+	Flag = "AntiAimSpeed",
+	Callback = t1.value61
+})
+t1.value50 = {
+	1,
+	50
+}
+t1.value57 = t5.Movement.AntiAim.Intensity
+t1.value46 = v26.CreateSlider
+function t1.value61(p98)
+    t5.Movement.AntiAim.Intensity = p98
+    t7:SaveSetting("Movement", "AntiAim", t5.Movement.AntiAim)
+
+    if t5.Movement.AntiAim.Enabled then
+        value29(false)
+        value29(true)
+    end
+end
+t1.value46(v26, {
+	Name = "Anti-Aim Intensity",
+	Range = t1.value50,
+	Increment = 1,
+	Suffix = "",
+	CurrentValue = t1.value57,
+	Flag = "AntiAimIntensity",
+	Callback = t1.value61
+})
+v27:CreateSection("Auto-Win (Murderer Killer)")
+t1.value51 = t5.Teleport.AutoFlingMurderer.Enabled
+v27:CreateToggle({
+	Name = "Auto-Fling Murderer",
+	CurrentValue = t1.value51,
+	Flag = "AutoFlingMurderer",
+	Callback = v59
+})
+v27:CreateSection("Teleport to Specific Player")
+local s2 = "No players found"
+t1.value54 = { "No players found" }
+t1.value48 = v27.CreateDropdown
+function t1.value60(p99)
+    s2 = p99
+end
+t1.value48 = t1.value48(v27, {
+	Name = "Player Selector",
+	Options = t1.value54,
+	CurrentOption = "No players found",
+	Flag = "TeleportPlayerSelectorDropdown",
+	Callback = t1.value60
+})
+local value48 = t1.value48
+local function v115()
+    local players = Players:GetPlayers()
+    local t22 = {}
+    for v524, v525 in ipairs(players) do
+
+        if v525 ~= LocalPlayer then
+            table.insert(t22, v525.Name .. " (" .. value17(v525) .. ")")
+        end
+    end
+    if #t22 == 0 then
+        t22 = { "No players found" }
+    end
+    local v526 = value48
+    if v526 then
+        v526 = value48.Set
+    end
+    if v526 then
+        pcall(function()
+            value48:Set(t22)
+        end)
+    end
+end
+task.spawn(function()
+    task.wait(2)
+    v115()
+end)
+Players.PlayerAdded:Connect(v115)
+Players.PlayerRemoving:Connect(v115)
+t1.value50 = v27.CreateButton
+function t1.value56()
+    if s2 == "No players found" then
+        v22:Notify({
+			Title = "Error",
+			Content = "No player selected or no players available",
+			Duration = 3
+		})
+
+        return
+    end
+
+    local v527 = s2:match("^(.-) %(") or s2
+    local v528 = Players:FindFirstChild(v527)
+
+    if not v528 then
+        local v529 = v22
+        local Notify = v529.Notify
+        local v531 = "Player not found: " .. v527
+
+        Notify(v529, {
+			Title = "Error",
+			Content = v531,
+			Duration = 3
+		})
+
+        return
+    end
+
+    local Character = LocalPlayer.Character
+
+    if not Character then
+        v22:Notify({
+			Title = "Error",
+			Content = "Your character isn't ready!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    local Character4 = v528.Character
+
+    if not Character4 then
+        local v534 = v22
+        local v535 = v527 .. "'s character isn't ready!"
+
+        v534:Notify({
+			Title = "Error",
+			Content = v535,
+			Duration = 3
+		})
+
+        return
+    end
+
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    local HumanoidRootPart2 = Character4:FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart or not HumanoidRootPart2 then
+        v22:Notify({
+			Title = "Error",
+			Content = "Could not find HumanoidRootPart",
+			Duration = 3
+		})
+
+        return
+    end
+
+    HumanoidRootPart.CFrame = HumanoidRootPart2.CFrame * CFrame.new(0, 0, -4)
+
+    local Highlight = Instance.new("Highlight")
+
+    Highlight.Parent = Character4
+    Highlight.FillColor = Color3.fromRGB(255, 255, 0)
+    Highlight.OutlineColor = Color3.fromRGB(255, 200, 0)
+    Highlight.FillTransparency = 0.5
+    Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    game:GetService("Debris"):AddItem(Highlight, 3)
+
+    local v539 = v22
+    local v540 = "Teleported to " .. v527
+
+    v539:Notify({
+		Title = "Teleport Success",
+		Content = v540,
+		Duration = 3
+	})
+end
+t1.value50(v27, {
+	Name = "🚀 Teleport to Selected Player",
+	Callback = t1.value56
+})
+function t1.value56()
+    local LocalPlayer2 = Players.LocalPlayer
+    local v542 = LocalPlayer2.Character or LocalPlayer2.CharacterAdded:Wait()
+    local success, result = pcall(function()
+        return workspace.RegularLobby.MainLobby.Parts:GetChildren()[152]
+    end)
+    if success then
+        local v545 = workspace.RegularLobby.MainLobby.Parts:GetChildren()[152]
+
+        if v545 then
+            local v546 = v542:FindFirstChild("HumanoidRootPart") or v542:WaitForChild("HumanoidRootPart", 2)
+
+            if v546 then
+                v546.CFrame = v545.CFrame + Vector3.new(0, 3, 0)
+                v22:Notify({
+					Title = "Teleport Success",
+					Content = "Teleported to lobby!",
+					Duration = 3
+				})
+
+                return
+            end
+
+            v22:Notify({
+				Title = "Teleport Failed",
+				Content = "Could not find HumanoidRootPart",
+				Duration = 3
+			})
+
+            return
+        end
+
+        v22:Notify({
+			Title = "Teleport Failed",
+			Content = "Lobby part not found at index 152",
+			Duration = 3
+		})
+
+        return
+    end
+    local v547 = v22
+    local v548 = "Error finding lobby: " .. tostring(result)
+    v547:Notify({
+		Title = "Teleport Failed",
+		Content = v548,
+		Duration = 3
+	})
+end
+v27:CreateButton({
+	Name = "Teleport to Lobby",
+	Callback = t1.value56
+})
+function t1.value56()
+    local LocalPlayer3 = Players.LocalPlayer
+    local HumanoidRootPart = (LocalPlayer3.Character or LocalPlayer3.CharacterAdded:Wait()):FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart then
+        v22:Notify({
+			Title = "Error",
+			Content = "Your character isn't ready!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    local v551 = value21("Murderer", "Knife")
+
+    if #v551 > 0 then
+        local Character = v551[1].Player.Character
+
+        if Character then
+            local HumanoidRootPart3 = Character:FindFirstChild("HumanoidRootPart")
+
+            if HumanoidRootPart3 then
+                local Distance = v551[1].Distance
+
+                HumanoidRootPart.CFrame = HumanoidRootPart3.CFrame * CFrame.new(0, 0, -4)
+
+                local Highlight = Instance.new("Highlight")
+
+                Highlight.Parent = Character
+                Highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                Highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+                Highlight.FillTransparency = 0.5
+                Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                game:GetService("Debris"):AddItem(Highlight, 3)
+
+                local v556 = v22
+                local format = string.format
+                local floor = math.floor
+                local Notify = v556.Notify
+                local v560 = format("Teleported to Murderer (%d studs away)", floor(Distance))
+
+                Notify(v556, {
+					Title = "Target Found!",
+					Content = v560,
+					Duration = 3
+				})
+
+                return
+            end
+        end
+    end
+
+    v22:Notify({
+		Title = "No Murderer",
+		Content = "No Murderer Found!",
+		Duration = 3
+	})
+end
+v27:CreateButton({
+	Name = "🔪 Teleport To Murderer",
+	Callback = t1.value56
+})
+function t1.value56()
+    local LocalPlayer4 = Players.LocalPlayer
+    local HumanoidRootPart = (LocalPlayer4.Character or LocalPlayer4.CharacterAdded:Wait()):FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart then
+        v22:Notify({
+			Title = "Error",
+			Content = "Your character isn't ready!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    local v563 = value21("Sheriff", "Gun")
+
+    if #v563 > 0 then
+        local Character = v563[1].Player.Character
+
+        if Character then
+            local HumanoidRootPart4 = Character:FindFirstChild("HumanoidRootPart")
+
+            if HumanoidRootPart4 then
+                local Distance = v563[1].Distance
+
+                HumanoidRootPart.CFrame = HumanoidRootPart4.CFrame * CFrame.new(0, 0, -4)
+
+                local Highlight = Instance.new("Highlight")
+
+                Highlight.Parent = Character
+                Highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                Highlight.OutlineColor = Color3.fromRGB(100, 255, 100)
+                Highlight.FillTransparency = 0.5
+                Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                game:GetService("Debris"):AddItem(Highlight, 3)
+
+                local v568 = v22
+                local v569 = string.format("Teleported to Sheriff (%d studs away)", (math.floor(Distance)))
+
+                v568:Notify({
+					Title = "Target Found!",
+					Content = v569,
+					Duration = 3
+				})
+
+                return
+            end
+        end
+    end
+
+    v22:Notify({
+		Title = "No Sheriff",
+		Content = "No Sheriff found",
+		Duration = 3
+	})
+end
+v27:CreateButton({
+	Name = "🔫 Teleport to Sheriff",
+	Callback = t1.value56
+})
+function t1.value51()
+    for _, descendant in pairs(workspace:GetDescendants()) do
+        local v572 = descendant.Name == "GunDrop"
+
+        if not v572 then
+            v572 = descendant.Name == "Gun"
+        end
+
+        if not v572 then
+            continue
+        end
+
+        local v573 = not descendant:FindFirstAncestorWhichIsA("Model")
+
+        if not v573 then
+            v573 = not Players:GetPlayerFromCharacter(descendant:FindFirstAncestorWhichIsA("Model"))
+        end
+
+        if v573 then
+            return descendant
+        end
+    end
+
+    return nil
+end
+local value51 = t1.value51
+t1.value51 = v27.CreateButton
+function t1.value57()
+    local LocalPlayer5 = Players.LocalPlayer
+    local v575 = LocalPlayer5.Character or LocalPlayer5.CharacterAdded:Wait()
+    local HumanoidRootPart = v575:FindFirstChild("HumanoidRootPart")
+
+    if not HumanoidRootPart then
+        v22:Notify({
+			Title = "Error",
+			Content = "Your character isn't ready!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    local HumanoidRootPartCFrame = HumanoidRootPart.CFrame
+    local v578 = value51()
+
+    if not v578 then
+        v22:Notify({
+			Title = "No Gun Found",
+			Content = "No dropped gun found in the map",
+			Duration = 3
+		})
+
+        return
+    end
+
+    local CFrame3
+
+    if v578:IsA("BasePart") then
+        CFrame3 = v578.CFrame
+    else
+        local v580 = v578:FindFirstChildWhichIsA("BasePart") or v578.PrimaryPart
+
+        CFrame3 = if not v580 then CFrame.new(v578:GetPivot().Position) else v580.CFrame
+    end
+
+    v22:Notify({
+		Title = "Gun Found",
+		Content = "Teleporting to dropped gun...",
+		Duration = 2
+	})
+    HumanoidRootPart.CFrame = CFrame3 * CFrame.new(0, 0, -2)
+    wait(0.5)
+
+    if v578:IsA("Tool") then
+        v578.Parent = v575
+    end
+
+    wait(0.5)
+    v22:Notify({
+		Title = "Returning",
+		Content = "Returning to original position...",
+		Duration = 2
+	})
+    HumanoidRootPart.CFrame = HumanoidRootPartCFrame
+
+    local Gun = v575:FindFirstChild("Gun")
+
+    if not Gun then
+        Gun = v575:FindFirstChild("Default")
+    end
+
+    if Gun then
+        v22:Notify({
+			Title = "Success!",
+			Content = "Got the gun and returned safely!",
+			Duration = 3
+		})
+
+        return
+    end
+
+    v22:Notify({
+		Title = "Partial Success",
+		Content = "Returned but couldn't pick up the gun",
+		Duration = 3
+	})
+end
+t1.value51(v27, {
+	Name = "🔫 Get Dropped Gun & Return",
+	Callback = t1.value57
+})
+t1.value1:CreateSection("Utility Features")
+t1.value58 = t5.AutoRejoin.Enabled
+t1.value1:CreateToggle({
+	Name = "🔄 Auto-Rejoin on Disconnect",
+	CurrentValue = t1.value58,
+	Flag = "AutoRejoinEnabled",
+	Callback = v75
+})
+t1.value58 = {
+	1,
+	30
+}
+t1.value62 = t5.AutoRejoin.Delay
+t1.value53 = t1.value1.CreateSlider
+function t1.value63(p100)
+    t5.AutoRejoin.Delay = p100
+    t7:SaveSetting("AutoRejoin", "Delay", p100)
+end
+t1.value53(t1.value1, {
+	Name = "Rejoin Delay",
+	Range = t1.value58,
+	Increment = 1,
+	Suffix = "seconds",
+	CurrentValue = t1.value62,
+	Flag = "AutoRejoinDelay",
+	Callback = t1.value63
+})
+t1.value58 = {
+	1,
+	10
+}
+t1.value62 = t5.AutoRejoin.MaxAttempts
+t1.value53 = t1.value1.CreateSlider
+function t1.value63(p101)
+    t5.AutoRejoin.MaxAttempts = p101
+    t7:SaveSetting("AutoRejoin", "MaxAttempts", p101)
+end
+t1.value53(t1.value1, {
+	Name = "Max Rejoin Attempts",
+	Range = t1.value58,
+	Increment = 1,
+	Suffix = "attempts",
+	CurrentValue = t1.value62,
+	Flag = "MaxRejoinAttempts",
+	Callback = t1.value63
+})
+t1.value59 = t5.AntiAFK
+t1.value53 = t1.value1.CreateToggle
+t1.value58 = t1.value59.Enabled
+t1.value53(t1.value1, {
+	Name = "⏰ Anti-AFK",
+	CurrentValue = t1.value58,
+	Flag = "AntiAFKEnabled",
+	Callback = v76
+})
+t1.value53 = t1.value1.CreateDropdown
+t1.value58 = {
+	"Movement",
+	"Camera"
+}
+t1.value60 = t5.AntiAFK.Method
+function t1.value62(p102)
+    t5.AntiAFK.Method = p102
+    t7:SaveSetting("AntiAFK", "Method", p102)
+
+    if t5.AntiAFK.Enabled then
+        v76(false)
+        v76(true)
+    end
+end
+t1.value53(t1.value1, {
+	Name = "Anti-AFK Method",
+	Options = t1.value58,
+	CurrentOption = t1.value60,
+	Flag = "AntiAFKMethod",
+	Callback = t1.value62
+})
+t1.value58 = {
+	10,
+	300
+}
+t1.value62 = t5.AntiAFK.Interval
+t1.value53 = t1.value1.CreateSlider
+function t1.value63(p103)
+    t5.AntiAFK.Interval = p103
+    t7:SaveSetting("AntiAFK", "Interval", p103)
+end
+t1.value53(t1.value1, {
+	Name = "Anti-AFK Interval",
+	Range = t1.value58,
+	Increment = 10,
+	Suffix = "seconds",
+	CurrentValue = t1.value62,
+	Flag = "AntiAFKInterval",
+	Callback = t1.value63
+})
+t1.value53 = t1.value1.CreateButton
+function t1.value58()
+    v22:Notify({
+		Title = "P1xelPeak's MM2 Script",
+		Content = "Features:\n• Advanced ESP System\n• Teleport to Players\n• Gun Grab System\n• Flight Mode & Noclip\n• Speed & Jump Hacks\n• Anti-Aim System\n• Fling & Walk Fling\n• Keybinds\n• Auto-Rejoin & Anti-AFK\n• Hitbox Expander (Touch Refresh)",
+		Duration = 10
+	})
+end
+t1.value53(t1.value1, {
+	Name = "📋 Script Info",
+	Callback = t1.value58
+})
+t1.value53 = t1.value1.CreateButton
+function t1.value58()
+    value25(not t5.Movement.Flight.Enabled)
+end
+t1.value53(t1.value1, {
+	Name = "⚡ Quick Toggle Flight",
+	Callback = t1.value58
+})
+function t1.value58()
+    value26(not t5.Movement.Noclip.Enabled)
+end
+t1.value1:CreateButton({
+	Name = "🚫 Quick Toggle Noclip",
+	Callback = t1.value58
+})
+function t1.value58()
+    value27(not t5.Movement.Speed.Enabled)
+end
+t1.value1:CreateButton({
+	Name = "🏃 Quick Toggle Speed",
+	Callback = t1.value58
+})
+t1.value1:CreateLabel("Script Version: 2.5.0")
+t1.value56 = os.date
+t1.value1:CreateLabel("Last Updated: " .. t1.value56("%x"))
+function t1.value58()
+    v22:Notify({
+		Title = "Refreshing",
+		Content = "Script will refresh in 3 seconds...",
+		Duration = 3
+	})
+    wait(3)
+    for v588, v589 in pairs(value4) do
+
+        if v589 then
+            v589:Disconnect()
+        end
+    end
+    value25(false)
+    value26(false)
+    value27(false)
+    value28(false)
+    value29(false)
+    t5.GunESP.Enabled = false
+    t7:SaveSetting("GunESP", "Enabled", false)
+    if t12.Update then
+        t12.Update:Disconnect()
+        t12.Update = nil
+    end
+    for _, v in pairs(t11) do
+        if v.Highlight then
+            v.Highlight:Destroy()
+        end
+    end
+    value40(false)
+    v74(false)
+    v75(false)
+    v76(false)
+    for k, _ in pairs(t9) do
+        CleanupESP(k)
+    end
+    loadstring(game:HttpGet("https://pastefy.app/a2dAk154/raw"))()
+end
+t1.value1:CreateButton({
+	Name = "🔄 Refresh Script",
+	Callback = t1.value58
+})
+local function v117()
+    wait(3)
+    pcall(function()
+        if t5.ESP.Enabled then
+            ToggleESP(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.Flight.Enabled then
+            value25(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.Noclip.Enabled then
+            value26(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.Speed.Enabled then
+            value27(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.Jump.Enabled then
+            value28(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.AntiAim.Enabled then
+            value29(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.Invis.Enabled then
+            value34(true)
+        end
+    end)
+    pcall(function()
+        if t5.Movement.WalkFling.Enabled then
+            value31(true)
+        end
+    end)
+    pcall(function()
+        if t5.GunESP.Enabled then
+            v63(true)
+        end
+    end)
+    pcall(function()
+        if t5.GunESP.Aimbot.Enabled then
+            value40(true)
+        end
+    end)
+    pcall(function()
+        if t5.Coin.ShowCoinESP then
+            v74(true)
+        end
+    end)
+    pcall(function()
+        if t5.AutoRejoin.Enabled then
+            v75(true)
+        end
+    end)
+    pcall(function()
+        if t5.AntiAFK.Enabled then
+            v76(true)
+        end
+    end)
+    pcall(function()
+        if t5.Combat.HitboxExpander.Enabled then
+            v72(true)
+        end
+    end)
+    v22:Notify({
+		Title = "Settings Loaded",
+		Content = "All saved settings have been loaded!",
+		Duration = 3
+	})
+end
+t1.value24()
+task.spawn(function()
+    wait(3)
+    v117()
+end)
+v22:Notify({
+	Title = "P1xelPeak's MM2 Script Loaded",
+	Content = "Custom configuration system working! Settings now save and load properly.",
+	Duration = 5
+})
+t1.value54 = game:GetService("UserInputService").InputBegan
+function t1.value56(p104, _)
+    if p104.KeyCode == Enum.KeyCode.RightShift then
+
+        for v598, v599 in pairs(value4) do
+
+            if v599 then
+                v599:Disconnect()
+            end
+        end
+        value25(false)
+        value26(false)
+        value27(false)
+        value28(false)
+        value29(false)
+        value34(false)
+        v59(false)
+        value31(false)
+        t5.GunESP.Enabled = false
+        t7:SaveSetting("GunESP", "Enabled", false)
+        if t12.Update then
+            t12.Update:Disconnect()
+            t12.Update = nil
+        end
+        for _, v in pairs(t11) do
+            if v.Highlight then
+                v.Highlight:Destroy()
+            end
+        end
+        value40(false)
+        v74(false)
+        ToggleESP(false)
+        v75(false)
+        v76(false)
+        v72(false)
+        for k, _ in pairs(t9) do
+            CleanupESP(k)
+        end
+        t7:Save()
+        v22:Destroy()
+        print("P1xelPeak's MM2 Script closed. Press RightShift again to reload.")
+    end
+end
+t1.value54:Connect(t1.value56)

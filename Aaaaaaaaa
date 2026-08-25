@@ -1,0 +1,1591 @@
+--[[
+    完整 Kicia Ragebot + Flickbot 移植版
+    包含：Root Desync、Part Glue、Void Teleport、PhysicsRepRootPart 绑定
+    适用：RIVALS (GameId 6035872082)
+    执行器需支持 getgc、debug.getupvalues、sethiddenproperty、getthreadidentity
+]]
+
+-- ===== 基础环境 =====
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local CollectionService = game:GetService("CollectionService")
+local SoundService = game:GetService("SoundService")
+local TeleportService = game:GetService("TeleportService")
+
+local Player = Players.LocalPlayer
+local cloneref = cloneref or clonereference or function(i) return i end
+local clonefunction = clonefunction or copyfunction or function(f) return f end
+
+-- ===== 全局设置（UI 绑定） =====
+local RagebotSettings = {
+    Enabled = false,
+    Stability = 0.15,
+    ShootFrames = 1,
+    PrioritizeHackers = false,
+    WeaponPrimary = true,
+    WeaponSecondary = true,
+    WeaponMelee = true,
+    OnEmpty = "SwapOrReload",
+    EvasionMode = "Random",
+    TranslocateOffset = -5,
+    RandomBaseRadius = 100,
+    RandomRadiusFactor = 0.5,
+    RandomAnchorFromCharacter = false,
+    FlickbotEnabled = false,
+    FlickbotKeybind = Enum.KeyCode.Unknown,
+    FlickbotShot = false,
+    FlickbotShotDelay = 0,
+    FlickbotCooldown = 250,
+    FlickbotDuration = 110,
+    FlickbotCurvature = 12,
+    FlickbotHumanness = 30,
+}
+
+-- ===== UI 样式 =====
+local CFG = {
+    MainColor = Color3.fromRGB(14,14,14),
+    SecondaryColor = Color3.fromRGB(26,26,26),
+    AccentColor = Color3.fromRGB(189,172,255),
+    TextColor = Color3.fromRGB(200,200,200),
+    TextDark = Color3.fromRGB(120,120,120),
+    StrokeColor = Color3.fromRGB(40,40,40),
+    Font = Enum.Font.Code,
+    BaseSize = Vector2.new(600,450)
+}
+
+-- ===== 安全的 Create 函数 =====
+local function Create(class, props, children)
+    local inst = Instance.new(class)
+    if props then
+        for k, v in pairs(props) do
+            inst[k] = v
+        end
+    end
+    if children then
+        for _, child in ipairs(children) do
+            child.Parent = inst
+        end
+    end
+    return inst
+end
+
+-- ===== UI 框架 =====
+local ScreenGui = Create("ScreenGui", {
+    Name = "EclipseUI",
+    Parent = CoreGui,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true
+})
+
+local UIScale = Create("UIScale", {Parent = ScreenGui})
+
+local function UpdateScale()
+    local vp = workspace.CurrentCamera.ViewportSize
+    local widthRatio = (vp.X - 40) / CFG.BaseSize.X
+    local heightRatio = (vp.Y - 40) / CFG.BaseSize.Y
+    local scale = math.min(widthRatio, heightRatio, 1)
+    UIScale.Scale = math.max(scale, 0.6)
+end
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateScale)
+UpdateScale()
+
+-- Notification Container
+local NotificationContainer = Create("Frame", {
+    Parent = ScreenGui,
+    Position = UDim2.new(1, -20, 0, 20),
+    AnchorPoint = Vector2.new(1,0),
+    Size = UDim2.new(0, 300, 1, 0),
+    BackgroundTransparency = 1,
+    ZIndex = 100
+})
+Create("UIListLayout", {
+    Parent = NotificationContainer,
+    Padding = UDim.new(0,5),
+    HorizontalAlignment = Enum.HorizontalAlignment.Right,
+    VerticalAlignment = Enum.VerticalAlignment.Top
+})
+
+local function Notify(msg, type)
+    local color = (type=="success" and Color3.fromRGB(100,255,100)) or
+                  (type=="warning" and Color3.fromRGB(255,100,100)) or
+                  CFG.AccentColor
+    local frame = Create("Frame", {
+        Parent = NotificationContainer,
+        Size = UDim2.new(0,0,0,30),
+        BackgroundColor3 = CFG.MainColor,
+        BorderSizePixel = 0,
+        ClipsDescendants = true
+    }, {
+        Create("UIStroke", {Color = CFG.AccentColor, Thickness = 1, Transparency = 0.5}),
+        Create("Frame", {Size = UDim2.new(0,2,1,0), BackgroundColor3 = color}),
+        Create("TextLabel", {
+            Text = msg,
+            TextColor3 = CFG.TextColor,
+            Font = CFG.Font,
+            TextSize = 12,
+            Size = UDim2.new(1, -10, 1, 0),
+            Position = UDim2.new(0,10,0,0),
+            BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Left
+        })
+    })
+    TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {Size = UDim2.new(0,250,0,35)}):Play()
+    task.delay(3, function()
+        TweenService:Create(frame, TweenInfo.new(0.5), {Size = UDim2.new(0,250,0,0), BackgroundTransparency = 1}):Play()
+        task.wait(0.5)
+        frame:Destroy()
+    end)
+end
+
+-- Tooltip
+local TooltipLabel = Create("TextLabel", {
+    Parent = ScreenGui,
+    Size = UDim2.new(0,0,0,20),
+    BackgroundColor3 = CFG.SecondaryColor,
+    TextColor3 = CFG.TextColor,
+    TextSize = 11,
+    Font = CFG.Font,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 200
+}, {
+    Create("UIPadding", {PaddingLeft = UDim.new(0,5), PaddingRight = UDim.new(0,5)}),
+    Create("UIStroke", {Color = CFG.StrokeColor})
+})
+
+local function AddTooltip(obj, text)
+    obj.MouseEnter:Connect(function()
+        TooltipLabel.Text = text
+        TooltipLabel.Size = UDim2.fromOffset(game:GetService("TextService"):GetTextSize(text, 11, CFG.Font, Vector2.new(10000,10000)).X + 12, 20)
+        TooltipLabel.Visible = true
+    end)
+    obj.MouseLeave:Connect(function()
+        TooltipLabel.Visible = false
+    end)
+end
+
+RunService.RenderStepped:Connect(function()
+    if TooltipLabel.Visible then
+        local m = UserInputService:GetMouseLocation()
+        TooltipLabel.Position = UDim2.fromOffset(m.X + 15, m.Y + 15)
+    end
+end)
+
+-- Main Window
+local MainFrame = Create("Frame", {
+    Name = "MainFrame",
+    Parent = ScreenGui,
+    Size = UDim2.fromOffset(CFG.BaseSize.X, CFG.BaseSize.Y),
+    Position = UDim2.new(0.5, -300, 0.5, -225),
+    BackgroundColor3 = CFG.MainColor,
+    BorderSizePixel = 0
+}, {
+    Create("UIStroke", {Color = CFG.StrokeColor}),
+    Create("UICorner", {CornerRadius = UDim.new(0,3)})
+})
+
+-- Dragging
+local Dragging, DragInput, DragStart, StartPos = false
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = true
+        DragStart = input.Position
+        StartPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then Dragging = false end
+        end)
+    end
+end)
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        DragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == DragInput and Dragging then
+        local delta = input.Position - DragStart
+        TweenService:Create(MainFrame, TweenInfo.new(0.05), {Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + delta.X, StartPos.Y.Scale, StartPos.Y.Offset + delta.Y)}):Play()
+    end
+end)
+
+-- Top Bar
+local TopBar = Create("Frame", {
+    Parent = MainFrame,
+    Size = UDim2.new(1,0,0,30),
+    BackgroundColor3 = CFG.MainColor,
+    BorderSizePixel = 0
+}, {
+    Create("Frame", {Size = UDim2.new(1,0,0,1), Position = UDim2.new(0,0,1,0), BackgroundColor3 = CFG.StrokeColor})
+})
+
+local TitleLabel = Create("TextLabel", {
+    Parent = TopBar,
+    Text = "Kicia Ragebot | Full (Desync + Glue)",
+    TextColor3 = CFG.TextDark,
+    TextSize = 13,
+    Font = CFG.Font,
+    BackgroundTransparency = 1,
+    Size = UDim2.new(0, 300, 1, 0),
+    Position = UDim2.new(0,10,0,0),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    RichText = true
+})
+
+-- Content
+local ContentContainer = Create("Frame", {
+    Parent = MainFrame,
+    Size = UDim2.new(1,0,1,-30),
+    Position = UDim2.new(0,0,0,30),
+    BackgroundTransparency = 1
+})
+
+local Sidebar = Create("Frame", {
+    Parent = ContentContainer,
+    Size = UDim2.new(0,60,1,0),
+    BackgroundColor3 = Color3.fromRGB(17,17,17),
+    BorderSizePixel = 0,
+    Position = UDim2.new(0,0,0,0)
+}, {
+    Create("Frame", {Size = UDim2.new(0,1,0,0), Position = UDim2.new(1,0,0,0), BackgroundTransparency = 1, BackgroundColor3 = CFG.StrokeColor}),
+    Create("UIListLayout", {Padding = UDim.new(0,10), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Top}),
+    Create("UIPadding", {PaddingTop = UDim.new(0,15)})
+})
+
+local PagesContainer = Create("Frame", {
+    Parent = ContentContainer,
+    Size = UDim2.new(1, -60, 1, 0),
+    Position = UDim2.new(0, 60, 0, 0),
+    BackgroundTransparency = 1
+})
+
+-- Tabs
+local Tabs = {}
+function CreateTab(name, icon)
+    local btn = Create("TextButton", {
+        Parent = Sidebar,
+        Size = UDim2.new(0,40,0,40),
+        BackgroundColor3 = CFG.MainColor,
+        Text = "",
+        TextSize = 20,
+        TextColor3 = CFG.TextDark,
+        Font = CFG.Font,
+        AutoButtonColor = false
+    }, {
+        Create("ImageLabel", {
+            Name = "Icon",
+            Size = UDim2.new(0.6,0,0.6,0),
+            Position = UDim2.new(0.2,0,0.2,0),
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://" .. icon,
+            ImageColor3 = CFG.TextDark
+        }),
+        Create("UICorner", {CornerRadius = UDim.new(0,6)})
+    })
+
+    local page = Create("ScrollingFrame", {
+        Parent = PagesContainer,
+        Size = UDim2.new(1,0,1,0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = CFG.AccentColor,
+        CanvasSize = UDim2.new(0,0,0,0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y
+    }, {
+        Create("UIPadding", {PaddingTop = UDim.new(0,15), PaddingLeft = UDim.new(0,15), PaddingRight = UDim.new(0,15), PaddingBottom = UDim.new(0,15)}),
+        Create("UIGridLayout", {
+            CellSize = UDim2.new(0.48,0,0,0),
+            CellPadding = UDim2.new(0.02,0,0,10),
+            FillDirectionMaxCells = 2
+        })
+    })
+
+    local leftCol = Create("Frame", {
+        Parent = page,
+        Size = UDim2.new(0.48,0,1,0),
+        BackgroundTransparency = 1
+    }, {
+        Create("UIListLayout", {Padding = UDim.new(0,10), SortOrder = Enum.SortOrder.LayoutOrder})
+    })
+
+    local rightCol = Create("Frame", {
+        Parent = page,
+        Size = UDim2.new(0.48,0,1,0),
+        Position = UDim2.new(0.52,0,0,0),
+        BackgroundTransparency = 1
+    }, {
+        Create("UIListLayout", {Padding = UDim.new(0,10), SortOrder = Enum.SortOrder.LayoutOrder})
+    })
+
+    btn.MouseButton1Click:Connect(function()
+        for _, t in pairs(Tabs) do
+            TweenService:Create(t.btn, TweenInfo.new(0.2), {TextColor3 = CFG.TextDark, BackgroundColor3 = CFG.MainColor}):Play()
+            t.page.Visible = false
+        end
+        TweenService:Create(btn, TweenInfo.new(0.2), {TextColor3 = CFG.AccentColor, BackgroundColor3 = CFG.SecondaryColor}):Play()
+        page.Visible = true
+    end)
+
+    table.insert(Tabs, {btn = btn, page = page})
+    if #Tabs == 1 then
+        TweenService:Create(btn, TweenInfo.new(0.2), {TextColor3 = CFG.AccentColor, BackgroundColor3 = CFG.SecondaryColor}):Play()
+        page.Visible = true
+    end
+
+    local groupFuncs = {}
+    local leftSide = true
+    function groupFuncs:Group(title)
+        local parent = leftSide and leftCol or rightCol
+        leftSide = not leftSide
+        local group = Create("Frame", {
+            Parent = parent,
+            Size = UDim2.new(1,0,0,0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = Color3.fromRGB(17,17,17),
+            BorderSizePixel = 0
+        }, {
+            Create("UIStroke", {Color = CFG.StrokeColor}),
+            Create("UICorner", {CornerRadius = UDim.new(0,2)})
+        })
+
+        local header = Create("Frame", {
+            Parent = group,
+            Size = UDim2.new(1,0,0,25),
+            BackgroundColor3 = CFG.SecondaryColor,
+            BorderSizePixel = 0
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(0,2)}),
+            Create("Frame", {
+                Size = UDim2.new(1,0,0,5),
+                Position = UDim2.new(0,0,1,-5),
+                BackgroundColor3 = CFG.SecondaryColor,
+                BorderSizePixel = 0
+            }),
+            Create("TextLabel", {
+                Text = title,
+                Size = UDim2.new(1, -20, 1, 0),
+                Position = UDim2.new(0,8,0,0),
+                BackgroundTransparency = 1,
+                TextColor3 = CFG.TextColor,
+                Font = Enum.Font.GothamBold,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left
+            }),
+            Create("Frame", {
+                Size = UDim2.new(0,4,0,4),
+                Position = UDim2.new(1,-10,0.5,-2),
+                BackgroundColor3 = CFG.AccentColor,
+                BorderSizePixel = 0
+            }, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+        })
+
+        local content = Create("Frame", {
+            Parent = group,
+            Size = UDim2.new(1,0,0,0),
+            Position = UDim2.new(0,0,0,25),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1
+        }, {
+            Create("UIListLayout", {Padding = UDim.new(0,5), SortOrder = Enum.SortOrder.LayoutOrder}),
+            Create("UIPadding", {PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,8), PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)})
+        })
+
+        local itemFuncs = {}
+        function itemFuncs:Toggle(cfg)
+            local enabled = false
+            local frame = Create("TextButton", {
+                Parent = content,
+                Size = UDim2.new(1,0,0,20),
+                BackgroundTransparency = 1,
+                Text = ""
+            })
+            local box = Create("Frame", {
+                Parent = frame,
+                Size = UDim2.new(0,12,0,12),
+                Position = UDim2.new(0,0,0.5,-6),
+                BackgroundColor3 = CFG.SecondaryColor,
+                BorderSizePixel = 0
+            }, {Create("UIStroke", {Color = CFG.StrokeColor})})
+            local check = Create("Frame", {
+                Parent = box,
+                Size = UDim2.new(1,-4,1,-4),
+                Position = UDim2.new(0.5,0,0.5,0),
+                AnchorPoint = Vector2.new(0.5,0.5),
+                BackgroundColor3 = CFG.AccentColor,
+                BackgroundTransparency = 1
+            })
+            local label = Create("TextLabel", {
+                Parent = frame,
+                Text = cfg.Name,
+                TextColor3 = cfg.Risky and Color3.fromRGB(200,80,80) or CFG.TextDark,
+                TextSize = 11,
+                Font = CFG.Font,
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0,18,0,0),
+                Size = UDim2.new(1,-18,1,0),
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+            if cfg.Tooltip then AddTooltip(frame, cfg.Tooltip) end
+            local function update()
+                enabled = not enabled
+                TweenService:Create(check, TweenInfo.new(0.1), {BackgroundTransparency = enabled and 0 or 1}):Play()
+                TweenService:Create(label, TweenInfo.new(0.1), {TextColor3 = enabled and CFG.TextColor or (cfg.Risky and Color3.fromRGB(200,80,80) or CFG.TextDark)}):Play()
+                if cfg.Callback then cfg.Callback(enabled) end
+            end
+            frame.MouseButton1Click:Connect(update)
+            return {Set = function(v) if v ~= enabled then update() end end}
+        end
+
+        function itemFuncs:Slider(cfg)
+            local value = cfg.Default or cfg.Min
+            local dragging = false
+            local frame = Create("Frame", {
+                Parent = content,
+                Size = UDim2.new(1,0,0,32),
+                BackgroundTransparency = 1
+            })
+            local label = Create("TextLabel", {
+                Parent = frame,
+                Text = cfg.Name,
+                TextColor3 = CFG.TextDark,
+                TextSize = 11,
+                Font = CFG.Font,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1,0,0,15),
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+            local valLabel = Create("TextLabel", {
+                Parent = frame,
+                Text = value .. (cfg.Unit or ""),
+                TextColor3 = CFG.TextDark,
+                TextSize = 11,
+                Font = CFG.Font,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1,0,0,15),
+                TextXAlignment = Enum.TextXAlignment.Right
+            })
+            local bg = Create("Frame", {
+                Parent = frame,
+                Size = UDim2.new(1,0,0,6),
+                Position = UDim2.new(0,0,0,20),
+                BackgroundColor3 = CFG.SecondaryColor,
+                BorderSizePixel = 0
+            }, {
+                Create("UIStroke", {Color = CFG.StrokeColor}),
+                Create("UICorner", {CornerRadius = UDim.new(1,0)})
+            })
+            local fill = Create("Frame", {
+                Parent = bg,
+                Size = UDim2.new(0,0,1,0),
+                BackgroundColor3 = CFG.AccentColor
+            }, {Create("UICorner", {CornerRadius = UDim.new(1,0)})})
+            local function update(input)
+                local sizeX = bg.AbsoluteSize.X
+                local posX = bg.AbsolutePosition.X
+                local percent = math.clamp((input.Position.X - posX) / sizeX, 0, 1)
+                value = math.floor(cfg.Min + (cfg.Max - cfg.Min) * percent)
+                fill.Size = UDim2.new(percent, 0, 1, 0)
+                valLabel.Text = value .. (cfg.Unit or "")
+                if cfg.Callback then cfg.Callback(value) end
+            end
+            frame.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    update(input)
+                end
+            end)
+            UserInputService.InputChanged:Connect(function(input)
+                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                    update(input)
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
+                end
+            end)
+            local pct = (value - cfg.Min) / (cfg.Max - cfg.Min)
+            fill.Size = UDim2.new(pct, 0, 1, 0)
+            if cfg.Tooltip then AddTooltip(frame, cfg.Tooltip) end
+        end
+
+        function itemFuncs:Dropdown(cfg)
+            local expanded = false
+            local current = cfg.Default or cfg.Options[1]
+            local frame = Create("Frame", {
+                Parent = content,
+                Size = UDim2.new(1,0,0,36),
+                BackgroundTransparency = 1,
+                ZIndex = 20
+            })
+            local label = Create("TextLabel", {
+                Parent = frame,
+                Text = cfg.Name,
+                TextColor3 = CFG.TextDark,
+                TextSize = 11,
+                Font = CFG.Font,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1,0,0,15),
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+            local main = Create("TextButton", {
+                Parent = frame,
+                Size = UDim2.new(1,0,0,20),
+                Position = UDim2.new(0,0,0,16),
+                BackgroundColor3 = CFG.SecondaryColor,
+                BorderSizePixel = 0,
+                Text = "",
+                AutoButtonColor = false
+            }, {
+                Create("UIStroke", {Color = CFG.StrokeColor}),
+                Create("UICorner", {CornerRadius = UDim.new(0,3)}),
+                Create("TextLabel", {
+                    Name = "Val",
+                    Text = current,
+                    Size = UDim2.new(1, -20, 1, 0),
+                    Position = UDim2.new(0,5,0,0),
+                    BackgroundTransparency = 1,
+                    TextColor3 = CFG.TextColor,
+                    TextSize = 11,
+                    Font = CFG.Font,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                }),
+                Create("TextLabel", {
+                    Text = "▼",
+                    Size = UDim2.new(0,20,1,0),
+                    Position = UDim2.new(1,-20,0,0),
+                    BackgroundTransparency = 1,
+                    TextColor3 = CFG.TextDark,
+                    TextSize = 10
+                })
+            })
+            local list = Create("ScrollingFrame", {
+                Parent = main,
+                Size = UDim2.new(1,0,0,0),
+                Position = UDim2.new(0,0,1,2),
+                BackgroundColor3 = CFG.SecondaryColor,
+                BorderSizePixel = 0,
+                Visible = false,
+                ZIndex = 50,
+                CanvasSize = UDim2.new(0,0,0,0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                ScrollBarThickness = 2
+            }, {
+                Create("UIStroke", {Color = CFG.StrokeColor}),
+                Create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder}),
+                Create("UICorner", {CornerRadius = UDim.new(0,3)})
+            })
+            for _, opt in ipairs(cfg.Options) do
+                local btn = Create("TextButton", {
+                    Parent = list,
+                    Size = UDim2.new(1,0,0,20),
+                    BackgroundTransparency = 1,
+                    Text = opt,
+                    TextColor3 = (opt == current) and CFG.AccentColor or CFG.TextDark,
+                    TextSize = 11,
+                    Font = CFG.Font
+                })
+                btn.MouseButton1Click:Connect(function()
+                    current = opt
+                    main.Val.Text = opt
+                    if cfg.Callback then cfg.Callback(opt) end
+                    expanded = false
+                    TweenService:Create(list, TweenInfo.new(0.1), {Size = UDim2.new(1,0,0,0)}):Play()
+                    task.wait(0.1)
+                    list.Visible = false
+                end)
+            end
+            main.MouseButton1Click:Connect(function()
+                expanded = not expanded
+                if expanded then
+                    list.Visible = true
+                    TweenService:Create(list, TweenInfo.new(0.1), {Size = UDim2.new(1,0,0, math.min(#cfg.Options * 20, 100))}):Play()
+                else
+                    TweenService:Create(list, TweenInfo.new(0.1), {Size = UDim2.new(1,0,0,0)}):Play()
+                    task.wait(0.1)
+                    list.Visible = false
+                end
+            end)
+            if cfg.Tooltip then AddTooltip(frame, cfg.Tooltip) end
+        end
+
+        function itemFuncs:Keybind(cfg)
+            local key = cfg.Default or Enum.KeyCode.Insert
+            local waiting = false
+            local frame = Create("Frame", {
+                Parent = content,
+                Size = UDim2.new(1,0,0,20),
+                BackgroundTransparency = 1
+            })
+            local label = Create("TextLabel", {
+                Parent = frame,
+                Text = cfg.Name,
+                TextColor3 = CFG.TextDark,
+                TextSize = 11,
+                Font = CFG.Font,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(0.6,0,1,0),
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+            local btn = Create("TextButton", {
+                Parent = frame,
+                Size = UDim2.new(0,60,1,0),
+                AnchorPoint = Vector2.new(1,0),
+                Position = UDim2.new(1,0,0,0),
+                BackgroundColor3 = CFG.SecondaryColor,
+                Text = key.Name,
+                TextColor3 = CFG.TextDark,
+                TextSize = 10,
+                Font = CFG.Font
+            }, {
+                Create("UIStroke", {Color = CFG.StrokeColor}),
+                Create("UICorner", {CornerRadius = UDim.new(0,3)})
+            })
+            btn.MouseButton1Click:Connect(function()
+                waiting = true
+                btn.Text = "..."
+                btn.TextColor3 = CFG.AccentColor
+            end)
+            UserInputService.InputBegan:Connect(function(inp)
+                if waiting and inp.UserInputType == Enum.UserInputType.Keyboard then
+                    waiting = false
+                    key = inp.KeyCode
+                    btn.Text = key.Name
+                    btn.TextColor3 = CFG.TextDark
+                    if cfg.Callback then cfg.Callback(key) end
+                end
+            end)
+            if cfg.Tooltip then AddTooltip(frame, cfg.Tooltip) end
+        end
+
+        function itemFuncs:Button(cfg)
+            local btn = Create("TextButton", {
+                Parent = content,
+                Size = UDim2.new(1,0,0,22),
+                BackgroundColor3 = cfg.Variant == "Primary" and CFG.AccentColor or (cfg.Variant == "Danger" and Color3.fromRGB(200,60,60) or CFG.SecondaryColor),
+                Text = cfg.Name,
+                TextColor3 = cfg.Variant and Color3.new(0,0,0) or CFG.TextDark,
+                Font = Enum.Font.GothamBold,
+                TextSize = 10
+            }, {
+                Create("UIStroke", {Color = CFG.StrokeColor}),
+                Create("UICorner", {CornerRadius = UDim.new(0,3)})
+            })
+            btn.MouseButton1Click:Connect(function()
+                if cfg.Callback then cfg.Callback() end
+            end)
+            if cfg.Tooltip then AddTooltip(btn, cfg.Tooltip) end
+        end
+
+        return itemFuncs
+    end
+    return groupFuncs
+end
+
+-- ===== 创建 UI 标签页 =====
+local rageTab = CreateTab("Rage", 10455604811)
+local rageGroup = rageTab:Group("Ragebot")
+
+rageGroup:Toggle({Name = "Enabled", Tooltip = "启用 Ragebot", Callback = function(v) RagebotSettings.Enabled = v end})
+rageGroup:Slider({Name = "Stability", Min = 0, Max = 1.5, Default = 0.15, Callback = function(v) RagebotSettings.Stability = v end})
+rageGroup:Slider({Name = "Shoot Frames", Min = 1, Max = 5, Default = 1, Unit = "帧", Callback = function(v) RagebotSettings.ShootFrames = v end})
+rageGroup:Toggle({Name = "Prioritize Hackers", Callback = function(v) RagebotSettings.PrioritizeHackers = v end})
+rageGroup:Toggle({Name = "Use Primary", Default = true, Callback = function(v) RagebotSettings.WeaponPrimary = v end})
+rageGroup:Toggle({Name = "Use Secondary", Default = true, Callback = function(v) RagebotSettings.WeaponSecondary = v end})
+rageGroup:Toggle({Name = "Use Melee", Default = true, Callback = function(v) RagebotSettings.WeaponMelee = v end})
+rageGroup:Dropdown({Name = "On Empty", Options = {"Swap","Reload","SwapOrReload"}, Default = "SwapOrReload", Callback = function(v) RagebotSettings.OnEmpty = v end})
+rageGroup:Dropdown({Name = "Evasion Mode", Options = {"Random","Translocate","ProjectileBreaker"}, Default = "Random", Callback = function(v) RagebotSettings.EvasionMode = v end})
+rageGroup:Slider({Name = "Translocate Offset", Min = -5, Max = 5, Default = -5, Callback = function(v) RagebotSettings.TranslocateOffset = v end})
+rageGroup:Slider({Name = "Random Base Radius", Min = 5, Max = 100000000, Default = 100, Callback = function(v) RagebotSettings.RandomBaseRadius = v end})
+rageGroup:Slider({Name = "Random Range Factor", Min = 0, Max = 1, Default = 0.5, Callback = function(v) RagebotSettings.RandomRadiusFactor = v end})
+rageGroup:Toggle({Name = "Character Origin", Callback = function(v) RagebotSettings.RandomAnchorFromCharacter = v end})
+
+local flickGroup = rageTab:Group("Flickbot")
+flickGroup:Toggle({Name = "Enabled", Callback = function(v) RagebotSettings.FlickbotEnabled = v end})
+flickGroup:Keybind({Name = "Keybind", Default = Enum.KeyCode.Unknown, Callback = function(k) RagebotSettings.FlickbotKeybind = k end})
+flickGroup:Toggle({Name = "Auto Shoot", Callback = function(v) RagebotSettings.FlickbotShot = v end})
+flickGroup:Slider({Name = "Shot Delay", Min = 0, Max = 250, Default = 0, Unit = "ms", Callback = function(v) RagebotSettings.FlickbotShotDelay = v end})
+flickGroup:Slider({Name = "Cooldown", Min = 0, Max = 2000, Default = 250, Unit = "ms", Callback = function(v) RagebotSettings.FlickbotCooldown = v end})
+flickGroup:Slider({Name = "Flick Duration", Min = 30, Max = 400, Default = 110, Unit = "ms", Callback = function(v) RagebotSettings.FlickbotDuration = v end})
+flickGroup:Slider({Name = "Curvature", Min = 0, Max = 50, Default = 12, Callback = function(v) RagebotSettings.FlickbotCurvature = v end})
+flickGroup:Slider({Name = "Humanness", Min = 0, Max = 100, Default = 30, Unit = "%", Callback = function(v) RagebotSettings.FlickbotHumanness = v end})
+
+-- Menu Key
+Library = {MenuKey = Enum.KeyCode.Insert}
+local visible = true
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Library.MenuKey then
+        visible = not visible
+        MainFrame.Visible = visible
+    end
+end)
+
+-- Mobile toggle
+local mobileBtn = Create("ImageButton", {
+    Parent = ScreenGui,
+    Size = UDim2.new(0,40,0,40),
+    Position = UDim2.new(0.5,0,0,10),
+    AnchorPoint = Vector2.new(0.5,0),
+    BackgroundColor3 = CFG.MainColor,
+    Image = "rbxassetid://3926305904",
+    ImageColor3 = CFG.AccentColor,
+    AutoButtonColor = false
+}, {
+    Create("UICorner", {CornerRadius = UDim.new(1,0)}),
+    Create("UIStroke", {Color = CFG.AccentColor, Thickness = 2})
+})
+mobileBtn.MouseButton1Click:Connect(function()
+    visible = not visible
+    MainFrame.Visible = visible
+end)
+
+-- ============================================================
+-- 以下为完整的 Ragebot + Flickbot 核心（从 KiciaHook 移植）
+-- ============================================================
+
+-- 辅助函数：获取枚举库
+local EnumLibrary = nil
+local function ResolveEnumLibrary()
+    if EnumLibrary then return EnumLibrary end
+    local mod = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("EnumLibrary")
+    if mod then
+        local ok, lib = pcall(require, mod)
+        if ok and type(lib) == "table" then
+            EnumLibrary = lib
+            return lib
+        end
+    end
+    return nil
+end
+
+-- 解析本地 Fighter
+local FighterController = nil
+local function ResolveFighterController()
+    if FighterController then return FighterController end
+    local scripts = Player:FindFirstChild("PlayerScripts")
+    if not scripts then return nil end
+    local controllers = scripts:FindFirstChild("Controllers")
+    if not controllers then return nil end
+    local mod = controllers:FindFirstChild("FighterController")
+    if mod then
+        local ok, ctrl = pcall(require, mod)
+        if ok and type(ctrl) == "table" then
+            FighterController = ctrl
+            return ctrl
+        end
+    end
+    return nil
+end
+
+local function ResolveLocalFighter()
+    local ctrl = ResolveFighterController()
+    if not ctrl then return nil end
+    if ctrl.LocalFighter then return ctrl.LocalFighter end
+    if type(ctrl.GetFighter) == "function" then
+        local ok, f = pcall(ctrl.GetFighter, ctrl, Player)
+        if ok and f then return f end
+    end
+    return nil
+end
+
+local function ReadFighterValue(fighter, key)
+    if not fighter then return nil end
+    if type(fighter.Get) == "function" then
+        local ok, v = pcall(fighter.Get, fighter, key)
+        if ok then return v end
+    end
+    return fighter[key]
+end
+
+local function ReadItemValue(item, key)
+    if not item then return nil end
+    if type(item.Get) == "function" then
+        local ok, v = pcall(item.Get, item, key)
+        if ok then return v end
+    end
+    return item[key]
+end
+
+-- 敌人判断
+local function IsEnemyPlayer(player)
+    if player == Player then return false end
+    local localTeam = Player:GetAttribute("TeamID")
+    local theirTeam = player:GetAttribute("TeamID")
+    if localTeam and theirTeam then return localTeam ~= theirTeam end
+    if Player.Team and player.Team then return Player.Team ~= player.Team end
+    return true
+end
+
+local function IsTargetInvincible(entity)
+    if not entity then return false end
+    local data = entity.Data
+    if type(data) == "table" then return data.IsInvincible == true end
+    return false
+end
+
+local function CollectEnemies()
+    local out = {}
+    local ctrl = ResolveFighterController()
+    if not ctrl then return out end
+    local objects = ctrl.Objects
+    if type(objects) ~= "table" then return out end
+    for _, fighter in ipairs(objects) do
+        local player = fighter.Player
+        if player and player ~= Player and IsEnemyPlayer(player) then
+            local entity = fighter.Entity
+            local model = entity and entity.Model
+            if model then
+                local head = model:FindFirstChild("HitboxHead")
+                local root = model:FindFirstChild("HumanoidRootPart")
+                if head and root then
+                    local hum = model:FindFirstChildOfClass("Humanoid")
+                    table.insert(out, {
+                        fighter = fighter,
+                        player = player,
+                        entity = entity,
+                        model = model,
+                        hitboxHead = head,
+                        rootPart = root,
+                        humanoid = hum,
+                        alive = hum == nil or hum.Health > 0,
+                        invincible = IsTargetInvincible(entity)
+                    })
+                end
+            end
+        end
+    end
+    return out
+end
+
+local function IsValidTarget(entry)
+    return entry and entry.alive and not entry.invincible
+end
+
+local function SelectTarget()
+    local enemies = CollectEnemies()
+    local prioritizeHackers = RagebotSettings.PrioritizeHackers
+    for _, e in ipairs(enemies) do
+        if prioritizeHackers and e.hacker and IsValidTarget(e) then return e end
+    end
+    for _, e in ipairs(enemies) do
+        if IsValidTarget(e) then return e end
+    end
+    return nil
+end
+
+-- ===== 安全位置检测（防止虚空死亡） =====
+local function IsPointInOOBVolume(pos)
+    local buffer = 4
+    for _, safe in ipairs(CollectionService:GetTagged("OutOfBoundsSafePart")) do
+        if safe:IsA("BasePart") then
+            local rel = safe.CFrame:PointToObjectSpace(pos)
+            local hx, hy, hz = safe.Size.X/2, safe.Size.Y/2, safe.Size.Z/2
+            if math.abs(rel.X) <= hx and math.abs(rel.Y) <= hy and math.abs(rel.Z) <= hz then
+                return false
+            end
+        end
+    end
+    for _, oob in ipairs(CollectionService:GetTagged("OutOfBoundsPart")) do
+        if oob:IsA("BasePart") then
+            local rel = oob.CFrame:PointToObjectSpace(pos)
+            local hx, hy, hz = oob.Size.X/2, oob.Size.Y/2, oob.Size.Z/2
+            if math.abs(rel.X) <= hx + buffer and math.abs(rel.Y) <= hy + buffer and math.abs(rel.Z) <= hz + buffer then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function IsCandidatePositionInBounds(pos)
+    return not IsPointInOOBVolume(pos)
+end
+
+-- ===== 武器选择 =====
+local function itemCategory(idx)
+    if idx == 1 then return "Primary"
+    elseif idx == 2 then return "Secondary"
+    elseif idx == 3 then return "Melee"
+    end
+    return nil
+end
+
+local function isCategoryEnabled(cat)
+    if cat == "Primary" then return RagebotSettings.WeaponPrimary
+    elseif cat == "Secondary" then return RagebotSettings.WeaponSecondary
+    elseif cat == "Melee" then return RagebotSettings.WeaponMelee
+    end
+    return false
+end
+
+local function getAction(fighter)
+    if not fighter then return nil end
+    local items = fighter.Items
+    if type(items) ~= "table" then return nil end
+    local onEmpty = RagebotSettings.OnEmpty
+    local bestAttack, bestAttackPri, bestAttackIdx = nil, math.huge, nil
+    local bestSwap, bestSwapPri, bestSwapIdx = nil, math.huge, nil
+    local anyEnabled = false
+    for slotKey, item in next, items do
+        if type(item) == "table" then
+            local cat = itemCategory(slotKey)
+            if cat and isCategoryEnabled(cat) then
+                anyEnabled = true
+                local prio = 1
+                local itType = item.Info and item.Info.Type or "Gun"
+                local ammo = ReadItemValue(item, "Ammo")
+                if itType == "Gun" and (ammo == nil or ammo == 0) then
+                    local reserve = ReadItemValue(item, "AmmoReserve")
+                    if reserve and reserve > 0 then
+                        if onEmpty == "Reload" then
+                            if prio < bestAttackPri then
+                                bestAttack = item; bestAttackPri = prio; bestAttackIdx = slotKey
+                            end
+                        else
+                            if prio < bestSwapPri then
+                                bestSwap = item; bestSwapPri = prio; bestSwapIdx = slotKey
+                            end
+                        end
+                    end
+                elseif bestAttack == nil or prio < bestAttackPri then
+                    bestAttack = item; bestAttackPri = prio; bestAttackIdx = slotKey
+                end
+            end
+        end
+    end
+    if not anyEnabled then return nil end
+    if bestAttack == nil then
+        if onEmpty == "Swap" or bestSwap == nil then return nil end
+        if bestSwap.IsEquipped then return { type = "Reload", item = bestSwap, index = bestSwapIdx }
+        else return { type = "Swap", item = bestSwap, index = bestSwapIdx } end
+    end
+    if not bestAttack.IsEquipped then return { type = "Swap", item = bestAttack, index = bestAttackIdx } end
+    local ammo = ReadItemValue(bestAttack, "Ammo")
+    if ammo == 0 then return { type = "Reload", item = bestAttack, index = bestAttackIdx } end
+    return { type = "Attack", item = bestAttack, index = bestAttackIdx }
+end
+
+-- ===== Kicia 风格远程射击（虚空瞄准） =====
+local NEG_HUGE = -9e37
+local function buildAim(base, pitch, oy, oz)
+    return { ["\0"] = base["\0"], ["\1"] = base["\1"], ["\2"] = base["\2"], ["\3"] = pitch, ["\4"] = oy, ["\5"] = oz }
+end
+local AIM_ABOVE_ORIGIN = { ["\0"] = NEG_HUGE, ["\1"] = 0, ["\2"] = 0 }
+local AIM_ABOVE_END = { ["\0"] = 0, ["\1"] = -90000000, ["\2"] = 0 }
+local AIM_BELOW_ORIGIN = { ["\0"] = NEG_HUGE, ["\1"] = 0, ["\2"] = 0 }
+local AIM_BELOW_END = { ["\0"] = 0, ["\1"] = 90000000, ["\2"] = 0 }
+local AIM_EXTRA = { ["\0"] = 0, ["\1"] = 1, ["\2"] = 0, ["\3"] = 0, ["\4"] = 0, ["\5"] = 0 }
+local PITCH_ABOVE = -math.pi / 2
+local PITCH_BELOW = math.pi / 2
+
+local function fireGun(objectId, isRaycast, aim1, aim2, hitboxHead, extra)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Replication") and ReplicatedStorage.Remotes.Replication:FindFirstChild("Fighter") and ReplicatedStorage.Remotes.Replication.Fighter:FindFirstChild("UseItem")
+    if not remote then return end
+    local enum = ResolveEnumLibrary()
+    if not enum then return end
+    local token = enum:ToEnum("StartShooting")
+    if not token then return end
+    local payload = isRaycast and { ["\1"] = { ["\0"] = aim1, ["\1"] = aim2, ["\2"] = hitboxHead, ["\3"] = extra }, ["\2"] = true } or { ["\1"] = { ["\0"] = aim1, ["\1"] = aim2, ["\2"] = hitboxHead, ["\3"] = extra } }
+    pcall(remote.FireServer, remote, objectId, token, payload, nil)
+end
+
+local function fireMeleeAttack(objectId, a, b, c, d)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Replication") and ReplicatedStorage.Remotes.Replication:FindFirstChild("Fighter") and ReplicatedStorage.Remotes.Replication.Fighter:FindFirstChild("UseItem")
+    if not remote then return end
+    local enum = ResolveEnumLibrary()
+    if not enum then return end
+    local token = enum:ToEnum("StartShooting")
+    local anim = enum:ToEnum("AttackAnimation1")
+    if not token or not anim then return end
+    pcall(remote.FireServer, remote, objectId, token, { ["\1"] = { ["\0"] = a, ["\1"] = b, ["\2"] = c, ["\3"] = d }, ["\2"] = anim }, nil)
+end
+
+local function fireReload(objectId)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Replication") and ReplicatedStorage.Remotes.Replication:FindFirstChild("Fighter") and ReplicatedStorage.Remotes.Replication.Fighter:FindFirstChild("UseItem")
+    if not remote then return end
+    local enum = ResolveEnumLibrary()
+    if not enum then return end
+    local start = enum:ToEnum("StartReloading")
+    local reload = enum:ToEnum("Reload")
+    if not start or not reload then return end
+    pcall(remote.FireServer, remote, objectId, start, { ["\1"] = reload, ["\2"] = reload }, nil)
+end
+
+local function itemObjectId(item)
+    local data = item.Data
+    return data and data.ObjectID or nil
+end
+
+local function itemIsReloading(item)
+    local now = tick()
+    local cd = item._reload_cooldown
+    if type(cd) == "number" and now < cd then return true end
+    local noAmmo = item._shoot_cooldown_no_ammo
+    return type(noAmmo) == "number" and now < noAmmo
+end
+
+local function equipItem(item, index)
+    if item.IsEquipped then return end
+    local fighter = item.ClientFighter
+    if fighter and type(fighter.EquipItem) == "function" then pcall(fighter.EquipItem, fighter, index) end
+end
+
+local function reloadItem(item)
+    if itemIsReloading(item) or ReadItemValue(item, "AmmoReserve") <= 0 then return end
+    if ReadItemValue(item, "Info.MaxAmmo") <= ReadItemValue(item, "Ammo") then return end
+    fireReload(itemObjectId(item))
+end
+
+-- ===== Root Desync 和 Part Glue（Kicia 核心） =====
+local RootDesync = {}
+RootDesync.__index = RootDesync
+function RootDesync.new(rootPart)
+    local self = setmetatable({
+        _rootPart = rootPart,
+        _oldCFrame = rootPart.CFrame,
+        _serverCFrame = nil,
+    }, RootDesync)
+    RunService:BindToRenderStep("KiciaRootDesync", Enum.RenderPriority.First.Value, function()
+        if self._oldCFrame then
+            self._rootPart.CFrame = self._oldCFrame
+            self._oldCFrame = nil
+        end
+    end)
+    return self
+end
+function RootDesync:SetServerCFrame(cf)
+    self._serverCFrame = cf
+end
+function RootDesync:GetServerCFrame()
+    return self._serverCFrame or self._rootPart.CFrame
+end
+function RootDesync:GetClientCFrame()
+    return self._oldCFrame or self._rootPart.CFrame
+end
+function RootDesync:HeartbeatUpdate()
+    if self._serverCFrame then
+        self._oldCFrame = self._rootPart.CFrame
+        self._rootPart.CFrame = self._serverCFrame
+    end
+end
+function RootDesync:Destroy()
+    pcall(function() RunService:UnbindFromRenderStep("KiciaRootDesync") end)
+end
+
+local PartGlue = {}
+PartGlue.__index = PartGlue
+function PartGlue.new()
+    return setmetatable({ _bindings = {} }, PartGlue)
+end
+function PartGlue:Acquire(ourPart, hitboxPart)
+    local prev = getthreadidentity and getthreadidentity() or 0
+    if setthreadidentity then pcall(setthreadidentity, 8) end
+    pcall(function() ourPart:SetAttribute("PhysicsRepRootPart", hitboxPart) end)
+    if setthreadidentity then pcall(setthreadidentity, prev) end
+    self._bindings[ourPart] = hitboxPart
+    local cf = CFrame.new(math.random(-100000,-10000), 100000, math.random(-100000,10000))
+    hitboxPart.CFrame = cf
+    return CFrame.new(cf.Position)
+end
+function PartGlue:Free(ourPart)
+    local hit = self._bindings[ourPart]
+    if hit then
+        self._bindings[ourPart] = nil
+        local prev = getthreadidentity and getthreadidentity() or 0
+        if setthreadidentity then pcall(setthreadidentity, 8) end
+        pcall(function() ourPart:SetAttribute("PhysicsRepRootPart", nil) end)
+        if setthreadidentity then pcall(setthreadidentity, prev) end
+    end
+end
+
+-- ===== ViewAngleDriver（伪造相机旋转） =====
+local ViewAngleDriver = {}
+ViewAngleDriver.__index = ViewAngleDriver
+function ViewAngleDriver.new()
+    return setmetatable({ _slots = {}, _winning = nil }, ViewAngleDriver)
+end
+function ViewAngleDriver:SendViewAngles(priority, angles)
+    if not angles then self._slots[priority] = nil else self._slots[priority] = angles end
+    local best = nil
+    for pri, val in pairs(self._slots) do
+        if best == nil or pri > best then best = pri end
+    end
+    self._winning = self._slots[best]
+end
+function ViewAngleDriver:Flush()
+    local winning = self._winning
+    if winning then
+        local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Replication") and ReplicatedStorage.Remotes.Replication:FindFirstChild("Fighter") and ReplicatedStorage.Remotes.Replication.Fighter:FindFirstChild("UpdateCameraRotation")
+        if remote then
+            local pitch, yaw = winning.X, winning.Y
+            local enc = utf8.char(math.clamp(math.floor(pitch / math.pi / 2 * 256), 0, 255)) .. utf8.char(math.clamp(math.floor(yaw / math.pi / 2 * 256), 0, 255))
+            pcall(remote.FireServer, remote, enc, nil)
+        end
+    end
+end
+
+-- ===== CharacterController（集成 RootDesync + ViewAngleDriver） =====
+local CharacterController = {}
+CharacterController.__index = CharacterController
+function CharacterController.new(rootPart)
+    return setmetatable({
+        _rootPart = rootPart,
+        _rootDesync = RootDesync.new(rootPart),
+        _viewDriver = ViewAngleDriver.new(),
+    }, CharacterController)
+end
+function CharacterController:SetServerCFrame(cf)
+    self._rootDesync:SetServerCFrame(cf)
+end
+function CharacterController:GetClientCFrame()
+    return self._rootDesync:GetClientCFrame()
+end
+function CharacterController:SendViewAngles(priority, angles)
+    self._viewDriver:SendViewAngles(priority, angles)
+end
+function CharacterController:HeartbeatUpdate()
+    self._rootDesync:HeartbeatUpdate()
+    self._viewDriver:Flush()
+end
+function CharacterController:Destroy()
+    self._rootDesync:Destroy()
+end
+
+-- ===== Ragebot 控制器（使用 Kicia 机制） =====
+local Controller = {}
+Controller.__index = Controller
+function Controller.new()
+    return setmetatable({
+        _enabled = false,
+        _partGlue = PartGlue.new(),
+        _charCtrl = nil,
+        _boundRoot = nil,
+        _lastTargetWorld = nil,
+        _phaseClock = 0,
+        _shootLock = { _lockedUntil = nil },
+    }, Controller)
+end
+
+function Controller:SetEnabled(enabled)
+    self._enabled = enabled
+    if not enabled then self:Reset() end
+end
+
+function Controller:EnsureCharacterController()
+    local char = Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        if self._charCtrl then self._charCtrl:Destroy() end
+        self._charCtrl = nil
+        self._boundRoot = nil
+        return nil
+    end
+    if self._charCtrl == nil or self._boundRoot ~= root then
+        if self._charCtrl then self._charCtrl:Destroy() end
+        self._charCtrl = CharacterController.new(root)
+        self._boundRoot = root
+    end
+    return self._charCtrl
+end
+
+function Controller:Reset()
+    self._lastTargetWorld = nil
+    self._shootLock._lockedUntil = nil
+    if self._charCtrl then
+        self._charCtrl:SetServerCFrame(nil)
+        self._charCtrl:SendViewAngles(20, nil)
+        self._charCtrl:HeartbeatUpdate()
+    end
+end
+
+function Controller:Destroy()
+    self:SetEnabled(false)
+    self:Reset()
+    if self._charCtrl then
+        self._charCtrl:Destroy()
+        self._charCtrl = nil
+    end
+end
+
+-- 半径和高度（用于虚空绕行）
+local function ResolveRadius()
+    local ranges = { In = 10, Out = 35 }
+    local toggle = math.floor(os.clock() * 15) % 2 == 0
+    return toggle and ranges.In or ranges.Out
+end
+local function ResolveHeightOffset(t) return 3 + math.sin(2 * math.pi * 2.7 * t) * 2 end
+
+-- 生成虚空 CFrame（带偏移）
+local function ResolveRagebotCFrame(targetRoot, radius, height, phase)
+    local offset = Vector3.new(math.sin(phase) * radius, height, math.cos(phase) * radius)
+    local pos = targetRoot.CFrame:PointToWorldSpace(offset)
+    return CFrame.lookAt(pos, targetRoot.Position)
+end
+
+-- Evasion 模式
+local function RandomEvade(clientCF)
+    local base = RagebotSettings.RandomBaseRadius
+    local factor = RagebotSettings.RandomRadiusFactor
+    local angle = math.random() * 2 * math.pi
+    local r = base + math.random() * base * factor
+    local anchor = RagebotSettings.RandomAnchorFromCharacter and clientCF.Position or Vector3.new(0, clientCF.Position.Y, 0)
+    local pos = anchor + Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+    return CFrame.new(pos)
+end
+
+local function TranslocateEvade()
+    local oobs = CollectionService:GetTagged("OutOfBoundsPart")
+    local chosen = oobs and oobs[1]
+    if chosen then
+        return chosen.CFrame * CFrame.new(0, -chosen.Size.Y/2 + RagebotSettings.TranslocateOffset, 0)
+    else
+        return CFrame.new(math.random(-100000,100000), 100000, math.random(-100000,100000))
+    end
+end
+
+local function ProjectileBreakerEvade(clientCF)
+    return CFrame.new(clientCF.Position + Vector3.new(0, 20, 0))
+end
+
+function Controller:Update(dt)
+    local fighter = ResolveLocalFighter()
+    local charCtrl = self:EnsureCharacterController()
+    if not fighter or not charCtrl or not self._enabled then
+        self:Reset()
+        return
+    end
+    local root = self._boundRoot
+    if not root then return end
+
+    local target = SelectTarget()
+    local action = getAction(fighter)
+    local clientCF = charCtrl:GetClientCFrame()
+    local radius = ResolveRadius()
+    local height = ResolveHeightOffset(os.clock())
+    local phase = math.random() * 2 * math.pi
+
+    if target and action then
+        local targetRoot = target.rootPart
+        local hoverCF = ResolveRagebotCFrame(targetRoot, radius, height, phase)
+        if IsCandidatePositionInBounds(hoverCF.Position) then
+            -- 使用 PartGlue 将本地根部的 PhysicsRepRootPart 指向敌人 Hitbox，并将敌人 Hitbox 移到虚空
+            local voidCF = self._partGlue:Acquire(root, target.hitboxHead)
+            charCtrl:SetServerCFrame(voidCF)
+            charCtrl:SendViewAngles(20, nil)
+            self._lastTargetWorld = targetRoot.Position
+        else
+            charCtrl:SetServerCFrame(clientCF)
+        end
+    else
+        local mode = RagebotSettings.EvasionMode
+        local evCF
+        if mode == "Random" then
+            evCF = RandomEvade(clientCF)
+        elseif mode == "Translocate" then
+            evCF = TranslocateEvade()
+        else
+            evCF = ProjectileBreakerEvade(clientCF)
+        end
+        if IsCandidatePositionInBounds(evCF.Position) then
+            charCtrl:SetServerCFrame(evCF)
+        else
+            charCtrl:SetServerCFrame(clientCF)
+        end
+        self._lastTargetWorld = nil
+        self._partGlue:Free(root)
+    end
+
+    -- 射击逻辑
+    if action and action.type == "Attack" then
+        local item = action.item
+        local objId = itemObjectId(item)
+        if objId and target then
+            if item.Info and item.Info.Type == "Gun" then
+                local isRaycast = item.Info.IsRaycast == true
+                local above = true
+                local aim1 = buildAim(above and AIM_ABOVE_ORIGIN or AIM_BELOW_ORIGIN, above and PITCH_ABOVE or PITCH_BELOW, 0, 0)
+                local aim2 = buildAim(above and AIM_ABOVE_END or AIM_BELOW_END, above and PITCH_ABOVE or PITCH_BELOW, 0, 0)
+                fireGun(objId, isRaycast, aim1, aim2, target.hitboxHead, AIM_EXTRA)
+            elseif item.Info and (item.Info.Class == "Melee" or item.Info.Type == "Melee") then
+                local aim1 = buildAim(AIM_ABOVE_ORIGIN, PITCH_ABOVE, 0, 0)
+                local aim2 = buildAim(AIM_ABOVE_END, PITCH_ABOVE, 0, 0)
+                fireMeleeAttack(objId, aim1, aim2, target.hitboxHead, AIM_EXTRA)
+            end
+        end
+    elseif action and action.type == "Reload" then
+        reloadItem(action.item)
+    elseif action and action.type == "Swap" then
+        equipItem(action.item, action.index)
+    end
+
+    charCtrl:HeartbeatUpdate()
+end
+
+local controllerInstance = nil
+
+function UpdateRagebot(dt)
+    if not controllerInstance then
+        controllerInstance = Controller.new()
+    end
+    local enabled = RagebotSettings.Enabled
+    if controllerInstance._enabled ~= enabled then
+        controllerInstance:SetEnabled(enabled)
+    end
+    controllerInstance:Update(dt or 0)
+end
+
+function ResetRagebot()
+    if controllerInstance then controllerInstance:Reset() end
+end
+
+function DestroyRagebot()
+    if controllerInstance then controllerInstance:Destroy() end
+    controllerInstance = nil
+end
+
+-- ============================================================
+-- 完整的 Flickbot（移植自 Kicia）
+-- ============================================================
+local Flickbot = {
+    State = "Idle",
+    Trajectory = nil,
+    TrajectoryIndex = 1,
+    ElapsedMs = 0,
+    TotalMs = 0,
+    BakedEndDirection = Vector3.zAxis,
+    Selected = nil,
+    Timer = 0,
+    WasHeld = false,
+    Rng = Random.new(),
+    OuTheta = 3.5,
+    TremorFrequencyMin = 8,
+    TremorFrequencyMax = 12,
+    SampleDeltaMean = 7.8,
+    GammaShape = 3.5,
+}
+
+local function FlickbotNormal(rng, mean, std)
+    local u1 = math.max(rng:NextNumber(), 1e-15)
+    local u2 = rng:NextNumber()
+    return mean + std * math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+end
+
+local function FlickbotGamma(rng, shape, scale)
+    local factor = 1
+    if shape < 1 then
+        factor = rng:NextNumber() ^ (1 / shape)
+        shape = shape + 1
+    end
+    local adj = shape - 1/3
+    local root = math.sqrt(9 * adj)
+    while true do
+        local sample = FlickbotNormal(rng, 0, 1)
+        local candidate = (1 + sample / root) ^ 3
+        if candidate > 0 then
+            local uniform = math.max(rng:NextNumber(), 1e-15)
+            if uniform < 1 - 0.0331 * sample^4 or math.log(uniform) < 0.5 * sample^2 + adj * (1 - candidate + math.log(candidate)) then
+                return adj * candidate * scale * factor
+            end
+        end
+    end
+end
+
+local function LognormalCdf(timeMs, startMs, mean, sigma)
+    if timeMs <= startMs then return 0 end
+    local x = (math.log(timeMs - startMs) - mean) / sigma
+    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+end
+
+local function LognormalPdf(timeMs, startMs, mean, sigma)
+    if timeMs <= startMs then return 0 end
+    local x = (math.log(timeMs - startMs) - mean) / sigma
+    return math.exp(-0.5 * x^2) / (sigma * math.sqrt(2 * math.pi) * (timeMs - startMs))
+end
+
+local function Bump(value)
+    if value <= 0 or value >= 1 then return 0 end
+    return value^2 * (1 - value)^3 / 0.03456
+end
+
+function GenerateFlickbotTrajectory(startX, startY, targetX, targetY)
+    local rng = Flickbot.Rng
+    local function randomBetween(a,b) return a + rng:NextNumber() * (b - a) end
+    local function normal(mean, std) return FlickbotNormal(rng, mean, std) end
+
+    local dx = targetX - startX
+    local dy = targetY - startY
+    local distance = math.sqrt(dx^2 + dy^2)
+    if distance < 1 then return {} end
+    local dirX = dx / distance
+    local dirY = dy / distance
+    local angle = math.atan2(dy, dx)
+
+    local duration = RagebotSettings.FlickbotDuration
+    local humanness = RagebotSettings.FlickbotHumanness / 30
+    local curvScale = RagebotSettings.FlickbotCurvature / 1000
+
+    local primaryDist = distance * randomBetween(0.97, 1)
+    local peakRatio = randomBetween(0.29, 0.35)
+    local primaryMean = math.log(duration * peakRatio) + 0.2^2
+    local primarySigma = 0.2
+    local curvature = distance * curvScale * (0.5 + 0.8 * math.abs(math.sin(angle)))
+    local tremorFreq = randomBetween(8, 12)
+    local tremorAmp = randomBetween(0.05, 0.18) * humanness
+    local noiseX, noiseY = 0, 0
+    local endTime = duration * 1.15
+    local sampleTimes = {}
+    local t = 0
+    while t < endTime do
+        t = t + FlickbotGamma(rng, 3.5, 7.8 / 3.5)
+        if t <= endTime + 15 then table.insert(sampleTimes, t) end
+    end
+    local trajectory = {}
+    for idx, timeMs in ipairs(sampleTimes) do
+        local progress = LognormalCdf(timeMs, 0, primaryMean, primarySigma)
+        local x = startX + dirX * primaryDist * progress - dirY * curvature * Bump(progress)
+        local y = startY + dirY * primaryDist * progress + dirX * curvature * Bump(progress)
+        local delta = idx > 1 and (timeMs - sampleTimes[idx-1]) / 1000 or 0.01
+        local ouTheta = 3.5
+        local ouSigma = 0.5 * humanness
+        noiseX = noiseX * (1 - ouTheta * delta) + ouSigma * math.sqrt(delta) * normal(0, 1)
+        noiseY = noiseY * (1 - ouTheta * delta) + ouSigma * math.sqrt(delta) * normal(0, 1)
+        local tremor = 1 / (1 + primaryDist * 0.3)
+        local tx = math.sin(2 * math.pi * tremorFreq * timeMs / 1000 + 0) * tremorAmp * tremor
+        local ty = math.sin(2 * math.pi * tremorFreq * timeMs / 1000 + 1) * tremorAmp * tremor
+        table.insert(trajectory, { x = x + noiseX + tx, y = y + noiseY + ty, t = timeMs })
+    end
+    return trajectory
+end
+
+local function GetCameraController()
+    local scripts = Player:FindFirstChild("PlayerScripts")
+    if not scripts then return nil end
+    local controllers = scripts:FindFirstChild("Controllers")
+    if not controllers then return nil end
+    local mod = controllers:FindFirstChild("CameraController")
+    if mod then
+        local ok, ctrl = pcall(require, mod)
+        if ok and type(ctrl) == "table" then return ctrl end
+    end
+    return nil
+end
+
+function UpdateFlickbot(dt)
+    local enabled = RagebotSettings.FlickbotEnabled
+    if not enabled then
+        Flickbot.State = "Idle"
+        return
+    end
+    local key = RagebotSettings.FlickbotKeybind
+    local held = key and UserInputService:IsKeyDown(key)
+
+    if held and Flickbot.State == "Idle" then
+        local camera = Workspace.CurrentCamera
+        local target = SelectTarget()
+        if camera and target then
+            local pt, onScreen = camera:WorldToViewportPoint(target.rootPart.Position)
+            if onScreen then
+                local vp = camera.ViewportSize
+                local traj = GenerateFlickbotTrajectory(vp.X/2, vp.Y/2, pt.X, pt.Y)
+                if #traj > 1 then
+                    Flickbot.Trajectory = traj
+                    Flickbot.TrajectoryIndex = 1
+                    Flickbot.ElapsedMs = 0
+                    Flickbot.TotalMs = traj[#traj].t
+                    Flickbot.BakedEndDirection = (target.rootPart.Position - camera.CFrame.Position).Unit
+                    Flickbot.Selected = target
+                    Flickbot.State = "Flicking"
+                end
+            end
+        end
+    end
+
+    if Flickbot.State == "Flicking" then
+        local traj = Flickbot.Trajectory
+        if not traj then
+            Flickbot.State = "Idle"
+            return
+        end
+        Flickbot.ElapsedMs = Flickbot.ElapsedMs + dt * 1000
+        local idx = Flickbot.TrajectoryIndex
+        while idx < #traj and traj[idx+1].t <= Flickbot.ElapsedMs do idx = idx + 1 end
+        Flickbot.TrajectoryIndex = idx
+        local current = traj[idx]
+        local nxt = traj[idx+1]
+        if not nxt then
+            if RagebotSettings.FlickbotShot then
+                local delay = RagebotSettings.FlickbotShotDelay / 1000
+                if delay > 0 then
+                    task.delay(delay, function()
+                        local fighter = ResolveLocalFighter()
+                        local item = fighter and fighter.EquippedItem
+                        if item and item.StartShooting then
+                            pcall(item.StartShooting, item)
+                        end
+                    end)
+                else
+                    local fighter = ResolveLocalFighter()
+                    local item = fighter and fighter.EquippedItem
+                    if item and item.StartShooting then
+                        pcall(item.StartShooting, item)
+                    end
+                end
+            end
+            Flickbot.State = "Cooldown"
+            Flickbot.Timer = RagebotSettings.FlickbotCooldown / 1000
+            return
+        end
+        local interval = nxt.t - current.t
+        local alpha = interval > 0 and math.clamp((Flickbot.ElapsedMs - current.t) / interval, 0, 1) or 1
+        local dir = current.direction:Lerp(nxt.direction, alpha)
+
+        local camCtrl = GetCameraController()
+        if camCtrl and type(camCtrl.SetRotation) == "function" then
+            local camera = Workspace.CurrentCamera
+            if camera then
+                local pos = camera.CFrame.Position
+                local lookAt = pos + dir
+                local pitch, yaw = CFrame.lookAt(pos, lookAt):ToOrientation()
+                camCtrl:SetRotation(Vector2.new(pitch, yaw))
+            end
+        else
+            local camera = Workspace.CurrentCamera
+            if camera then
+                local pos = camera.CFrame.Position
+                camera.CFrame = CFrame.lookAt(pos, pos + dir)
+            end
+        end
+    elseif Flickbot.State == "Cooldown" then
+        Flickbot.Timer = Flickbot.Timer - dt
+        if Flickbot.Timer <= 0 then
+            Flickbot.State = "Idle"
+        end
+    end
+end
+
+-- ============================================================
+-- 循环更新
+-- ============================================================
+local function OnHeartbeat(dt)
+    UpdateRagebot(dt)
+    UpdateFlickbot(dt)
+end
+
+task.delay(1, function()
+    if game.GameId == 6035872082 then
+        Notify("Kicia Ragebot 完整版已加载 (含 Desync + PartGlue)", "success")
+        RunService.Heartbeat:Connect(OnHeartbeat)
+    else
+        Notify("当前游戏不是 RIVALS，Ragebot 不会工作", "warning")
+    end
+end)
+
+Notify("脚本加载完成，按 Insert 打开菜单", "success")
+Notify("Ragebot 默认禁用，请在菜单中启用", "warning")

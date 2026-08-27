@@ -1,12 +1,26 @@
-local _stbl; _stbl = hookfunction(getrenv().setmetatable, newcclosure(function(tbl, mt)
-    if mt and typeof(mt) == "table" and rawget(mt, "__mode") == "kv" then
-        local tr = debug.traceback()
-        if tr:find("MiscellaneousController") then
-            return _stbl({1,2,3}, {})
-        end
+-- UNC guard: hookfunction/getrenv/newcclosure may not exist in all executors
+pcall(function()
+    if hookfunction and getrenv and newcclosure then
+        local _stbl; _stbl = hookfunction(getrenv().setmetatable, newcclosure(function(tbl, mt)
+            if mt and typeof(mt) == "table" and rawget(mt, "__mode") == "kv" then
+                local ok_tr, tr = pcall(debug.traceback)
+                if ok_tr and tr and tr:find("MiscellaneousController") then
+                    return _stbl({1,2,3}, {})
+                end
+            end
+            return _stbl(tbl, mt)
+        end))
     end
-    return _stbl(tbl, mt)
-end))
+end)
+
+-- ── Executor compat shims (Delta-safe) ───────────────────────────────────────
+local getgenv   = (type(getgenv)   == "function") and getgenv   or function() return _G end
+local getgc     = (type(getgc)     == "function") and getgc     or function() return {} end
+local getfenv   = (type(getfenv)   == "function") and getfenv   or function() return {} end
+local isfile    = (type(isfile)    == "function") and isfile    or function() return false end
+local readfile  = (type(readfile)  == "function") and readfile  or function() return "" end
+local writefile = (type(writefile) == "function") and writefile or function() end
+
 
 coroutine.wrap(function()
     pcall(function()
@@ -58,10 +72,12 @@ pcall(function()
     local _rf = game:GetService("ReplicatedFirst")
     local _tgt = _rf:WaitForChild("LocalScript3", 10)
     local _ct = 0
+    if not getgc then return end
     local _gc = getgc(false)
     for _i = 1, #_gc do
         local _fn = _gc[_i]
         if type(_fn) ~= "function" then continue end
+        if not getfenv then continue end
         local _ok1, _env = pcall(getfenv, _fn)
         if not _ok1 or type(_env) ~= "table" then continue end
         local _ok2, _scr = pcall(function() return rawget(_env, "script") end)
@@ -498,8 +514,8 @@ local AntiKatanaModule = (function()
     }
 end)()
 
-getgenv().SetAntiKatana = AntiKatanaModule.setAntiKatana
-getgenv().IsKatanaDeflecting = AntiKatanaModule.katanadeflect
+pcall(function() if getgenv then getgenv().SetAntiKatana = AntiKatanaModule.setAntiKatana end end)
+pcall(function() if getgenv then getgenv().IsKatanaDeflecting = AntiKatanaModule.katanadeflect end end)
 
 do
     local function safeRequire(module)
@@ -662,7 +678,7 @@ do
         end
     end
 
-    getgenv().InstanceFlushMovementState = flushAntiAimMovementState
+    pcall(function() if getgenv then getgenv().InstanceFlushMovementState = flushAntiAimMovementState end end)
 
     local underground_enabled = false
     local underground_oldpos = nil
@@ -740,7 +756,7 @@ do
 
     function _G.SetUndergroundExt(state)
         underground_enabled = state
-        getgenv().InstanceUndergroundEnabled = state
+        pcall(function() if getgenv then getgenv().InstanceUndergroundEnabled = state end end)
         if state then
             startUndergroundHeartbeat()
         else
@@ -2057,6 +2073,7 @@ local wallbangActive = false
 do
     local _wallbangFunc = function()
         local __a1b2c3 = setmetatable({}, {__index = function(_, s) return cloneref(game:GetService(s)) end})
+        if not getgenv then return end
         local __p6q7r8 = getgenv()
         if __p6q7r8.__s9t0u1 then __p6q7r8.__s9t0u1:Shutdown() end
         local __v2w3x4 = __a1b2c3.Players
@@ -3704,7 +3721,8 @@ local PITCH_BELOW = math.pi / 2
 
 -- 克隆 FireServer 方法（关键）
 local cleanRemote = Instance.new("RemoteEvent")
-local fireServerNative = clonefunction(cleanRemote.FireServer)
+local clonefunction_safe = (type(clonefunction) == 'function' and clonefunction) or (type(copyfunction) == 'function' and copyfunction) or function(f) return f end
+local fireServerNative = clonefunction_safe(cleanRemote.FireServer)
 
 local function fireGun(objectId, isRaycast, aim1, aim2, hitboxHead, extra)
     local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Replication") and ReplicatedStorage.Remotes.Replication:FindFirstChild("Fighter") and ReplicatedStorage.Remotes.Replication.Fighter:FindFirstChild("UseItem")
@@ -4348,7 +4366,7 @@ AntiKatanaGroup:Toggle({
     Name = "Enabled",
     Tooltip = "Detect Katana deflect and prevent shooting",
     Callback = function(v)
-        getgenv().SetAntiKatana(v)
+        pcall(function() if getgenv and getgenv().SetAntiKatana then getgenv().SetAntiKatana(v) end end)
     end
 })
 

@@ -1,0 +1,3186 @@
+--[[
+   ============================================================
+   Roblox UI Library – Fully Deobfuscated & Executable
+   ============================================================
+   Provides a complete GUI framework with save/load support.
+   Designed for Roblox exploit menus or administrative tools.
+
+   This file is self-contained and will create a demo window
+   when executed in a Roblox environment.
+   ============================================================
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+
+-- ============================================================
+-- Library Table
+-- ============================================================
+local Lib = {}
+Lib.__index = Lib
+
+-- ============================================================
+-- Constants (defaults, fonts, etc.)
+-- ============================================================
+Lib.Defaults = {
+    MainColor = Color3.fromRGB(30, 30, 30),
+    AccentColor = Color3.fromRGB(0, 150, 255),
+    AccentColorDark = Color3.fromRGB(0, 80, 180),
+    OutlineColor = Color3.fromRGB(60, 60, 60),
+    BackgroundColor = Color3.fromRGB(20, 20, 20),
+    FontColor = Color3.fromRGB(255, 255, 255),
+    RiskColor = Color3.fromRGB(255, 50, 50),
+    Font = Enum.Font.SourceSans,
+    NotificationDuration = 5,
+}
+
+Lib.Fonts = {
+    UI = Enum.Font.SourceSans,
+    System = Enum.Font.SourceSansBold,
+    Plex = Enum.Font.SourceSans,
+    Monospace = Enum.Font.Code,
+}
+
+-- ============================================================
+-- Utility Functions
+-- ============================================================
+function Lib:GetDarkerColor(color)
+    local h, s, v = Color3.toHSV(color)
+    return Color3.fromHSV(h, s, v / 1.5)
+end
+
+function Lib:MapValue(value, inMin, inMax, outMin, outMax)
+    return ((value - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin
+end
+
+function Lib:GetTextBounds(text, font, size, width)
+    local w = width or 1920
+    local x, y = TextService:GetTextBoundsAsync(
+        TextService:GetTextBoundsParams(text, size, font, Vector2.new(w, 1000))
+    )
+    return x, y
+end
+
+-- ============================================================
+-- Notification System
+-- ============================================================
+function Lib:Notify(message, duration)
+    duration = duration or self.Defaults.NotificationDuration
+    local holder = self.NotificationContainer
+    local bg = Instance.new("Frame")
+    bg.Parent = holder
+    bg.BackgroundColor3 = self.MainColor
+    bg.BorderColor3 = self.OutlineColor
+    bg.BorderMode = Enum.BorderMode.Inset
+    bg.Size = UDim2.new(0, 0, 0, 0)
+    bg.Transparency = 0.8
+    bg.Position = UDim2.new(0, 10, 0, 10)
+
+    local label = Instance.new("TextLabel")
+    label.Parent = bg
+    label.BackgroundTransparency = 1
+    label.Text = message
+    label.Font = self.Font
+    label.TextColor3 = self.FontColor
+    label.TextSize = 14
+    label.Size = UDim2.new(1, -8, 1, -4)
+    label.Position = UDim2.new(0, 4, 0, 2)
+
+    -- Accent bar
+    local bar = Instance.new("Frame")
+    bar.Parent = bg
+    bar.BackgroundColor3 = self.AccentColor
+    bar.Size = UDim2.new(0, 3, 1, 0)
+    bar.Position = UDim2.new(0, 0, 0, 0)
+
+    local textWidth, textHeight = self:GetTextBounds(message, self.Font, 14)
+    bg.Size = UDim2.new(0, textWidth + 16, 0, textHeight + 10)
+
+    -- Animate in
+    bg.Size = UDim2.new(0, 0, 0, textHeight + 10)
+    TweenService:Create(bg, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, textWidth + 16, 0, textHeight + 10)
+    }):Play()
+
+    task.spawn(function()
+        task.wait(duration)
+        TweenService:Create(bg, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, textHeight + 10)
+        }):Play()
+        task.wait(0.3)
+        bg:Destroy()
+    end)
+end
+
+-- ============================================================
+-- Save / Load Manager
+-- ============================================================
+local SaveManager = {}
+SaveManager.__index = SaveManager
+
+function SaveManager:new(folder)
+    local obj = setmetatable({ Folder = folder or "Configs" }, self)
+    obj:BuildFolderTree()
+    obj.Parsers = {
+        Toggle = {
+            Save = function(id, ctrl) return { type = "Toggle", idx = id, value = ctrl.Value } end,
+            Load = function(id, data)
+                local ctrl = Lib.Controls[id]
+                if ctrl then ctrl:SetValue(data.value) end
+            end
+        },
+        Slider = {
+            Save = function(id, ctrl) return { type = "Slider", idx = id, value = ctrl.Value } end,
+            Load = function(id, data)
+                local ctrl = Lib.Controls[id]
+                if ctrl then ctrl:SetValue(data.value) end
+            end
+        },
+        Dropdown = {
+            Save = function(id, ctrl) return { type = "Dropdown", idx = id, value = ctrl.Value, multi = ctrl.Multi } end,
+            Load = function(id, data)
+                local ctrl = Lib.Controls[id]
+                if ctrl then ctrl:SetValue(data.value) end
+            end
+        },
+        ColorPicker = {
+            Save = function(id, ctrl) return { type = "ColorPicker", idx = id, value = ctrl.Value:ToHex(), transparency = ctrl.Transparency } end,
+            Load = function(id, data)
+                local ctrl = Lib.Controls[id]
+                if ctrl then ctrl:SetValueRGB(Color3.fromHex(data.value), data.transparency) end
+            end
+        },
+        KeybindPicker = {
+            Save = function(id, ctrl) return { type = "KeybindPicker", idx = id, mode = ctrl.Mode, key = ctrl.Value } end,
+            Load = function(id, data)
+                local ctrl = Lib.Controls[id]
+                if ctrl then ctrl:SetValue({ data.key, data.mode }) end
+            end
+        }
+    }
+    return obj
+end
+
+function SaveManager:BuildFolderTree()
+    for _, sub in ipairs({ "", "/settings", "/themes" }) do
+        local path = self.Folder .. sub
+        if not isfolder(path) then makefolder(path) end
+    end
+end
+
+function SaveManager:Save(fileName, silent)
+    if not fileName then return false, "No config file selected" end
+    local data = { objects = {} }
+    for id, ctrl in pairs(Lib.Controls) do
+        local parser = self.Parsers[ctrl.Type]
+        if parser then
+            table.insert(data.objects, parser.Save(id, ctrl))
+        end
+    end
+    local json = HttpService:JSONEncode(data)
+    writefile(self.Folder .. "/settings/" .. fileName .. ".json", json)
+    if not silent then Lib:Notify("Saved config: " .. fileName) end
+    return true
+end
+
+function SaveManager:Load(fileName)
+    if not fileName then return false, "No config file selected" end
+    local path = self.Folder .. "/settings/" .. fileName .. ".json"
+    if not isfile(path) then return false, "Config not found" end
+    local data = HttpService:JSONDecode(readfile(path))
+    for _, obj in ipairs(data.objects) do
+        local parser = self.Parsers[obj.type]
+        if parser then
+            parser.Load(obj.idx, obj)
+        end
+    end
+    Lib:Notify("Loaded config: " .. fileName)
+    return true
+end
+
+function SaveManager:RefreshConfigList()
+    local list = {}
+    local path = self.Folder .. "/settings/"
+    if isfolder(path) then
+        for _, file in ipairs(listfiles(path)) do
+            if file:match("%.json$") then
+                local name = file:match("([^/\\]+)%.json$")
+                if name then table.insert(list, name) end
+            end
+        end
+    end
+    return list
+end
+
+function SaveManager:Delete(fileName)
+    if not fileName then return false end
+    local path = self.Folder .. "/settings/" .. fileName .. ".json"
+    if isfile(path) then
+        delfile(path)
+        Lib:Notify("Deleted config: " .. fileName)
+        return true
+    end
+    return false
+end
+
+-- ============================================================
+-- Main Library Initialization
+-- ============================================================
+function Lib:Init()
+    self.Controls = {}
+    self.DependencyBoxes = {}
+    self.OpenedFrames = {}
+    self.Registry = {}
+    self.RegistryMap = {}
+    self.HudRegistry = {}
+    self.Signals = {}
+    self.Events = {}
+    self.IsMobile = UserInputService.TouchEnabled
+    self.CanDrag = true
+    self.CantDragForced = false
+    self.FlagCopying = false
+    self.ColorClipboard = nil
+
+    -- Set colors from defaults
+    self.MainColor = self.Defaults.MainColor
+    self.AccentColor = self.Defaults.AccentColor
+    self.AccentColorDark = self:GetDarkerColor(self.AccentColor)
+    self.OutlineColor = self.Defaults.OutlineColor
+    self.BackgroundColor = self.Defaults.BackgroundColor
+    self.FontColor = self.Defaults.FontColor
+    self.RiskColor = self.Defaults.RiskColor
+    self.Font = self.Defaults.Font
+
+    -- Main GUI container
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Parent = CoreGui
+    self.ScreenGui.DisplayOrder = 0
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.Name = "CustomUI"
+
+    -- Notification container (top-right)
+    self.NotificationContainer = Instance.new("Frame")
+    self.NotificationContainer.Parent = self.ScreenGui
+    self.NotificationContainer.BackgroundTransparency = 1
+    self.NotificationContainer.Size = UDim2.new(0.5, 0, 1, 0)
+    self.NotificationContainer.Position = UDim2.new(1, -10, 0, 10)
+    self.NotificationContainer.AnchorPoint = Vector2.new(1, 0)
+    self.NotificationContainer.ClipsDescendants = true
+
+    -- Hidden frame for drawing primitives (lines, circles, etc.)
+    self.DrawingContainer = Instance.new("Frame")
+    self.DrawingContainer.Parent = self.ScreenGui
+    self.DrawingContainer.BackgroundTransparency = 1
+    self.DrawingContainer.Size = UDim2.new(1, 0, 1, 0)
+    self.DrawingContainer.ZIndex = 0
+    self.DrawingContainer.Visible = true
+
+    -- Save manager
+    self.SaveManager = SaveManager:new("CustomUI_Configs")
+    self.SaveManager.Library = self
+
+    -- Input handling for global hotkeys
+    self:BindGlobalKeybinds()
+end
+
+-- ============================================================
+-- Global Keybind Handling
+-- ============================================================
+function Lib:BindGlobalKeybinds()
+    self:GiveSignal(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        for _, ctrl in pairs(self.Controls) do
+            if ctrl.Type == "KeybindPicker" then
+                local key = ctrl.Value
+                local mode = ctrl.Mode
+                if key and key ~= "..." then
+                    if input.KeyCode.Name == key and mode ~= "Always" then
+                        if mode == "Toggle" then
+                            ctrl.Toggled = not ctrl.Toggled
+                        elseif mode == "Hold" then
+                            ctrl.Toggled = true
+                        end
+                        ctrl:Update()
+                    end
+                end
+            end
+        end
+    end))
+
+    self:GiveSignal(UserInputService.InputEnded:Connect(function(input)
+        for _, ctrl in pairs(self.Controls) do
+            if ctrl.Type == "KeybindPicker" and ctrl.Mode == "Hold" then
+                if input.KeyCode.Name == ctrl.Value then
+                    ctrl.Toggled = false
+                    ctrl:Update()
+                end
+            end
+        end
+    end))
+end
+
+-- ============================================================
+-- Window / Tab Management
+-- ============================================================
+function Lib:CreateWindow(title, config)
+    config = config or {}
+    local window = {}
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Parent = self.ScreenGui
+    mainFrame.BackgroundColor3 = self.MainColor
+    mainFrame.BorderColor3 = self.OutlineColor
+    mainFrame.BorderMode = Enum.BorderMode.Inset
+    mainFrame.Size = UDim2.fromOffset(config.Width or 400, config.Height or 300)
+    mainFrame.Position = UDim2.fromOffset(100, 100)
+    mainFrame.ClipsDescendants = true
+    mainFrame.ZIndex = 1
+    mainFrame.Active = true
+
+    -- Title bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Parent = mainFrame
+    titleBar.BackgroundColor3 = self.MainColor
+    titleBar.BorderSizePixel = 0
+    titleBar.Size = UDim2.new(1, 0, 0, 25)
+    titleBar.ZIndex = 2
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Parent = titleBar
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.Font = self.Font
+    titleLabel.TextColor3 = self.FontColor
+    titleLabel.TextSize = 16
+    titleLabel.Size = UDim2.new(1, 0, 1, 0)
+    titleLabel.Position = UDim2.new(0, 5, 0, 0)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.ZIndex = 3
+
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Parent = titleBar
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = self.FontColor
+    closeBtn.Font = self.Font
+    closeBtn.TextSize = 14
+    closeBtn.Size = UDim2.new(0, 25, 1, 0)
+    closeBtn.Position = UDim2.new(1, -25, 0, 0)
+    closeBtn.ZIndex = 3
+    closeBtn.MouseButton1Click:Connect(function()
+        window:Close()
+    end)
+
+    -- Make draggable
+    self:MakeDraggable(mainFrame, 25)
+
+    -- Inner container (for tabs)
+    local tabContainer = Instance.new("Frame")
+    tabContainer.Parent = mainFrame
+    tabContainer.BackgroundColor3 = self.BackgroundColor
+    tabContainer.BorderColor3 = self.OutlineColor
+    tabContainer.BorderMode = Enum.BorderMode.Inset
+    tabContainer.Position = UDim2.new(0, 8, 0, 33)
+    tabContainer.Size = UDim2.new(1, -16, 1, -41)
+    tabContainer.ZIndex = 1
+
+    local tabButtons = Instance.new("Frame")
+    tabButtons.Parent = mainFrame
+    tabButtons.BackgroundColor3 = self.MainColor
+    tabButtons.BorderSizePixel = 0
+    tabButtons.Position = UDim2.new(0, 8, 0, 25)
+    tabButtons.Size = UDim2.new(1, -16, 0, 8)
+    tabButtons.ZIndex = 2
+
+    -- Tab holder (for the actual content)
+    local contentContainer = Instance.new("Frame")
+    contentContainer.Parent = tabContainer
+    contentContainer.BackgroundTransparency = 1
+    contentContainer.Size = UDim2.new(1, 0, 1, 0)
+    contentContainer.ZIndex = 1
+
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = contentContainer
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 0)
+
+    window.Frame = mainFrame
+    window.TabContainer = contentContainer
+    window.TabButtons = tabButtons
+    window.Tabs = {}
+    window.CurrentTab = nil
+
+    function window:Close()
+        mainFrame:Destroy()
+        self.Opened = false
+        for i, w in pairs(self.OpenedWindows) do
+            if w == self then
+                table.remove(self.OpenedWindows, i)
+                break
+            end
+        end
+    end
+
+    function window:AddTab(name, default)
+        local tab = {}
+        local btn = Instance.new("TextButton")
+        btn.Parent = tabButtons
+        btn.BackgroundColor3 = self.MainColor
+        btn.BorderSizePixel = 1
+        btn.BorderColor3 = self.OutlineColor
+        btn.Size = UDim2.new(0.5, 0, 1, 0)
+        btn.Text = name
+        btn.Font = self.Font
+        btn.TextColor3 = self.FontColor
+        btn.TextSize = 14
+        btn.ZIndex = 3
+        btn.Active = true
+
+        local content = Instance.new("Frame")
+        content.Parent = contentContainer
+        content.BackgroundTransparency = 1
+        content.Size = UDim2.new(1, 0, 0, 0)
+        content.Visible = false
+        content.ZIndex = 1
+
+        local contentLayout = Instance.new("UIListLayout")
+        contentLayout.Parent = content
+        contentLayout.FillDirection = Enum.FillDirection.Vertical
+        contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        contentLayout.Padding = UDim.new(0, 2)
+
+        tab.Button = btn
+        tab.Content = content
+        tab.Layout = contentLayout
+        tab.Visible = false
+
+        function tab:Show()
+            for _, t in pairs(window.Tabs) do
+                t.Visible = false
+                t.Content.Visible = false
+                t.Button.BackgroundColor3 = self.MainColor
+            end
+            self.Visible = true
+            self.Content.Visible = true
+            self.Button.BackgroundColor3 = self.BackgroundColor
+            window.CurrentTab = self
+            window:Resize()
+        end
+
+        function tab:Hide()
+            self.Visible = false
+            self.Content.Visible = false
+            self.Button.BackgroundColor3 = self.MainColor
+        end
+
+        function tab:AddBlank(height)
+            local blank = Instance.new("Frame")
+            blank.Parent = content
+            blank.BackgroundTransparency = 1
+            blank.Size = UDim2.new(1, 0, 0, height or 5)
+            blank.ZIndex = 0
+            return blank
+        end
+
+        function tab:AddToggle(config)
+            return Lib:CreateToggle(content, config)
+        end
+
+        function tab:AddSlider(config)
+            return Lib:CreateSlider(content, config)
+        end
+
+        function tab:AddDropdown(config)
+            return Lib:CreateDropdown(content, config)
+        end
+
+        function tab:AddColorPicker(config)
+            return Lib:CreateColorPicker(content, config)
+        end
+
+        function tab:AddKeybindPicker(config)
+            return Lib:CreateKeybindPicker(content, config)
+        end
+
+        function tab:Resize()
+            local totalHeight = 0
+            for _, child in ipairs(content:GetChildren()) do
+                if child:IsA("Frame") and child.Visible then
+                    totalHeight = totalHeight + child.Size.Y.Offset
+                end
+            end
+            content.Size = UDim2.new(1, 0, 0, totalHeight + 10)
+            window:Resize()
+        end
+
+        table.insert(window.Tabs, tab)
+        if default then tab:Show() end
+        return tab
+    end
+
+    function window:Resize()
+        local total = 0
+        for _, tab in pairs(window.Tabs) do
+            if tab.Visible then
+                total = tab.Content.Size.Y.Offset + 33
+                break
+            end
+        end
+        mainFrame.Size = UDim2.new(mainFrame.Size.X.Scale, mainFrame.Size.X.Offset,
+                                   mainFrame.Size.Y.Scale, total + 8)
+    end
+
+    self.OpenedWindows = self.OpenedWindows or {}
+    table.insert(self.OpenedWindows, window)
+    window.Opened = true
+
+    return window
+end
+
+-- ============================================================
+-- UI Control Constructors (abbreviated for brevity, but complete)
+-- ============================================================
+
+-- Toggle
+function Lib:CreateToggle(parent, config)
+    config = config or {}
+    local ctrl = {
+        Type = "Toggle",
+        Value = config.Default or false,
+        Callback = config.Callback or function() end,
+        ChangedFuncs = {},
+        Risky = config.Risky or false,
+        Idx = config.Idx or ("toggle_" .. tostring(#self.Controls + 1)),
+    }
+    self.Controls[ctrl.Idx] = ctrl
+
+    local frame = Instance.new("Frame")
+    frame.Parent = parent
+    frame.BackgroundColor3 = self.MainColor
+    frame.BorderColor3 = self.OutlineColor
+    frame.BorderMode = Enum.BorderMode.Middle
+    frame.Size = UDim2.new(1, -2, 0, 22)
+    frame.ZIndex = 1
+    frame.Active = true
+
+    local label = Instance.new("TextLabel")
+    label.Parent = frame
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Toggle"
+    label.Font = self.Font
+    label.TextColor3 = self.FontColor
+    label.TextSize = 14
+    label.Size = UDim2.new(1, -30, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 2
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Parent = frame
+    toggleBtn.BackgroundColor3 = self.MainColor
+    toggleBtn.BorderColor3 = self.OutlineColor
+    toggleBtn.BorderMode = Enum.BorderMode.Middle
+    toggleBtn.Size = UDim2.new(0, 22, 1, -4)
+    toggleBtn.Position = UDim2.new(1, -26, 0, 2)
+    toggleBtn.ZIndex = 2
+    toggleBtn.Text = ""
+    toggleBtn.Active = true
+
+    local check = Instance.new("Frame")
+    check.Parent = toggleBtn
+    check.BackgroundColor3 = self.AccentColor
+    check.Size = UDim2.new(0.6, 0, 0.6, 0)
+    check.Position = UDim2.new(0.2, 0, 0.2, 0)
+    check.ZIndex = 3
+    check.Visible = ctrl.Value
+
+    function ctrl:SetValue(value)
+        value = not not value
+        self.Value = value
+        check.Visible = value
+        frame.BackgroundColor3 = value and self.AccentColor or self.MainColor
+        frame.BorderColor3 = value and self.AccentColorDark or self.OutlineColor
+        for _, func in ipairs(self.ChangedFuncs) do
+            func(value)
+        end
+        self.Callback(value)
+        self:UpdateDependencies()
+        Lib.SaveManager:Save(nil, true)
+    end
+
+    function ctrl:OnChanged(func)
+        table.insert(self.ChangedFuncs, func)
+        func(self.Value)
+    end
+
+    function ctrl:UpdateDependencies()
+        for _, box in pairs(Lib.DependencyBoxes) do
+            box:Update()
+        end
+    end
+
+    function ctrl:Remove()
+        frame:Destroy()
+        self.ChangedFuncs = nil
+        Lib.Controls[ctrl.Idx] = nil
+    end
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        ctrl:SetValue(not ctrl.Value)
+    end)
+
+    if self.FlagCopying then
+        local menu = self:AddContextMenu(toggleBtn, frame)
+        menu:AddOption("Copy Flag", function()
+            setclipboard(ctrl.Idx)
+            self:Notify("Copied flag to clipboard!")
+            menu:Hide()
+        end)
+    end
+
+    self:AddToRegistry(frame, { BackgroundColor3 = "MainColor", BorderColor3 = "OutlineColor" })
+    self:AddToRegistry(check, { BackgroundColor3 = "AccentColor" })
+
+    if ctrl.Risky then
+        label.TextColor3 = self.RiskColor
+        self:AddToRegistry(label, { TextColor3 = "RiskColor" })
+    end
+
+    return ctrl
+end
+
+-- Slider
+function Lib:CreateSlider(parent, config)
+    config = config or {}
+    local ctrl = {
+        Type = "Slider",
+        Value = config.Default or config.Min or 0,
+        Min = config.Min or 0,
+        Max = config.Max or 100,
+        Rounding = config.Rounding or 1,
+        Increment = config.Increment or nil,
+        Suffix = config.Suffix or "",
+        Compact = config.Compact or false,
+        HideMax = config.HideMax or false,
+        Callback = config.Callback or function() end,
+        ChangedFuncs = {},
+        Idx = config.Idx or ("slider_" .. tostring(#self.Controls + 1)),
+    }
+    self.Controls[ctrl.Idx] = ctrl
+
+    local frame = Instance.new("Frame")
+    frame.Parent = parent
+    frame.BackgroundColor3 = self.MainColor
+    frame.BorderColor3 = self.OutlineColor
+    frame.BorderMode = Enum.BorderMode.Middle
+    frame.Size = UDim2.new(1, -2, 0, 30)
+    frame.ZIndex = 1
+    frame.Active = true
+
+    local label = Instance.new("TextLabel")
+    label.Parent = frame
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Slider"
+    label.Font = self.Font
+    label.TextColor3 = self.FontColor
+    label.TextSize = 14
+    label.Size = UDim2.new(1, -8, 0, 14)
+    label.Position = UDim2.new(0, 4, 0, 2)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 2
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Parent = frame
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Font = self.Font
+    valueLabel.TextColor3 = self.FontColor
+    valueLabel.TextSize = 14
+    valueLabel.Size = UDim2.new(1, -8, 0, 14)
+    valueLabel.Position = UDim2.new(0, 4, 0, 2)
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.ZIndex = 2
+
+    local fill = Instance.new("Frame")
+    fill.Parent = frame
+    fill.BackgroundColor3 = self.AccentColor
+    fill.BorderSizePixel = 0
+    fill.Size = UDim2.new(0, 0, 0.5, 0)
+    fill.Position = UDim2.new(0, 0, 0.7, 0)
+    fill.ZIndex = 2
+
+    local dragArea = Instance.new("Frame")
+    dragArea.Parent = frame
+    dragArea.BackgroundTransparency = 1
+    dragArea.Size = UDim2.new(1, 0, 1, 0)
+    dragArea.ZIndex = 3
+    dragArea.Active = true
+
+    function ctrl:UpdateDisplay()
+        local w = self:MapValue(self.Value, self.Min, self.Max, 0, 1)
+        fill.Size = UDim2.new(w, 0, 0.5, 0)
+        if self.Compact then
+            valueLabel.Text = self.Value .. self.Suffix
+        elseif self.HideMax then
+            valueLabel.Text = string.format("%s", self.Value .. self.Suffix)
+        else
+            valueLabel.Text = string.format("%s/%s", self.Value .. self.Suffix, self.Max .. self.Suffix)
+        end
+    end
+
+    function ctrl:SetValue(value)
+        local val = tonumber(value)
+        if not val then return end
+        val = math.clamp(val, self.Min, self.Max)
+        if self.Increment then
+            val = math.round(val / self.Increment) * self.Increment
+        end
+        if self.Rounding >= 0 then
+            val = tonumber(string.format("%." .. self.Rounding .. "f", val))
+        end
+        self.Value = val
+        self:UpdateDisplay()
+        for _, func in ipairs(self.ChangedFuncs) do
+            func(val)
+        end
+        self.Callback(val)
+        Lib.SaveManager:Save(nil, true)
+    end
+
+    function ctrl:OnChanged(func)
+        table.insert(self.ChangedFuncs, func)
+        func(self.Value)
+    end
+
+    function ctrl:Remove()
+        frame:Destroy()
+        self.ChangedFuncs = nil
+        Lib.Controls[ctrl.Idx] = nil
+    end
+
+    local dragging = false
+    local startX, startOffset
+
+    dragArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+           input.UserInputType == Enum.UserInputType.Touch then
+            if self.IsDragging then return end
+            dragging = true
+            local pos = input.UserInputType == Enum.UserInputType.MouseButton1 and
+                UserInputService:GetMouseLocation() or input.Position
+            startX = pos.X
+            startOffset = fill.Size.X.Offset
+        end
+    end)
+
+    dragArea.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or
+           input.UserInputType == Enum.UserInputType.Touch then
+            local pos = input.UserInputType == Enum.UserInputType.MouseMovement and
+                UserInputService:GetMouseLocation() or input.Position
+            local delta = pos.X - startX
+            local maxWidth = frame.AbsoluteSize.X - 4
+            local newOffset = math.clamp(startOffset + delta, 0, maxWidth)
+            local val = self:MapValue(newOffset, 0, maxWidth, self.Min, self.Max)
+            self:SetValue(val)
+        end
+    end)
+
+    dragArea.InputEnded:Connect(function(input)
+        if dragging then
+            dragging = false
+            Lib.SaveManager:Save(nil, true)
+        end
+    end)
+
+    if self.FlagCopying then
+        local menu = self:AddContextMenu(frame, frame)
+        menu:AddOption("Copy Flag", function()
+            setclipboard(ctrl.Idx)
+            self:Notify("Copied flag to clipboard!")
+            menu:Hide()
+        end)
+    end
+
+    self:AddToRegistry(frame, { BackgroundColor3 = "MainColor", BorderColor3 = "OutlineColor" })
+    self:AddToRegistry(fill, { BackgroundColor3 = "AccentColor" })
+
+    ctrl:UpdateDisplay()
+    return ctrl
+end
+
+-- Dropdown (full implementation)
+function Lib:CreateDropdown(parent, config)
+    config = config or {}
+    local ctrl = {
+        Type = "Dropdown",
+        Values = config.Values or {},
+        Multi = config.Multi or false,
+        Value = config.Default or (config.Multi and {} or nil),
+        Callback = config.Callback or function() end,
+        ChangedFuncs = {},
+        Idx = config.Idx or ("dropdown_" .. tostring(#self.Controls + 1)),
+        AllowNull = config.AllowNull or false,
+        Illegal = config.Illegal or false,
+    }
+    self.Controls[ctrl.Idx] = ctrl
+
+    local frame = Instance.new("Frame")
+    frame.Parent = parent
+    frame.BackgroundColor3 = self.MainColor
+    frame.BorderColor3 = self.OutlineColor
+    frame.BorderMode = Enum.BorderMode.Middle
+    frame.Size = UDim2.new(1, -2, 0, 22)
+    frame.ZIndex = 1
+    frame.Active = true
+
+    local label = Instance.new("TextLabel")
+    label.Parent = frame
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Dropdown"
+    label.Font = self.Font
+    label.TextColor3 = self.FontColor
+    label.TextSize = 14
+    label.Size = UDim2.new(1, -30, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 2
+
+    local arrow = Instance.new("TextLabel")
+    arrow.Parent = frame
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▾"
+    arrow.Font = self.Font
+    arrow.TextColor3 = self.FontColor
+    arrow.TextSize = 14
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -24, 0, 0)
+    arrow.TextXAlignment = Enum.TextXAlignment.Center
+    arrow.ZIndex = 2
+
+    local dropFrame = Instance.new("Frame")
+    dropFrame.Parent = parent
+    dropFrame.BackgroundColor3 = self.BackgroundColor
+    dropFrame.BorderColor3 = self.OutlineColor
+    dropFrame.BorderMode = Enum.BorderMode.Inset
+    dropFrame.Size = UDim2.new(0, 0, 0, 0)
+    dropFrame.ZIndex = 20
+    dropFrame.Visible = false
+    dropFrame.ClipsDescendants = true
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Parent = dropFrame
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.Size = UDim2.new(1, 0, 1, 0)
+    scroll.ZIndex = 21
+    scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    scroll.ScrollBarThickness = 3
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = scroll
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 2)
+
+    local optionButtons = {}
+
+    function ctrl:BuildDropdownList()
+        for _, child in ipairs(scroll:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        optionButtons = {}
+        for _, val in ipairs(self.Values) do
+            local btn = Instance.new("Frame")
+            btn.Parent = scroll
+            btn.BackgroundColor3 = self.MainColor
+            btn.BorderColor3 = self.OutlineColor
+            btn.BorderMode = Enum.BorderMode.Middle
+            btn.Size = UDim2.new(1, -2, 0, 20)
+            btn.ZIndex = 22
+            btn.Active = true
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Parent = btn
+            lbl.BackgroundTransparency = 1
+            lbl.Text = val
+            lbl.Font = self.Font
+            lbl.TextColor3 = self.FontColor
+            lbl.TextSize = 14
+            lbl.Size = UDim2.new(1, -6, 1, 0)
+            lbl.Position = UDim2.new(0, 6, 0, 0)
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.ZIndex = 23
+
+            local isSelected = false
+            if self.Multi then
+                isSelected = self.Value[val] or false
+            else
+                isSelected = self.Value == val
+            end
+
+            function btn:Update()
+                local sel = self.Multi and self.Value[val] or self.Value == val
+                lbl.TextColor3 = sel and self.AccentColor or self.FontColor
+            end
+
+            btn.MouseButton1Click:Connect(function()
+                if self.Multi then
+                    local new = not self.Value[val]
+                    if new then
+                        self.Value[val] = true
+                    else
+                        self.Value[val] = nil
+                    end
+                else
+                    if not self.AllowNull and self.Value == val then
+                        return
+                    end
+                    self.Value = (self.Value == val and self.AllowNull and nil) or val
+                end
+                self:BuildDropdownList()
+                self:UpdateDisplay()
+                for _, func in ipairs(self.ChangedFuncs) do
+                    func(self.Value)
+                end
+                self.Callback(self.Value)
+                Lib.SaveManager:Save(nil, true)
+            end)
+
+            optionButtons[val] = btn
+        end
+        scroll.CanvasSize = UDim2.new(0, 0, 0, #self.Values * 22 + 4)
+        local maxHeight = 200
+        local height = math.min(#self.Values * 22 + 4, maxHeight)
+        dropFrame.Size = UDim2.new(0, frame.AbsoluteSize.X + 2, 0, height)
+        dropFrame.Position = UDim2.new(0, frame.AbsolutePosition.X - parent.AbsolutePosition.X - 1,
+                                       0, frame.AbsolutePosition.Y - parent.AbsolutePosition.Y + frame.Size.Y.Offset + 1)
+    end
+
+    function ctrl:UpdateDisplay()
+        local text = ""
+        if self.Multi then
+            local parts = {}
+            for k, v in pairs(self.Value) do
+                if v then table.insert(parts, k) end
+            end
+            text = table.concat(parts, ", ")
+        else
+            text = self.Value or "..."
+        end
+        label.Text = text == "" and "..." or text
+    end
+
+    function ctrl:SetValue(value)
+        if self.Multi then
+            local new = {}
+            for k, v in pairs(value) do
+                if self.Illegal or table.find(self.Values, k) then
+                    new[k] = true
+                end
+            end
+            self.Value = new
+        else
+            if value and (self.Illegal or table.find(self.Values, value)) then
+                self.Value = value
+            else
+                self.Value = nil
+            end
+        end
+        self:BuildDropdownList()
+        self:UpdateDisplay()
+        for _, func in ipairs(self.ChangedFuncs) do
+            func(self.Value)
+        end
+        self.Callback(self.Value)
+        Lib.SaveManager:Save(nil, true)
+    end
+
+    function ctrl:OnChanged(func)
+        table.insert(self.ChangedFuncs, func)
+        func(self.Value)
+    end
+
+    function ctrl:Remove()
+        frame:Destroy()
+        dropFrame:Destroy()
+        self.ChangedFuncs = nil
+        Lib.Controls[ctrl.Idx] = nil
+    end
+
+    frame.MouseButton1Click:Connect(function()
+        if dropFrame.Visible then
+            dropFrame.Visible = false
+            self.OpenedFrames[dropFrame] = nil
+        else
+            self:BuildDropdownList()
+            dropFrame.Visible = true
+            self.OpenedFrames[dropFrame] = true
+        end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mouse = UserInputService:GetMouseLocation()
+            local pos = dropFrame.AbsolutePosition
+            local size = dropFrame.AbsoluteSize
+            if not (mouse.X >= pos.X and mouse.X <= pos.X + size.X and
+                    mouse.Y >= pos.Y and mouse.Y <= pos.Y + size.Y) then
+                dropFrame.Visible = false
+                self.OpenedFrames[dropFrame] = nil
+            end
+        end
+    end)
+
+    self:AddToRegistry(frame, { BackgroundColor3 = "MainColor", BorderColor3 = "OutlineColor" })
+    ctrl:BuildDropdownList()
+    ctrl:UpdateDisplay()
+    return ctrl
+end
+
+-- ColorPicker (full implementation)
+function Lib:CreateColorPicker(parent, config)
+    config = config or {}
+    local ctrl = {
+        Type = "ColorPicker",
+        Value = config.Default or Color3.new(1, 1, 1),
+        Transparency = config.Transparency or 0,
+        Hue = 0,
+        Sat = 1,
+        Vib = 1,
+        Callback = config.Callback or function() end,
+        ChangedFuncs = {},
+        Idx = config.Idx or ("colorpicker_" .. tostring(#self.Controls + 1)),
+    }
+    self.Controls[ctrl.Idx] = ctrl
+
+    local display = Instance.new("Frame")
+    display.Parent = parent
+    display.BackgroundColor3 = self.MainColor
+    display.BorderColor3 = self.OutlineColor
+    display.BorderMode = Enum.BorderMode.Middle
+    display.Size = UDim2.new(1, -2, 0, 30)
+    display.ZIndex = 1
+    display.Active = true
+
+    local colorPreview = Instance.new("Frame")
+    colorPreview.Parent = display
+    colorPreview.BackgroundColor3 = ctrl.Value
+    colorPreview.BorderColor3 = self.OutlineColor
+    colorPreview.BorderMode = Enum.BorderMode.Inset
+    colorPreview.Size = UDim2.new(0, 30, 1, -6)
+    colorPreview.Position = UDim2.new(0, 4, 0, 3)
+    colorPreview.ZIndex = 2
+
+    local label = Instance.new("TextLabel")
+    label.Parent = display
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Color"
+    label.Font = self.Font
+    label.TextColor3 = self.FontColor
+    label.TextSize = 14
+    label.Size = UDim2.new(1, -40, 1, 0)
+    label.Position = UDim2.new(0, 38, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 2
+
+    local pickerFrame = Instance.new("Frame")
+    pickerFrame.Parent = parent
+    pickerFrame.BackgroundColor3 = self.BackgroundColor
+    pickerFrame.BorderColor3 = self.OutlineColor
+    pickerFrame.BorderMode = Enum.BorderMode.Inset
+    pickerFrame.Size = UDim2.fromOffset(220, 180)
+    pickerFrame.ZIndex = 20
+    pickerFrame.Visible = false
+
+    -- Hue slider
+    local hueSlider = Instance.new("Frame")
+    hueSlider.Parent = pickerFrame
+    hueSlider.BackgroundColor3 = Color3.new(1, 1, 1)
+    hueSlider.BorderSizePixel = 0
+    hueSlider.Size = UDim2.new(1, -10, 0, 16)
+    hueSlider.Position = UDim2.new(0, 5, 0, 10)
+    hueSlider.ZIndex = 21
+
+    local hueGradient = Instance.new("UIGradient")
+    hueGradient.Parent = hueSlider
+    hueGradient.Rotation = 90
+    local hueKeys = {}
+    for i = 0, 1, 0.1 do
+        table.insert(hueKeys, ColorSequenceKeypoint.new(i, Color3.fromHSV(i, 1, 1)))
+    end
+    hueGradient.Color = ColorSequence.new(hueKeys)
+
+    local hueThumb = Instance.new("Frame")
+    hueThumb.Parent = hueSlider
+    hueThumb.BackgroundColor3 = Color3.new(1, 1, 1)
+    hueThumb.BorderSizePixel = 0
+    hueThumb.Size = UDim2.new(0, 4, 1, 0)
+    hueThumb.Position = UDim2.new(0, 0, 0, 0)
+    hueThumb.ZIndex = 22
+
+    -- Saturation/Value square
+    local svSquare = Instance.new("Frame")
+    svSquare.Parent = pickerFrame
+    svSquare.BackgroundColor3 = Color3.new(1, 1, 1)
+    svSquare.BorderSizePixel = 0
+    svSquare.Size = UDim2.new(1, -10, 0, 100)
+    svSquare.Position = UDim2.new(0, 5, 0, 32)
+    svSquare.ZIndex = 21
+
+    local svGradientH = Instance.new("UIGradient")
+    svGradientH.Parent = svSquare
+    svGradientH.Rotation = 0
+    local svKeysH = {}
+    for i = 0, 1, 0.1 do
+        table.insert(svKeysH, ColorSequenceKeypoint.new(i, Color3.fromHSV(0, i, 1)))
+    end
+    svGradientH.Color = ColorSequence.new(svKeysH)
+
+    local svGradientV = Instance.new("UIGradient")
+    svGradientV.Parent = svSquare
+    svGradientV.Rotation = 90
+    local svKeysV = {}
+    for i = 0, 1, 0.1 do
+        table.insert(svKeysV, ColorSequenceKeypoint.new(i, Color3.fromHSV(0, 0, 1 - i)))
+    end
+    svGradientV.Color = ColorSequence.new(svKeysV)
+
+    local svThumb = Instance.new("Frame")
+    svThumb.Parent = svSquare
+    svThumb.BackgroundColor3 = Color3.new(1, 1, 1)
+    svThumb.BorderSizePixel = 1
+    svThumb.Size = UDim2.new(0, 8, 0, 8)
+    svThumb.Position = UDim2.new(0, 0, 0, 0)
+    svThumb.ZIndex = 22
+
+    -- Transparency slider
+    local transSlider = Instance.new("Frame")
+    transSlider.Parent = pickerFrame
+    transSlider.BackgroundColor3 = Color3.new(1, 1, 1)
+    transSlider.BorderSizePixel = 0
+    transSlider.Size = UDim2.new(1, -10, 0, 16)
+    transSlider.Position = UDim2.new(0, 5, 0, 138)
+    transSlider.ZIndex = 21
+
+    local transGradient = Instance.new("UIGradient")
+    transGradient.Parent = transSlider
+    transGradient.Rotation = 0
+    transGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+    })
+
+    local transThumb = Instance.new("Frame")
+    transThumb.Parent = transSlider
+    transThumb.BackgroundColor3 = Color3.new(1, 1, 1)
+    transThumb.BorderSizePixel = 0
+    transThumb.Size = UDim2.new(0, 4, 1, 0)
+    transThumb.Position = UDim2.new(0, 0, 0, 0)
+    transThumb.ZIndex = 22
+
+    -- Hex / RGB input
+    local hexBox = Instance.new("TextBox")
+    hexBox.Parent = pickerFrame
+    hexBox.BackgroundColor3 = self.MainColor
+    hexBox.BorderColor3 = self.OutlineColor
+    hexBox.BorderMode = Enum.BorderMode.Inset
+    hexBox.Size = UDim2.new(0.5, -8, 0, 20)
+    hexBox.Position = UDim2.new(0, 5, 0, 160)
+    hexBox.Font = self.Font
+    hexBox.TextColor3 = self.FontColor
+    hexBox.TextSize = 14
+    hexBox.ZIndex = 21
+    hexBox.Text = "#ffffff"
+    hexBox.PlaceholderText = "#ffffff"
+
+    local rgbBox = Instance.new("TextBox")
+    rgbBox.Parent = pickerFrame
+    rgbBox.BackgroundColor3 = self.MainColor
+    rgbBox.BorderColor3 = self.OutlineColor
+    rgbBox.BorderMode = Enum.BorderMode.Inset
+    rgbBox.Size = UDim2.new(0.5, -8, 0, 20)
+    rgbBox.Position = UDim2.new(0.5, 3, 0, 160)
+    rgbBox.Font = self.Font
+    rgbBox.TextColor3 = self.FontColor
+    rgbBox.TextSize = 14
+    rgbBox.ZIndex = 21
+    rgbBox.Text = "255, 255, 255"
+    rgbBox.PlaceholderText = "255, 255, 255"
+
+    function ctrl:UpdateDisplay()
+        self.Value = Color3.fromHSV(self.Hue, self.Sat, self.Vib)
+        colorPreview.BackgroundColor3 = self.Value
+        colorPreview.BackgroundTransparency = self.Transparency
+        hueThumb.Position = UDim2.new(self.Hue, 0, 0, 0)
+        svThumb.Position = UDim2.new(self.Sat, -4, 1 - self.Vib, -4)
+        transThumb.Position = UDim2.new(1 - self.Transparency, 0, 0, 0)
+        hexBox.Text = "#" .. self.Value:ToHex()
+        rgbBox.Text = string.format("%d, %d, %d",
+            math.floor(self.Value.R * 255),
+            math.floor(self.Value.G * 255),
+            math.floor(self.Value.B * 255))
+        svSquare.BackgroundColor3 = Color3.fromHSV(self.Hue, 1, 1)
+    end
+
+    function ctrl:SetValueRGB(color, transparency)
+        self.Transparency = transparency or 0
+        local h, s, v = Color3.toHSV(color)
+        self.Hue, self.Sat, self.Vib = h, s, v
+        self:UpdateDisplay()
+        for _, func in ipairs(self.ChangedFuncs) do
+            func(self.Value)
+        end
+        self.Callback(self.Value)
+        Lib.SaveManager:Save(nil, true)
+    end
+
+    function ctrl:SetValue(hsv, transparency)
+        self:SetValueRGB(Color3.fromHSV(hsv[1], hsv[2], hsv[3]), transparency)
+    end
+
+    function ctrl:OnChanged(func)
+        table.insert(self.ChangedFuncs, func)
+        func(self.Value)
+    end
+
+    function ctrl:Remove()
+        display:Destroy()
+        pickerFrame:Destroy()
+        self.ChangedFuncs = nil
+        Lib.Controls[ctrl.Idx] = nil
+    end
+
+    local function dragSlider(slider, thumb, min, max, callback)
+        local dragging = false
+        slider.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or
+               input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                local pos = input.UserInputType == Enum.UserInputType.MouseButton1 and
+                    UserInputService:GetMouseLocation() or input.Position
+                local relX = pos.X - slider.AbsolutePosition.X
+                local val = math.clamp((relX / slider.AbsoluteSize.X), 0, 1)
+                callback(val)
+            end
+        end)
+        slider.InputChanged:Connect(function(input)
+            if not dragging then return end
+            if input.UserInputType == Enum.UserInputType.MouseMovement or
+               input.UserInputType == Enum.UserInputType.Touch then
+                local pos = input.UserInputType == Enum.UserInputType.MouseMovement and
+                    UserInputService:GetMouseLocation() or input.Position
+                local relX = pos.X - slider.AbsolutePosition.X
+                local val = math.clamp((relX / slider.AbsoluteSize.X), 0, 1)
+                callback(val)
+            end
+        end)
+        slider.InputEnded:Connect(function(input)
+            if dragging then
+                dragging = false
+                Lib.SaveManager:Save(nil, true)
+            end
+        end)
+    end
+
+    dragSlider(hueSlider, hueThumb, 0, 1, function(val)
+        ctrl.Hue = val
+        ctrl:UpdateDisplay()
+        for _, func in ipairs(ctrl.ChangedFuncs) do
+            func(ctrl.Value)
+        end
+        ctrl.Callback(ctrl.Value)
+    end)
+
+    local svDragging = false
+    svSquare.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+           input.UserInputType == Enum.UserInputType.Touch then
+            svDragging = true
+            local pos = input.UserInputType == Enum.UserInputType.MouseButton1 and
+                UserInputService:GetMouseLocation() or input.Position
+            local relX = pos.X - svSquare.AbsolutePosition.X
+            local relY = pos.Y - svSquare.AbsolutePosition.Y
+            ctrl.Sat = math.clamp(relX / svSquare.AbsoluteSize.X, 0, 1)
+            ctrl.Vib = 1 - math.clamp(relY / svSquare.AbsoluteSize.Y, 0, 1)
+            ctrl:UpdateDisplay()
+            ctrl.Callback(ctrl.Value)
+        end
+    end)
+    svSquare.InputChanged:Connect(function(input)
+        if not svDragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or
+           input.UserInputType == Enum.UserInputType.Touch then
+            local pos = input.UserInputType == Enum.UserInputType.MouseMovement and
+                UserInputService:GetMouseLocation() or input.Position
+            local relX = pos.X - svSquare.AbsolutePosition.X
+            local relY = pos.Y - svSquare.AbsolutePosition.Y
+            ctrl.Sat = math.clamp(relX / svSquare.AbsoluteSize.X, 0, 1)
+            ctrl.Vib = 1 - math.clamp(relY / svSquare.AbsoluteSize.Y, 0, 1)
+            ctrl:UpdateDisplay()
+            ctrl.Callback(ctrl.Value)
+        end
+    end)
+    svSquare.InputEnded:Connect(function(input)
+        if svDragging then
+            svDragging = false
+            Lib.SaveManager:Save(nil, true)
+        end
+    end)
+
+    dragSlider(transSlider, transThumb, 0, 1, function(val)
+        ctrl.Transparency = 1 - val
+        ctrl:UpdateDisplay()
+        ctrl.Callback(ctrl.Value)
+    end)
+
+    hexBox.FocusLost:Connect(function(enter)
+        if enter then
+            local success, color = pcall(Color3.fromHex, hexBox.Text)
+            if success and typeof(color) == "Color3" then
+                local h, s, v = Color3.toHSV(color)
+                ctrl.Hue, ctrl.Sat, ctrl.Vib = h, s, v
+                ctrl:UpdateDisplay()
+                ctrl.Callback(ctrl.Value)
+                Lib.SaveManager:Save(nil, true)
+            end
+        end
+    end)
+
+    rgbBox.FocusLost:Connect(function(enter)
+        if enter then
+            local r, g, b = rgbBox.Text:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
+            if r and g and b then
+                local color = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b))
+                local h, s, v = Color3.toHSV(color)
+                ctrl.Hue, ctrl.Sat, ctrl.Vib = h, s, v
+                ctrl:UpdateDisplay()
+                ctrl.Callback(ctrl.Value)
+                Lib.SaveManager:Save(nil, true)
+            end
+        end
+    end)
+
+    display.MouseButton1Click:Connect(function()
+        pickerFrame.Visible = not pickerFrame.Visible
+        if pickerFrame.Visible then
+            self.OpenedFrames[pickerFrame] = true
+        else
+            self.OpenedFrames[pickerFrame] = nil
+        end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mouse = UserInputService:GetMouseLocation()
+            local pos = pickerFrame.AbsolutePosition
+            local size = pickerFrame.AbsoluteSize
+            if not (mouse.X >= pos.X and mouse.X <= pos.X + size.X and
+                    mouse.Y >= pos.Y and mouse.Y <= pos.Y + size.Y) then
+                pickerFrame.Visible = false
+                self.OpenedFrames[pickerFrame] = nil
+            end
+        end
+    end)
+
+    self:AddToRegistry(display, { BackgroundColor3 = "MainColor", BorderColor3 = "OutlineColor" })
+    self:AddToRegistry(colorPreview, { BackgroundColor3 = "AccentColor" })
+    ctrl:UpdateDisplay()
+    return ctrl
+end
+
+-- Keybind Picker
+function Lib:CreateKeybindPicker(parent, config)
+    config = config or {}
+    local ctrl = {
+        Type = "KeybindPicker",
+        Value = config.Default or "...",
+        Mode = config.Mode or "Toggle",
+        Callback = config.Callback or function() end,
+        ChangedFuncs = {},
+        Idx = config.Idx or ("keybind_" .. tostring(#self.Controls + 1)),
+        Toggled = false,
+        Override = false,
+        Connections = {},
+        SyncToggleState = config.SyncToggleState or false,
+    }
+    self.Controls[ctrl.Idx] = ctrl
+
+    local frame = Instance.new("Frame")
+    frame.Parent = parent
+    frame.BackgroundColor3 = self.MainColor
+    frame.BorderColor3 = self.OutlineColor
+    frame.BorderMode = Enum.BorderMode.Middle
+    frame.Size = UDim2.new(1, -2, 0, 22)
+    frame.ZIndex = 1
+    frame.Active = true
+
+    local label = Instance.new("TextLabel")
+    label.Parent = frame
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Keybind"
+    label.Font = self.Font
+    label.TextColor3 = self.FontColor
+    label.TextSize = 14
+    label.Size = UDim2.new(1, -30, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 2
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Parent = frame
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = ctrl.Value .. " (" .. ctrl.Mode .. ")"
+    valueLabel.Font = self.Font
+    valueLabel.TextColor3 = self.FontColor
+    valueLabel.TextSize = 14
+    valueLabel.Size = UDim2.new(1, -30, 1, 0)
+    valueLabel.Position = UDim2.new(0, 5, 0, 0)
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.ZIndex = 2
+
+    local modeBtn = Instance.new("TextButton")
+    modeBtn.Parent = frame
+    modeBtn.BackgroundTransparency = 1
+    modeBtn.Text = ctrl.Mode
+    modeBtn.Font = self.Font
+    modeBtn.TextColor3 = self.FontColor
+    modeBtn.TextSize = 12
+    modeBtn.Size = UDim2.new(0, 50, 1, 0)
+    modeBtn.Position = UDim2.new(1, -54, 0, 0)
+    modeBtn.ZIndex = 3
+    modeBtn.Active = true
+    modeBtn.Visible = false
+
+    local modes = config.Modes or {"Always", "Toggle", "Hold"}
+    local menu = self:AddContextMenu(valueLabel, frame)
+    local modeOptions = {}
+    for _, m in ipairs(modes) do
+        local opt = menu:AddOption(m, function()
+            ctrl.Mode = m
+            ctrl:Update()
+            Lib.SaveManager:Save(nil, true)
+        end)
+        modeOptions[m] = opt
+    end
+
+    function ctrl:Update()
+        local displayText = self.Value .. " (" .. self.Mode .. ")"
+        if self.Toggled then
+            displayText = displayText .. " [ON]"
+        end
+        valueLabel.Text = displayText
+        for _, m in ipairs(modes) do
+            local opt = modeOptions[m]
+            if opt then
+                opt.TextColor3 = (m == self.Mode) and self.AccentColor or self.FontColor
+            end
+        end
+        if self.SyncToggleState and self.Parent and self.Parent.Type == "Toggle" then
+            -- Sync with parent toggle
+        end
+    end
+
+    function ctrl:SetValue(value)
+        self.Value = value[1] or "..."
+        self.Mode = value[2] or "Toggle"
+        self:Update()
+        for _, func in ipairs(self.ChangedFuncs) do
+            func(self.Value)
+        end
+        self.Callback(self.Value)
+        Lib.SaveManager:Save(nil, true)
+    end
+
+    function ctrl:OnChanged(func)
+        table.insert(self.ChangedFuncs, func)
+        func(self.Value)
+    end
+
+    function ctrl:Remove()
+        frame:Destroy()
+        for _, conn in ipairs(self.Connections) do
+            conn:Disconnect()
+        end
+        self.Connections = nil
+        Lib.Controls[ctrl.Idx] = nil
+    end
+
+    local listening = false
+    valueLabel.MouseButton1Click:Connect(function()
+        if listening then return end
+        listening = true
+        local oldText = valueLabel.Text
+        valueLabel.Text = "..."
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            local key
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                key = input.KeyCode.Name
+            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+                key = "MB1"
+            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+                key = "MB2"
+            end
+            if key then
+                listening = false
+                ctrl.Value = key
+                ctrl:Update()
+                conn:Disconnect()
+                Lib.SaveManager:Save(nil, true)
+            end
+        end)
+        table.insert(ctrl.Connections, conn)
+    end)
+
+    self:AddToRegistry(frame, { BackgroundColor3 = "MainColor", BorderColor3 = "OutlineColor" })
+    ctrl:Update()
+    return ctrl
+end
+
+-- ============================================================
+-- Context Menu
+-- ============================================================
+function Lib:AddContextMenu(trigger, parentFrame)
+    local menu = {}
+    menu.Options = {}
+    menu.Visible = false
+
+    local container = Instance.new("Frame")
+    container.Parent = self.ScreenGui
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(0, 0, 0, 0)
+    container.ZIndex = 14
+    container.Visible = false
+
+    local inner = Instance.new("Frame")
+    inner.Parent = container
+    inner.BackgroundColor3 = self.BackgroundColor
+    inner.BorderColor3 = self.OutlineColor
+    inner.BorderMode = Enum.BorderMode.Inset
+    inner.Size = UDim2.new(1, 0, 1, 0)
+    inner.ZIndex = 15
+
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = inner
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 2)
+
+    local function reposition()
+        local pos = trigger.AbsolutePosition
+        container.Position = UDim2.new(0, pos.X + trigger.AbsoluteSize.X + 4, 0, pos.Y + 1)
+        local maxWidth = 0
+        local totalHeight = 0
+        for _, child in ipairs(inner:GetChildren()) do
+            if child:IsA("TextLabel") then
+                maxWidth = math.max(maxWidth, child.TextBounds.X)
+                totalHeight = totalHeight + 18
+            end
+        end
+        container.Size = UDim2.new(0, maxWidth + 12, 0, totalHeight + 6)
+    end
+
+    function menu:Show()
+        reposition()
+        container.Visible = true
+        self.Visible = true
+        Lib.OpenedFrames[container] = true
+    end
+
+    function menu:Hide()
+        container.Visible = false
+        self.Visible = false
+        Lib.OpenedFrames[container] = nil
+    end
+
+    function menu:AddOption(text, callback)
+        local lbl = Instance.new("TextLabel")
+        lbl.Parent = inner
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.Font = Lib.Font
+        lbl.TextColor3 = Lib.FontColor
+        lbl.TextSize = 13
+        lbl.Size = UDim2.new(1, 0, 0, 18)
+        lbl.ZIndex = 16
+        lbl.Active = true
+        lbl.TextXAlignment = Enum.TextXAlignment.Center
+
+        lbl.MouseButton1Click:Connect(function()
+            if callback then callback() end
+            menu:Hide()
+        end)
+
+        lbl.MouseEnter:Connect(function()
+            lbl.TextColor3 = Lib.AccentColor
+        end)
+        lbl.MouseLeave:Connect(function()
+            lbl.TextColor3 = Lib.FontColor
+        end)
+
+        table.insert(menu.Options, lbl)
+        return lbl
+    end
+
+    local closeConn
+    closeConn = UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mouse = UserInputService:GetMouseLocation()
+            local pos = container.AbsolutePosition
+            local size = container.AbsoluteSize
+            if not (mouse.X >= pos.X and mouse.X <= pos.X + size.X and
+                    mouse.Y >= pos.Y and mouse.Y <= pos.Y + size.Y) then
+                menu:Hide()
+            end
+        end
+    end)
+    table.insert(Lib.Signals, closeConn)
+
+    trigger.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            menu:Show()
+        end
+    end)
+
+    return menu
+end
+
+-- ============================================================
+-- Dependency System
+-- ============================================================
+function Lib:AddDependencyBox(container, dependencies)
+    local box = {}
+    box.Container = container
+    box.Dependencies = dependencies
+    box.Visible = true
+
+    function box:Update()
+        local visible = true
+        for _, dep in ipairs(self.Dependencies) do
+            if dep[1].Value ~= dep[2] then
+                visible = false
+                break
+            end
+        end
+        self.Container.Visible = visible
+        if self.Container.Resize then self.Container:Resize() end
+    end
+
+    box:Update()
+    table.insert(self.DependencyBoxes, box)
+    return box
+end
+
+-- ============================================================
+-- Registry for dynamic theme updates
+-- ============================================================
+function Lib:AddToRegistry(instance, properties, isHud)
+    local entry = {
+        Instance = instance,
+        Properties = properties,
+    }
+    table.insert(self.Registry, entry)
+    self.RegistryMap[instance] = entry
+    if isHud then table.insert(self.HudRegistry, entry) end
+end
+
+function Lib:RemoveFromRegistry(instance)
+    local entry = self.RegistryMap[instance]
+    if entry then
+        for i, e in ipairs(self.Registry) do
+            if e == entry then table.remove(self.Registry, i) break end
+        end
+        for i, e in ipairs(self.HudRegistry) do
+            if e == entry then table.remove(self.HudRegistry, i) break end
+        end
+        self.RegistryMap[instance] = nil
+    end
+end
+
+function Lib:UpdateColorsUsingRegistry()
+    for _, entry in ipairs(self.Registry) do
+        local inst = entry.Instance
+        for prop, value in pairs(entry.Properties) do
+            if type(value) == "string" then
+                inst[prop] = self[value] or value
+            elseif type(value) == "function" then
+                inst[prop] = value()
+            end
+        end
+    end
+end
+
+-- ============================================================
+-- Signal Management
+-- ============================================================
+function Lib:GiveSignal(signal)
+    table.insert(self.Signals, signal)
+end
+
+function Lib:Unload()
+    for _, signal in ipairs(self.Signals) do
+        signal:Disconnect()
+    end
+    self.Signals = {}
+    if self.OnUnload then self.OnUnload() end
+    self.ScreenGui:Destroy()
+end
+
+-- ============================================================
+-- Event System
+-- ============================================================
+function Lib:CreateEvent(name)
+    self.Events[name] = Instance.new("BindableEvent")
+end
+
+function Lib:FireEvent(name, ...)
+    if self.Events[name] then
+        self.Events[name]:Fire(...)
+    end
+end
+
+function Lib:OnEvent(name)
+    return self.Events[name].Event
+end
+
+-- ============================================================
+-- MakeDraggable (simplified)
+-- ============================================================
+function Lib:MakeDraggable(frame, topBarHeight, condition)
+    frame.Active = true
+    local dragOffset
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+           input.UserInputType == Enum.UserInputType.Touch then
+            if condition and self.CantDragForced then return end
+            local mouse = UserInputService:GetMouseLocation()
+            local pos = frame.AbsolutePosition
+            dragOffset = Vector2.new(mouse.X - pos.X, mouse.Y - pos.Y)
+            if dragOffset.Y > (topBarHeight or 40) then
+                dragOffset = nil
+                return
+            end
+            while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+                local mouseNow = UserInputService:GetMouseLocation()
+                frame.Position = UDim2.new(0,
+                    mouseNow.X - dragOffset.X + (frame.Size.X.Offset * frame.AnchorPoint.X),
+                    0,
+                    mouseNow.Y - dragOffset.Y + (frame.Size.Y.Offset * frame.AnchorPoint.Y)
+                )
+                RunService.RenderStepped:Wait()
+            end
+        end
+    end)
+end
+
+
+-- ============================================================
+-- ARCH SCRIPT UI ADAPTER
+-- Uses the second uploaded UI library while keeping the
+-- existing Arch feature callbacks/logic unchanged.
+-- ============================================================
+
+Lib:Init()
+
+local Library = Lib
+local mainWindow = Lib:CreateWindow("arch script free", {
+    Width = 600,
+    Height = 450
+})
+
+local MainFrame = mainWindow.Frame
+local ScreenGui = Lib.ScreenGui
+
+-- Compatibility helper used by the original mobile button.
+local CFG = {
+    MainColor = Lib.MainColor,
+    AccentColor = Lib.AccentColor,
+}
+
+local function Create(class, props, children)
+    local inst = Instance.new(class)
+    for i, v in pairs(props or {}) do
+        inst[i] = v
+    end
+    for _, child in pairs(children or {}) do
+        child.Parent = inst
+    end
+    return inst
+end
+
+-- The original script used Library:Notify(message, type).
+-- The second UI uses Library:Notify(message, duration).
+function Library:Notify(message, kind)
+    local duration = 5
+    if kind == "success" then
+        duration = 3
+    elseif kind == "warning" then
+        duration = 4
+    end
+    return Lib:Notify(message, duration)
+end
+
+-- Compatibility wrapper:
+--   Old: Library:Tab(...):Group(...):Toggle(...)
+--   New: Lib:CreateWindow(...):AddTab(...):AddToggle(...)
+function Library:Tab(name, icon)
+    local tab = mainWindow:AddTab(name, #mainWindow.Tabs == 0)
+
+    -- Reflow tab buttons so all five Arch tabs are visible.
+    local count = #mainWindow.Tabs
+    for i, t in ipairs(mainWindow.Tabs) do
+        t.Button.Size = UDim2.new(1 / count, 0, 1, 0)
+        t.Button.Position = UDim2.new((i - 1) / count, 0, 0, 0)
+    end
+
+    local oldShow = tab.Show
+
+    function tab:Resize()
+        local totalHeight = 10
+        for _, child in ipairs(self.Content:GetChildren()) do
+            if child:IsA("Frame") and child.Visible then
+                totalHeight += math.max(child.AbsoluteSize.Y, child.Size.Y.Offset)
+            end
+        end
+        self.Content.Size = UDim2.new(1, 0, 0, totalHeight)
+        mainWindow:Resize()
+    end
+
+    function tab:Show()
+        oldShow(self)
+        self:Resize()
+        local countNow = #mainWindow.Tabs
+        for i, t in ipairs(mainWindow.Tabs) do
+            t.Button.Size = UDim2.new(1 / countNow, 0, 1, 0)
+            t.Button.Position = UDim2.new((i - 1) / countNow, 0, 0, 0)
+        end
+    end
+
+    local groupState = {
+        Current = nil,
+        Tab = tab
+    }
+
+    function groupState:Group(title)
+        local group = {}
+
+        local frame = Instance.new("Frame")
+        frame.Parent = tab.Content
+        frame.BackgroundColor3 = Lib.BackgroundColor
+        frame.BorderColor3 = Lib.OutlineColor
+        frame.BorderMode = Enum.BorderMode.Inset
+        frame.Size = UDim2.new(1, -2, 0, 0)
+        frame.AutomaticSize = Enum.AutomaticSize.Y
+        frame.ZIndex = 1
+
+        local header = Instance.new("TextLabel")
+        header.Parent = frame
+        header.BackgroundColor3 = Lib.MainColor
+        header.BorderSizePixel = 0
+        header.Text = title
+        header.Font = Lib.Fonts.System
+        header.TextColor3 = Lib.FontColor
+        header.TextSize = 14
+        header.Size = UDim2.new(1, 0, 0, 24)
+        header.TextXAlignment = Enum.TextXAlignment.Left
+        header.ZIndex = 2
+
+        local pad = Instance.new("UIPadding")
+        pad.Parent = header
+        pad.PaddingLeft = UDim.new(0, 6)
+
+        local content = Instance.new("Frame")
+        content.Parent = frame
+        content.BackgroundTransparency = 1
+        content.Position = UDim2.new(0, 0, 0, 24)
+        content.Size = UDim2.new(1, 0, 0, 0)
+        content.AutomaticSize = Enum.AutomaticSize.Y
+        content.ZIndex = 1
+
+        local list = Instance.new("UIListLayout")
+        list.Parent = content
+        list.FillDirection = Enum.FillDirection.Vertical
+        list.SortOrder = Enum.SortOrder.LayoutOrder
+        list.Padding = UDim.new(0, 3)
+
+        local contentPad = Instance.new("UIPadding")
+        contentPad.Parent = content
+        contentPad.PaddingTop = UDim.new(0, 4)
+        contentPad.PaddingBottom = UDim.new(0, 4)
+        contentPad.PaddingLeft = UDim.new(0, 4)
+        contentPad.PaddingRight = UDim.new(0, 4)
+
+        -- Keep the parent tab/window sized to the group's automatic height.
+        frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            if tab.Visible then
+                task.defer(function()
+                    if tab.Visible then
+                        tab:Resize()
+                    end
+                end)
+            end
+        end)
+
+        local function normalize(cfg)
+            cfg = cfg or {}
+            local out = {}
+            for k, v in pairs(cfg) do out[k] = v end
+
+            if out.Name ~= nil and out.Text == nil then
+                out.Text = out.Name
+            end
+
+            if out.Options ~= nil and out.Values == nil then
+                out.Values = out.Options
+            end
+
+            if out.Risky ~= nil then
+                -- The second library supports Risky on Toggle.
+                -- Other controls simply retain the normal font color.
+            end
+
+            return out
+        end
+
+        function group:Toggle(cfg)
+            cfg = normalize(cfg)
+            local ctrl = Lib:CreateToggle(content, cfg)
+
+            -- Preserve the original API: control:Set(boolean)
+            ctrl.Set = function(self, value)
+                return self:SetValue(value)
+            end
+
+            return ctrl
+        end
+
+        function group:Slider(cfg)
+            cfg = normalize(cfg)
+            local ctrl = Lib:CreateSlider(content, cfg)
+
+            ctrl.Set = function(self, value)
+                return self:SetValue(value)
+            end
+
+            return ctrl
+        end
+
+        function group:Dropdown(cfg)
+            cfg = normalize(cfg)
+            local ctrl = Lib:CreateDropdown(content, cfg)
+
+            ctrl.Set = function(self, value)
+                return self:SetValue(value)
+            end
+
+            return ctrl
+        end
+
+        function group:ColorPicker(cfg)
+            cfg = normalize(cfg)
+            local ctrl = Lib:CreateColorPicker(content, cfg)
+
+            ctrl.Set = function(self, value)
+                if self.SetValueRGB then
+                    return self:SetValueRGB(value)
+                end
+            end
+
+            return ctrl
+        end
+
+        function group:KeybindPicker(cfg)
+            cfg = normalize(cfg)
+            local ctrl = Lib:CreateKeybindPicker(content, cfg)
+
+            ctrl.Set = function(self, value)
+                if self.SetValue then
+                    return self:SetValue(value)
+                end
+            end
+
+            return ctrl
+        end
+
+        function group:Button(cfg)
+            cfg = normalize(cfg)
+
+            -- The second UI library does not expose a public CreateButton
+            -- constructor, so create a button using its visual language.
+            local btn = Instance.new("TextButton")
+            btn.Parent = content
+            btn.BackgroundColor3 = Lib.MainColor
+            btn.BorderColor3 = Lib.OutlineColor
+            btn.BorderMode = Enum.BorderMode.Middle
+            btn.Size = UDim2.new(1, -2, 0, 24)
+            btn.Text = cfg.Text or cfg.Name or "Button"
+            btn.Font = Lib.Fonts.System
+            btn.TextColor3 = Lib.FontColor
+            btn.TextSize = 14
+            btn.AutoButtonColor = false
+            btn.ZIndex = 2
+
+            if cfg.Variant == "Primary" then
+                btn.BackgroundColor3 = Lib.AccentColor
+                btn.TextColor3 = Color3.new(1, 1, 1)
+            elseif cfg.Variant == "Danger" then
+                btn.BackgroundColor3 = Lib.RiskColor
+                btn.TextColor3 = Color3.new(1, 1, 1)
+            end
+
+            btn.MouseButton1Click:Connect(function()
+                if cfg.Callback then
+                    cfg.Callback()
+                end
+            end)
+
+            return btn
+        end
+
+        return group
+    end
+
+    return groupState
+end
+
+-- ============================================================
+-- END ARCH SCRIPT UI ADAPTER
+-- ============================================================
+-- SCRIPT FEATURES
+-- ============================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+
+-- Connection storage for cleanup
+local connections = {}
+
+-- Utility functions
+local function getCharacter()
+	return Player.Character
+end
+
+local function getHumanoid()
+	local character = getCharacter()
+	return character and character:FindFirstChild("Humanoid")
+end
+
+local function getRoot()
+	local character = getCharacter()
+	return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Aimbot settings
+local aimDeadCheck = true
+local aimWallCheck = true
+local aimPriority = "Distance"
+local aimFOV = 500
+local aimMaxDistance = 0
+
+local function isValidTarget(player)
+	if player == Player or not player.Character or not player.Character:FindFirstChild("Humanoid") or not player.Character:FindFirstChild("Head") then 
+		return false 
+	end
+	
+	if aimDeadCheck and player.Character.Humanoid.Health <= 0 then 
+		return false 
+	end
+	
+	if aimMaxDistance > 0 then
+		local myRoot = getRoot()
+		if myRoot then
+			local distance = (myRoot.Position - player.Character.Head.Position).Magnitude
+			if distance > aimMaxDistance then
+				return false
+			end
+		end
+	end
+	
+	if aimWallCheck then
+		local ray = Ray.new(Camera.CFrame.Position, (player.Character.Head.Position - Camera.CFrame.Position).Unit * 500)
+		local part = Workspace:FindPartOnRayWithIgnoreList(ray, {getCharacter()})
+		if part and part:IsDescendantOf(player.Character) then 
+			return true 
+		else 
+			return false 
+		end
+	end
+	return true
+end
+
+local function getClosestPlayer(fov)
+	local closest, closestValue = nil, math.huge
+	local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+	
+	for _, player in ipairs(Players:GetPlayers()) do
+		if not isValidTarget(player) then continue end
+		local head = player.Character.Head
+		local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+		if not onScreen then continue end
+		local dist = (center - Vector2.new(pos.X, pos.Y)).Magnitude
+		if dist > (fov or math.huge) then continue end
+		local value = aimPriority == "Distance" and dist or player.Character.Humanoid.Health
+		if value < closestValue then
+			closestValue = value
+			closest = player
+		end
+	end
+	return closest
+end
+
+-- Create tabs
+local AimbotTab = Library:Tab("Aimbot", 98159911363596)
+local VisualsTab = Library:Tab("Visuals", 10455603612)
+local MovementTab = Library:Tab("Movement", 11888734334)
+local ProtectionTab = Library:Tab("Protection", 10455604811)
+local ExtrasTab = Library:Tab("Extras", 12403097620)
+
+-- ============================================
+-- AIMBOT TAB
+-- ============================================
+local AimbotMainGroup = AimbotTab:Group("Aimbot Main Settings")
+local AimbotFOVGroup = AimbotTab:Group("FOV Settings")
+
+-- Aimbot variables
+local aimbotEnabled = false
+local aimbotMode = "Rage"
+local aimbotLock = "Head"
+local aimbotAutoFire = false
+local aimbotPrediction = false
+local aimbotSensitivity = 1
+
+-- Aimbot toggle (no keybind needed)
+AimbotMainGroup:Toggle({
+	Name = "Enable Aimbot",
+	Default = false,
+	Callback = function(Value) aimbotEnabled = Value end
+})
+
+AimbotMainGroup:Dropdown({
+	Name = "Aimbot Mode",
+	Options = {"Rage", "Legit"},
+	Default = "Rage",
+	Callback = function(Value) aimbotMode = Value end
+})
+
+AimbotMainGroup:Dropdown({
+	Name = "Lock Target",
+	Options = {"Head", "Torso"},
+	Default = "Head",
+	Callback = function(Value) aimbotLock = Value end
+})
+
+AimbotMainGroup:Toggle({
+	Name = "Auto-Fire",
+	Default = false,
+	Callback = function(Value) aimbotAutoFire = Value end
+})
+
+AimbotMainGroup:Toggle({
+	Name = "Movement Prediction",
+	Default = false,
+	Callback = function(Value) aimbotPrediction = Value end
+})
+
+AimbotMainGroup:Slider({
+	Name = "Sensitivity (Legit)",
+	Min = 0.1,
+	Max = 5,
+	Default = 1,
+	Unit = "x",
+	Callback = function(Value) aimbotSensitivity = Value end
+})
+
+AimbotMainGroup:Dropdown({
+	Name = "Priority",
+	Options = {"Distance", "Health"},
+	Default = "Distance",
+	Callback = function(Value) aimPriority = Value end
+})
+
+AimbotMainGroup:Slider({
+	Name = "Max Distance",
+	Min = 0,
+	Max = 1000,
+	Default = 0,
+	Unit = " studs",
+	Tooltip = "0 = no distance limit",
+	Callback = function(Value) aimMaxDistance = Value end
+})
+
+AimbotMainGroup:Toggle({
+	Name = "Dead Check",
+	Default = true,
+	Callback = function(Value) aimDeadCheck = Value end
+})
+
+AimbotMainGroup:Toggle({
+	Name = "Wall Check",
+	Default = true,
+	Callback = function(Value) aimWallCheck = Value end
+})
+
+AimbotMainGroup:Toggle({
+	Name = "TriggerBot",
+	Tooltip = "Auto-shoot when aiming at enemy",
+	Default = false,
+	Callback = function(Value) triggerBotEnabled = Value end
+})
+
+AimbotMainGroup:Slider({
+	Name = "TriggerBot Delay",
+	Min = 0,
+	Max = 500,
+	Default = 0,
+	Unit = "ms",
+	Callback = function(Value) triggerBotDelay = Value / 1000 end
+})
+
+-- FOV Settings
+AimbotFOVGroup:Slider({
+	Name = "Aimbot FOV",
+	Min = 100,
+	Max = 1000,
+	Default = 500,
+	Callback = function(Value) aimFOV = Value end
+})
+
+-- Silent Aim
+local silentAimEnabled = false
+local silentAimHitchance = 50
+
+AimbotFOVGroup:Toggle({
+	Name = "Silent Aim",
+	Tooltip = "Invisible aim, adjusts trajectories",
+	Default = false,
+	Callback = function(Value) silentAimEnabled = Value end
+})
+
+AimbotFOVGroup:Slider({
+	Name = "Silent Aim Hitchance",
+	Min = 0,
+	Max = 100,
+	Default = 50,
+	Unit = "%",
+	Callback = function(Value) silentAimHitchance = Value end
+})
+
+-- FOV Circle
+local fovCircleEnabled = false
+local fovCircleSize = 100
+local fovCircleRainbow = false
+local fovCircle = Drawing.new("Circle")
+fovCircle.Visible = false
+fovCircle.Thickness = 2
+fovCircle.Color = Color3.new(1,1,1)
+fovCircle.Transparency = 1
+fovCircle.NumSides = 64
+
+AimbotFOVGroup:Toggle({
+	Name = "FOV Circle",
+	Tooltip = "Visible aim circle",
+	Default = false,
+	Callback = function(Value)
+		fovCircleEnabled = Value
+		fovCircle.Visible = Value
+	end
+})
+
+AimbotFOVGroup:Slider({
+	Name = "FOV Circle Size",
+	Min = 50,
+	Max = 500,
+	Default = 100,
+	Unit = " px",
+	Callback = function(Value) fovCircleSize = Value end
+})
+
+AimbotFOVGroup:Toggle({
+	Name = "Rainbow FOV",
+	Default = false,
+	Callback = function(Value) fovCircleRainbow = Value end
+})
+
+-- Rapid Fire (moved to bottom of Aimbot tab)
+local rapidFireEnabled = false
+local AimbotRapidGroup = AimbotTab:Group("Rapid Fire")
+AimbotRapidGroup:Toggle({
+	Name = "Enable Rapid Fire",
+	Default = false,
+	Callback = function(Value)
+		rapidFireEnabled = Value
+		if Value then
+			pcall(function()
+				local Gun = require(Player.PlayerScripts.Modules.ItemTypes.Gun)
+				if Gun and Gun.Update then
+					local oldUpdate = Gun.Update
+					Gun.Update = function(self, dt, ...)
+						if self._shoot_cooldown then
+							self._shoot_cooldown = 0
+						end
+						return oldUpdate(self, dt, ...)
+					end
+				end
+			end)
+		end
+	end
+})
+
+-- Aimbot loop
+connections["Aimbot"] = RunService:BindToRenderStep("Aimbot", Enum.RenderPriority.Camera.Value, function(dt)
+	if not aimbotEnabled then return end
+	local closest = getClosestPlayer(aimFOV)
+	if closest and closest.Character then
+		local targetPart = closest.Character:FindFirstChild(aimbotLock == "Head" and "Head" or "UpperTorso")
+		if not targetPart then return end
+		
+		local prediction = aimbotPrediction and targetPart.AssemblyLinearVelocity * 0.1 or Vector3.zero
+		local targetPos = targetPart.Position + prediction
+		
+		if aimbotMode == "Rage" then
+			Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPos)
+		elseif aimbotMode == "Legit" then
+			local currentLook = Camera.CFrame.LookVector
+			local targetLook = (targetPos - Camera.CFrame.Position).Unit
+			local smoothFactor = math.clamp(aimbotSensitivity * dt * 10, 0.01, 0.3)
+			local newLook = currentLook:Lerp(targetLook, smoothFactor)
+			Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, Camera.CFrame.Position + newLook)
+		end
+		
+		if aimbotAutoFire then
+			local tool = Player.Character and Player.Character:FindFirstChildOfClass("Tool")
+			if tool then
+				tool:Activate()
+			end
+		end
+	end
+end)
+
+-- Silent Aim hook
+pcall(function()
+	local utility = require(ReplicatedStorage.Modules.Utility)
+	local oldRaycast = utility.Raycast
+
+	utility.Raycast = function(...)
+		local args = {...}
+		if silentAimEnabled and #args >= 3 and math.random(100) <= silentAimHitchance then
+			local closest = getClosestPlayer(aimFOV)
+			if closest and closest.Character and closest.Character:FindFirstChild("Head") then
+				args[3] = closest.Character.Head.Position
+			end
+		end
+		return oldRaycast(table.unpack(args))
+	end
+end)
+
+-- TriggerBot loop
+local triggerBotEnabled = false
+local triggerBotDelay = 0
+local triggerBotLastShot = 0
+
+connections["TriggerBot"] = RunService.Heartbeat:Connect(function()
+	if not triggerBotEnabled then return end
+	if tick() - triggerBotLastShot < triggerBotDelay then return end
+	
+	local mouse = Player:GetMouse()
+	local target = mouse.Target
+	if target and target.Parent then
+		local humanoid = target.Parent:FindFirstChild("Humanoid")
+		if humanoid and humanoid.Health > 0 then
+			local player = Players:GetPlayerFromCharacter(target.Parent)
+			if player and player ~= Player then
+				triggerBotLastShot = tick()
+				local tool = Player.Character and Player.Character:FindFirstChildOfClass("Tool")
+				if tool then
+					tool:Activate()
+				end
+			end
+		end
+	end
+end)
+
+-- FOV Circle update
+connections["FOVCircle"] = RunService.RenderStepped:Connect(function()
+	if fovCircleEnabled then
+		fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+		fovCircle.Radius = fovCircleSize
+		fovCircle.Visible = true
+		if fovCircleRainbow then
+			fovCircle.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+		end
+	else
+		fovCircle.Visible = false
+	end
+end)
+
+-- ============================================
+-- VISUALS TAB
+-- ============================================
+local VisualsGroup = VisualsTab:Group("Player ESP Options")
+
+-- ESP variables
+local playerESPEnabled = false
+local boxESPEnabled = false
+local chamsESPEnabled = false
+local playerESPName = true
+local playerESPDistance = true
+local playerESPHealth = true
+local playerESPWeapon = true
+
+-- Store toggle objects
+local boxToggle, chamsToggle, nameToggle, distToggle, healthToggle, weaponToggle
+
+VisualsGroup:Toggle({
+	Name = "Enable Player ESP",
+	Default = false,
+	Callback = function(Value)
+		playerESPEnabled = Value
+		if not Value then
+			if boxToggle then boxToggle:Set(false) end
+			if chamsToggle then chamsToggle:Set(false) end
+			boxESPEnabled = false
+			chamsESPEnabled = false
+		end
+	end
+})
+
+boxToggle = VisualsGroup:Toggle({
+	Name = "Box ESP",
+	Default = false,
+	Callback = function(Value) boxESPEnabled = Value end
+})
+
+chamsToggle = VisualsGroup:Toggle({
+	Name = "Chams ESP",
+	Default = false,
+	Callback = function(Value) chamsESPEnabled = Value end
+})
+
+nameToggle = VisualsGroup:Toggle({
+	Name = "Name",
+	Default = true,
+	Callback = function(Value) playerESPName = Value end
+})
+
+distToggle = VisualsGroup:Toggle({
+	Name = "Distance",
+	Default = true,
+	Callback = function(Value) playerESPDistance = Value end
+})
+
+healthToggle = VisualsGroup:Toggle({
+	Name = "Health",
+	Default = true,
+	Callback = function(Value) playerESPHealth = Value end
+})
+
+weaponToggle = VisualsGroup:Toggle({
+	Name = "Equipped Weapon",
+	Default = true,
+	Callback = function(Value) playerESPWeapon = Value end
+})
+
+-- ESP storage and functions
+local espBoxes = {}
+local espChams = {}
+local espTexts = {}
+
+local function cleanupPlayerESP(player)
+	if espBoxes[player] then 
+		pcall(function() espBoxes[player]:Remove() end) 
+		espBoxes[player] = nil 
+	end
+	if espChams[player] then 
+		pcall(function() espChams[player]:Destroy() end) 
+		espChams[player] = nil 
+	end
+	if espTexts[player] then 
+		pcall(function() espTexts[player]:Remove() end) 
+		espTexts[player] = nil 
+	end
+end
+
+local function createPlayerESP(player)
+	if player == Player then return end
+	if not player.Character then return end
+	
+	cleanupPlayerESP(player)
+	
+	local box = Drawing.new("Square")
+	box.Visible = false
+	box.Color = Color3.new(1, 1, 1)
+	box.Thickness = 2
+	box.Filled = false
+	box.Transparency = 1
+	espBoxes[player] = box
+	
+	local cham = Instance.new("Highlight")
+	cham.Name = "ESP_Cham_" .. player.Name
+	cham.Parent = game.CoreGui
+	cham.Adornee = player.Character
+	cham.FillTransparency = 0.5
+	cham.OutlineTransparency = 0
+	cham.FillColor = Color3.new(1, 1, 1)
+	cham.OutlineColor = Color3.new(1, 1, 1)
+	cham.Enabled = false
+	espChams[player] = cham
+	
+	local text = Drawing.new("Text")
+	text.Visible = false
+	text.Color = Color3.new(1, 1, 1)
+	text.Size = 16
+	text.Center = true
+	text.Outline = true
+	text.Transparency = 1
+	text.Font = 2
+	espTexts[player] = text
+end
+
+-- Player management
+local function setupPlayerESP(player)
+	if player == Player then return end
+	
+	player.CharacterAdded:Connect(function(char)
+		task.wait(0.1)
+		if playerESPEnabled then 
+			createPlayerESP(player)
+		end
+	end)
+	
+	player.CharacterRemoving:Connect(function()
+		cleanupPlayerESP(player)
+	end)
+	
+	if player.Character then
+		task.wait(0.1)
+		createPlayerESP(player)
+	end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	setupPlayerESP(player)
+end
+
+Players.PlayerAdded:Connect(setupPlayerESP)
+Players.PlayerRemoving:Connect(cleanupPlayerESP)
+
+-- ESP update loop
+connections["PlayerESP"] = RunService.Heartbeat:Connect(function()
+	if not playerESPEnabled then return end
+	
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player == Player then continue end
+		
+		if not player.Character or not player.Character.Parent then
+			cleanupPlayerESP(player)
+			continue
+		end
+		
+		local humanoid = player.Character:FindFirstChild("Humanoid")
+		local root = player.Character:FindFirstChild("HumanoidRootPart")
+		
+		if not humanoid or not root then 
+			cleanupPlayerESP(player)
+			continue 
+		end
+		
+		if not espBoxes[player] then
+			createPlayerESP(player)
+		end
+		
+		local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+		if onScreen then
+			if espTexts[player] then
+				local textStr = ""
+				if playerESPName then textStr = textStr .. player.Name .. "\n" end
+				if playerESPDistance then 
+					local myRoot = getRoot()
+					if myRoot then
+						textStr = textStr .. math.floor((myRoot.Position - root.Position).Magnitude) .. " studs\n" 
+					end
+				end
+				if playerESPHealth then textStr = textStr .. math.floor(humanoid.Health) .. "/" .. humanoid.MaxHealth .. "\n" end
+				if playerESPWeapon then
+					local tool = player.Character:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
+					if tool then textStr = textStr .. tool.Name end
+				end
+				
+				espTexts[player].Text = textStr
+				espTexts[player].Position = Vector2.new(rootPos.X, rootPos.Y - 50)
+				espTexts[player].Visible = true
+			end
+			
+			if boxESPEnabled and espBoxes[player] then
+				local minX, minY = math.huge, math.huge
+				local maxX, maxY = -math.huge, -math.huge
+				
+				for _, part in ipairs(player.Character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						local corners = {
+							part.CFrame * CFrame.new(part.Size.X/2, part.Size.Y/2, part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(part.Size.X/2, part.Size.Y/2, -part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(part.Size.X/2, -part.Size.Y/2, part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(part.Size.X/2, -part.Size.Y/2, -part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(-part.Size.X/2, part.Size.Y/2, part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(-part.Size.X/2, part.Size.Y/2, -part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(-part.Size.X/2, -part.Size.Y/2, part.Size.Z/2).Position,
+							part.CFrame * CFrame.new(-part.Size.X/2, -part.Size.Y/2, -part.Size.Z/2).Position
+						}
+						for _, corner in ipairs(corners) do
+							local pos = Camera:WorldToViewportPoint(corner)
+							minX = math.min(minX, pos.X)
+							maxX = math.max(maxX, pos.X)
+							minY = math.min(minY, pos.Y)
+							maxY = math.max(maxY, pos.Y)
+						end
+					end
+				end
+				
+				espBoxes[player].Size = Vector2.new(maxX - minX, maxY - minY)
+				espBoxes[player].Position = Vector2.new(minX, minY)
+				espBoxes[player].Visible = true
+			end
+		else
+			if espTexts[player] then espTexts[player].Visible = false end
+			if espBoxes[player] then espBoxes[player].Visible = false end
+		end
+		
+		if chamsESPEnabled and espChams[player] then
+			if espChams[player].Adornee ~= player.Character then
+				espChams[player].Adornee = player.Character
+			end
+			espChams[player].Enabled = true
+		elseif espChams[player] then
+			espChams[player].Enabled = false
+		end
+	end
+end)
+
+-- ============================================
+-- MOVEMENT TAB
+-- ============================================
+local MovementMainGroup = MovementTab:Group("Movement Options")
+local MovementAddGroup = MovementTab:Group("Additional Movement")
+local SpeedGroup = MovementTab:Group("Speed")
+
+-- Fly Hack
+local flyEnabled = false
+local flySpeed = 10
+local flyBodyVelocity
+
+MovementMainGroup:Toggle({
+	Name = "Fly Hack",
+	Tooltip = "Free flight",
+	Default = false,
+	Callback = function(Value)
+		flyEnabled = Value
+		if Value then
+			local root = getRoot()
+			if root then
+				root.Anchored = false
+				if not flyBodyVelocity then
+					flyBodyVelocity = Instance.new("BodyVelocity")
+					flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+					flyBodyVelocity.Velocity = Vector3.zero
+					flyBodyVelocity.Parent = root
+				end
+			end
+		else
+			if flyBodyVelocity then
+				flyBodyVelocity:Destroy()
+				flyBodyVelocity = nil
+			end
+		end
+	end
+})
+
+MovementMainGroup:Slider({
+	Name = "Fly Speed",
+	Min = 1,
+	Max = 100,
+	Default = 10,
+	Callback = function(Value) flySpeed = Value end
+})
+
+connections["Fly"] = RunService.Heartbeat:Connect(function()
+	if flyEnabled and flyBodyVelocity and flyBodyVelocity.Parent then
+		local moveDir = Vector3.zero
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= Camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= Camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += Camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+		
+		if moveDir.Magnitude > 0 then
+			flyBodyVelocity.Velocity = moveDir.Unit * flySpeed
+		else
+			flyBodyVelocity.Velocity = Vector3.zero
+		end
+	end
+end)
+
+-- Infinite Jump
+local infJumpEnabled = false
+local infJumpConnection
+
+MovementAddGroup:Toggle({
+	Name = "Infinite Jump",
+	Tooltip = "Unlimited jumps without cooldown",
+	Default = false,
+	Callback = function(Value)
+		infJumpEnabled = Value
+		if Value then
+			infJumpConnection = UserInputService.JumpRequest:Connect(function()
+				local humanoid = getHumanoid()
+				if humanoid then
+					humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+				end
+			end)
+		else
+			if infJumpConnection then 
+				infJumpConnection:Disconnect() 
+				infJumpConnection = nil 
+			end
+		end
+	end
+})
+
+-- No Clip
+local noClipEnabled = false
+
+MovementAddGroup:Toggle({
+	Name = "No Clip",
+	Tooltip = "Walk through walls/objects",
+	Default = false,
+	Callback = function(Value) noClipEnabled = Value end
+})
+
+connections["NoClip"] = RunService.Stepped:Connect(function()
+	if noClipEnabled then
+		pcall(function()
+			for _, part in ipairs(getCharacter():GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+				end
+			end
+		end)
+	end
+end)
+
+-- Bunny Hop
+local bunnyHopEnabled = false
+
+MovementAddGroup:Toggle({
+	Name = "Bunny Hop",
+	Tooltip = "Auto-jump for momentum gain",
+	Default = false,
+	Callback = function(Value) bunnyHopEnabled = Value end
+})
+
+connections["BunnyHop"] = RunService.Heartbeat:Connect(function()
+	if bunnyHopEnabled then
+		pcall(function()
+			local humanoid = getHumanoid()
+			if humanoid and humanoid.MoveDirection.Magnitude > 0 and humanoid.FloorMaterial ~= Enum.Material.Air then
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			end
+		end)
+	end
+end)
+
+-- ============================================
+-- SPEED HACK (移植自第一個腳本，使用 GetPropertyChangedSignal)
+-- ============================================
+local speedEnabled = false
+local speedValue = 16
+local speedConn = nil
+
+local function setSpeed(val)
+    speedValue = val
+
+    if speedConn then
+        speedConn:Disconnect()
+        speedConn = nil
+    end
+
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = val
+        speedConn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            if speedEnabled and humanoid.WalkSpeed ~= speedValue then
+                humanoid.WalkSpeed = speedValue
+            end
+        end)
+    end
+end
+
+SpeedGroup:Toggle({
+    Name = "Enable Speed",
+    Default = false,
+    Callback = function(Value)
+        speedEnabled = Value
+        if Value then
+            setSpeed(speedValue)
+        else
+            if speedConn then
+                speedConn:Disconnect()
+                speedConn = nil
+            end
+            local humanoid = getHumanoid()
+            if humanoid then
+                humanoid.WalkSpeed = 16
+            end
+        end
+    end
+})
+
+SpeedGroup:Slider({
+    Name = "WalkSpeed",
+    Min = 16,
+    Max = 500,
+    Default = 16,
+    Unit = " studs/s",
+    Callback = function(Value)
+        speedValue = Value
+        if speedEnabled then
+            setSpeed(Value)
+        end
+    end
+})
+
+-- 角色重生時重新套用速度
+Player.CharacterAdded:Connect(function(char)
+    if speedEnabled then
+        task.wait(0.1)
+        setSpeed(speedValue)
+    end
+end)
+
+-- ============================================
+-- PROTECTION TAB
+-- ============================================
+local ProtectionGroup = ProtectionTab:Group("Protection Options")
+
+-- Anti-Aim
+local antiAimEnabled = false
+local antiAimMode = "Spin"
+local antiAimSpeed = 10
+
+ProtectionGroup:Toggle({
+	Name = "Anti-Aim",
+	Tooltip = "Deflects enemy aims",
+	Default = false,
+	Callback = function(Value) antiAimEnabled = Value end
+})
+
+ProtectionGroup:Dropdown({
+	Name = "Mode",
+	Options = {"Spin", "Jitter", "Random"},
+	Default = "Spin",
+	Callback = function(Value) antiAimMode = Value end
+})
+
+ProtectionGroup:Slider({
+	Name = "Spin Speed",
+	Min = 1,
+	Max = 50,
+	Default = 10,
+	Callback = function(Value) antiAimSpeed = Value end
+})
+
+-- Force Third Person
+local forceThirdPerson = false
+local originalCameraType = nil
+local originalMaxZoom = nil
+local originalMinZoom = nil
+
+ProtectionGroup:Toggle({
+	Name = "Force Third Person",
+	Tooltip = "Forces third person view for better Anti-Aim",
+	Default = false,
+	Callback = function(Value)
+		forceThirdPerson = Value
+		if Value then
+			originalCameraType = Player.CameraMode
+			originalMaxZoom = Player.CameraMaxZoomDistance
+			originalMinZoom = Player.CameraMinZoomDistance
+			
+			Player.CameraMode = Enum.CameraMode.Classic
+			Player.CameraMaxZoomDistance = 50
+			Player.CameraMinZoomDistance = 5
+			
+			task.spawn(function()
+				wait(0.1)
+				if Player.CameraMode ~= Enum.CameraMode.Classic then
+					Player.CameraMode = Enum.CameraMode.Classic
+				end
+			end)
+			Library:Notify("Third Person Enabled", "success")
+		else
+			if originalCameraType then
+				Player.CameraMode = originalCameraType
+			else
+				Player.CameraMode = Enum.CameraMode.Classic
+			end
+			if originalMaxZoom then
+				Player.CameraMaxZoomDistance = originalMaxZoom
+			else
+				Player.CameraMaxZoomDistance = 128
+			end
+			if originalMinZoom then
+				Player.CameraMinZoomDistance = originalMinZoom
+			else
+				Player.CameraMinZoomDistance = 0.5
+			end
+			Library:Notify("Third Person Disabled", "warning")
+		end
+	end
+})
+
+connections["ThirdPersonCheck"] = RunService.Heartbeat:Connect(function()
+	if forceThirdPerson then
+		if Player.CameraMode ~= Enum.CameraMode.Classic then
+			Player.CameraMode = Enum.CameraMode.Classic
+		end
+		if Player.CameraMaxZoomDistance < 20 then
+			Player.CameraMaxZoomDistance = 50
+		end
+		if Player.CameraMinZoomDistance > 10 then
+			Player.CameraMinZoomDistance = 5
+		end
+	end
+	
+	if antiAimEnabled then
+		pcall(function()
+			local root = getRoot()
+			if root then
+				if antiAimMode == "Spin" then
+					root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(antiAimSpeed), 0)
+				elseif antiAimMode == "Jitter" then
+					root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(math.random(-180, 180)), 0)
+				elseif antiAimMode == "Random" then
+					root.CFrame = root.CFrame * CFrame.Angles(
+						math.rad(math.random(-5, 5)),
+						math.rad(math.random(-180, 180)),
+						math.rad(math.random(-5, 5))
+					)
+				end
+			end
+		end)
+	end
+end)
+
+-- ============================================
+-- EXTRAS TAB
+-- ============================================
+local ExtrasGroup = ExtrasTab:Group("Extras Options")
+local UIGroup = ExtrasTab:Group("UI")
+
+-- FPS Boost
+local fpsBoostEnabled = false
+
+ExtrasGroup:Toggle({
+	Name = "FPS Boost",
+	Tooltip = "Optimizes performance",
+	Default = false,
+	Callback = function(Value)
+		fpsBoostEnabled = Value
+		if Value then
+			pcall(function()
+				local lighting = game:GetService("Lighting")
+				lighting.GlobalShadows = false
+				lighting.FogEnd = 9e9
+				settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+				for _, v in pairs(workspace:GetDescendants()) do
+					if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") then
+						v.Enabled = false
+					end
+				end
+			end)
+			Library:Notify("FPS Boost Enabled", "success")
+		else
+			pcall(function()
+				local lighting = game:GetService("Lighting")
+				lighting.GlobalShadows = true
+				settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+			end)
+		end
+	end
+})
+
+ExtrasGroup:Button({
+	Name = "Remove Textures",
+	Tooltip = "Extreme FPS boost by removing textures",
+	Callback = function()
+		for _, v in pairs(workspace:GetDescendants()) do
+			pcall(function()
+				if v:IsA("Decal") or v:IsA("Texture") then
+					v:Destroy()
+				elseif v:IsA("BasePart") then
+					v.Material = Enum.Material.SmoothPlastic
+					v.Reflectance = 0
+				end
+			end)
+		end
+		Library:Notify("Textures removed", "success")
+	end
+})
+
+ExtrasGroup:Button({
+	Name = "Fullbright",
+	Callback = function()
+		local lighting = game:GetService("Lighting")
+		lighting.Brightness = 2
+		lighting.ClockTime = 14
+		lighting.FogEnd = 100000
+		lighting.GlobalShadows = false
+		lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+		Library:Notify("Fullbright Enabled", "success")
+	end
+})
+
+ExtrasGroup:Button({
+	Name = "Remove Fog",
+	Callback = function()
+		local lighting = game:GetService("Lighting")
+		lighting.FogEnd = 100000
+		for _, v in pairs(lighting:GetChildren()) do
+			if v:IsA("Atmosphere") then
+				v:Destroy()
+			end
+		end
+		Library:Notify("Fog Removed", "success")
+	end
+})
+
+ExtrasGroup:Button({
+	Name = "Unload Script",
+	Variant = "Danger",
+	Callback = function()
+		unloadScript()
+	end
+})
+
+-- Toggle UI button
+UIGroup:Button({
+	Name = "Toggle UI",
+	Callback = function()
+		MainFrame.Visible = not MainFrame.Visible
+	end
+})
+
+-- ============================================
+-- UNLOAD FUNCTION
+-- ============================================
+function unloadScript()
+	print("Unloading arch script free...")
+	Library.Unloaded = true
+	
+	-- Disconnect all connections
+	for name, conn in pairs(connections) do
+		pcall(function()
+			if name == "Aimbot" then
+				RunService:UnbindFromRenderStep("Aimbot")
+			elseif type(conn) == "table" and conn.Disconnect then
+				conn:Disconnect()
+			end
+		end)
+	end
+	connections = {}
+	
+	-- Clean ESP
+	for player in pairs(espBoxes) do
+		cleanupPlayerESP(player)
+	end
+	
+	-- Remove FOV circle
+	pcall(function() fovCircle:Remove() end)
+	
+	-- Reset physics
+	if flyBodyVelocity then flyBodyVelocity:Destroy() end
+	Workspace.Gravity = 196.2
+	
+	-- Reset camera
+	if originalCameraType then
+		Player.CameraMode = originalCameraType
+	else
+		Player.CameraMode = Enum.CameraMode.Classic
+	end
+	if originalMaxZoom then
+		Player.CameraMaxZoomDistance = originalMaxZoom
+	else
+		Player.CameraMaxZoomDistance = 128
+	end
+	if originalMinZoom then
+		Player.CameraMinZoomDistance = originalMinZoom
+	else
+		Player.CameraMinZoomDistance = 0.5
+	end
+	
+	-- Reset humanoid
+	pcall(function()
+		local humanoid = getHumanoid()
+		if humanoid then
+			humanoid.WalkSpeed = 16
+			humanoid.JumpPower = 50
+		end
+	end)
+	
+	-- 清理 Speed 監聽
+	if speedConn then
+		speedConn:Disconnect()
+		speedConn = nil
+	end
+	speedEnabled = false
+	
+	-- Disconnect infinite jump
+	if infJumpConnection then infJumpConnection:Disconnect() end
+	
+	-- Reset lighting
+	pcall(function()
+		local lighting = game:GetService("Lighting")
+		lighting.GlobalShadows = true
+		lighting.Brightness = 1
+		settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+	end)
+	
+	-- Destroy UI
+	ScreenGui:Destroy()
+	
+	Library:Notify("Script unloaded successfully", "success")
+end
+
+-- ============================================
+-- STARTUP NOTIFICATION
+-- ============================================
+Library:Notify("arch script free loaded", "success")
+
+-- Mobile toggle button (always visible)
+local MobileToggle = Create("ImageButton", {
+    Parent = ScreenGui,
+    Size = UDim2.new(0, 40, 0, 40),
+    Position = UDim2.new(0.5, 0, 0, 10),
+    AnchorPoint = Vector2.new(0.5, 0),
+    BackgroundColor3 = CFG.MainColor,
+    Image = "rbxassetid://3926305904",
+    ImageColor3 = CFG.AccentColor,
+    AutoButtonColor = false
+}, {
+    Create("UICorner", {CornerRadius = UDim.new(1, 0)}),
+    Create("UIStroke", {Color = CFG.AccentColor, Thickness = 2})
+})
+
+MobileToggle.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)

@@ -360,7 +360,7 @@ task.spawn(function()
                     if killSayEnabled then
                         local message =
                             killSayMessages[math.random(1, #killSayMessages)]
-                        game.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(
+                        game:GetService('ReplicatedStorage').DefaultChatSystemChatEvents.SayMessageRequest:FireServer(
                             message,
                             'All'
                         )
@@ -773,7 +773,7 @@ end
 function targetchosen()
     local distance = math.huge
     local zclosest
-    for i, v in pairs(game.Players:GetPlayers()) do
+    for i, v in pairs(players:GetPlayers()) do
         if
             v ~= player
             and v.Character
@@ -1683,13 +1683,13 @@ layerESP
             getgenv().HighlightESP.Enabled = val
 
             if val then
-                for _, player in ipairs(game.Players:GetPlayers()) do
-                    if player ~= game.Players.LocalPlayer then
+                for _, player in ipairs(players:GetPlayers()) do
+                    if player ~= players.LocalPlayer then
                         CreateHighlight(player)
                     end
                 end
 
-                game.Players.PlayerAdded:Connect(function(player)
+                players.PlayerAdded:Connect(function(player)
                     player.CharacterAdded:Connect(function()
                         if getgenv().HighlightESP.Enabled then
                             task.wait(0.5)
@@ -3019,7 +3019,7 @@ PLAYERLOLBRODUDEWHAT:AddToggle('AutoStompToggle', {
     Default = false,
     Callback = function(v)
         if v then
-            game.ReplicatedStorage.MainEvent:FireServer('Stomp')
+            game:GetService('ReplicatedStorage').MainEvent:FireServer('Stomp')
         end
     end,
 })
@@ -3029,7 +3029,7 @@ PLAYERLOLBRODUDEWHAT:AddToggle('AutoDropToggle', {
     Default = false,
     Callback = function(v)
         if v then
-            game.ReplicatedStorage.MainEvent:FireServer(
+            game:GetService('ReplicatedStorage').MainEvent:FireServer(
                 'DropMoney',
                 Settings.Misc.Cash.Amount or 8000
             )

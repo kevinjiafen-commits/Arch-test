@@ -1,0 +1,876 @@
+-- language: Lua, file: rivals_follow_priority.lua
+-- target: Roblox Rivals | executor: Synapse X / KRNL / Script-Ware / Universal
+-- queue survives LocalPlayer respawn (_G) and never drops targets on enemy death
+-- UI: Eclipse visual language (dark mono + lavender, Code font, UIScale, input drag)
+-- v2: death-detection — on target death, rotate dead player to queue tail and follow next
+
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+local RunService       = game:GetService("RunService")
+local LocalPlayer      = Players.LocalPlayer
+
+-- ══ STATE ════════════════════════════════════════════════════════════════════
+_G.RivalsAF_Queue  = _G.RivalsAF_Queue or {}
+local priorityQueue = _G.RivalsAF_Queue
+local targetPlayer  = nil
+local following     = false
+local followConn    = nil
+local deathConn     = nil          -- ← death-watch connection (new)
+local off = { x = 0, y = 4, z = 0 }
+
+local refreshQueueDisplay = function() end
+local refreshPlayerList   = function() end
+local setFollowBtnState   = function() end
+local setStatus           = function() end
+
+-- ══ HELPERS ══════════════════════════════════════════════════════════════════
+local function getRoot(p)
+    local c = p and p.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function qIdx(p)
+    for i, v in ipairs(priorityQueue) do
+        if v == p then return i end
+    end
+end
+
+-- ══ FOLLOW / TELEPORT ════════════════════════════════════════════════════════
+local function stopFollow()
+    following = false
+    if followConn then followConn:Disconnect(); followConn = nil end
+end
+
+local function startFollow()
+    if followConn then followConn:Disconnect() end
+    following = true
+    followConn = RunService.Heartbeat:Connect(function()
+        if not following or not targetPlayer then return end
+        local tr, lr = getRoot(targetPlayer), getRoot(LocalPlayer)
+        if tr and lr then
+            lr.CFrame = tr.CFrame * CFrame.new(off.x, off.y, off.z)
+        end
+    end)
+end
+
+local function teleportNow()
+    if not targetPlayer then return end
+    local tr, lr = getRoot(targetPlayer), getRoot(LocalPlayer)
+    if tr and lr then lr.CFrame = tr.CFrame * CFrame.new(off.x, off.y, off.z) end
+end
+
+-- ══ DEATH WATCH (new) ════════════════════════════════════════════════════════
+local armDeathWatch  -- forward-declare so the callback can reference it
+
+local function onTargetDied()
+    -- rotate dead player to tail of queue so they re-enter when alive again
+    if #priorityQueue > 0 and priorityQueue[1] == targetPlayer then
+        local dead = table.remove(priorityQueue, 1)
+        table.insert(priorityQueue, dead)
+    end
+
+    refreshQueueDisplay()
+    refreshPlayerList()
+
+    if #priorityQueue == 0 or priorityQueue[1] == targetPlayer then
+        -- only one target — no live replacement available
+        stopFollow()
+        setFollowBtnState(false)
+        setStatus("target died · no next target")
+        -- Notify defined later; call via pcall so the forward-ref is fine
+        pcall(function() Notify("target died · queue exhausted", "warning") end)
+        return
+    end
+
+    -- advance to next player
+    targetPlayer = priorityQueue[1]
+    if following then startFollow() end
+    armDeathWatch(targetPlayer)
+
+    setStatus("target died · now → " .. targetPlayer.Name)
+    pcall(function() Notify("target died · now → " .. targetPlayer.Name, "warning") end)
+end
+
+armDeathWatch = function(player)
+    -- drop previous death-watch
+    if deathConn then deathConn:Disconnect(); deathConn = nil end
+    if not player then return end
+
+    local function connectHumanoid(char)
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+                 or char:WaitForChild("Humanoid", 3)
+        if not hum then return end
+        -- guard: already dead on connect (edge case in fast respawn servers)
+        if hum.Health <= 0 then task.defer(onTargetDied); return end
+        deathConn = hum.Died:Connect(onTargetDied)
+    end
+
+    -- arm immediately if character exists
+    connectHumanoid(player.Character)
+
+    -- re-arm whenever target gets a new character (they respawned into queue tail)
+    player.CharacterAdded:Connect(function(char)
+        if player == targetPlayer then
+            connectHumanoid(char)
+        end
+    end)
+end
+
+-- ══ ECLIPSE CFG ══════════════════════════════════════════════════════════════
+local CFG = {
+    MainColor      = Color3.fromRGB(14,  14,  14),
+    SecondaryColor = Color3.fromRGB(26,  26,  26),
+    AccentColor    = Color3.fromRGB(189, 172, 255),
+    TextColor      = Color3.fromRGB(200, 200, 200),
+    TextDark       = Color3.fromRGB(120, 120, 120),
+    StrokeColor    = Color3.fromRGB(40,  40,  40),
+    DangerColor    = Color3.fromRGB(200, 60,  60),
+    Font           = Enum.Font.Code,
+    BaseSize       = Vector2.new(520, 430),
+}
+
+-- ══ ECLIPSE INFRASTRUCTURE ═══════════════════════════════════════════════════
+local function Create(class, props, children)
+    local inst = Instance.new(class)
+    for k, v in pairs(props or {}) do inst[k] = v end
+    for _, child in pairs(children or {}) do child.Parent = inst end
+    return inst
+end
+
+local function Tween(obj, props, time, style, dir)
+    TweenService:Create(obj,
+        TweenInfo.new(
+            time  or 0.2,
+            style or Enum.EasingStyle.Quad,
+            dir   or Enum.EasingDirection.Out),
+        props):Play()
+end
+
+-- ══ GUI ROOT ══════════════════════════════════════════════════════════════════
+local gp = (typeof(gethui) == "function") and gethui() or game:GetService("CoreGui")
+do local prev = gp:FindFirstChild("RivalsAF") if prev then prev:Destroy() end end
+
+local ScreenGui = Create("ScreenGui", {
+    Name           = "RivalsAF",
+    Parent         = gp,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    ResetOnSpawn   = false,
+    IgnoreGuiInset = true,
+})
+
+-- UIScale (responsive viewport)
+local UIScale = Create("UIScale", { Parent = ScreenGui })
+local function UpdateScale()
+    local vp = workspace.CurrentCamera.ViewportSize
+    local scale = math.min(
+        (vp.X - 40) / CFG.BaseSize.X,
+        (vp.Y - 40) / CFG.BaseSize.Y,
+        1)
+    UIScale.Scale = math.max(scale, 0.6)
+end
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateScale)
+UpdateScale()
+
+-- ══ NOTIFICATIONS ════════════════════════════════════════════════════════════
+local NotifContainer = Create("Frame", {
+    Parent             = ScreenGui,
+    Position           = UDim2.new(1, -20, 0, 20),
+    AnchorPoint        = Vector2.new(1, 0),
+    Size               = UDim2.new(0, 300, 1, 0),
+    BackgroundTransparency = 1,
+    ZIndex             = 100,
+}, {
+    Create("UIListLayout", {
+        Padding             = UDim.new(0, 5),
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment   = Enum.VerticalAlignment.Top,
+    }),
+})
+
+function Notify(msg, ntype)
+    local color = (ntype == "success" and Color3.fromRGB(100, 255, 100))
+               or (ntype == "warning" and Color3.fromRGB(255, 100, 100))
+               or CFG.AccentColor
+
+    local nf = Create("Frame", {
+        Parent             = NotifContainer,
+        Size               = UDim2.new(0, 0, 0, 30),
+        BackgroundColor3   = CFG.MainColor,
+        BorderSizePixel    = 0,
+        ClipsDescendants   = true,
+    }, {
+        Create("UIStroke",  { Color = CFG.AccentColor, Thickness = 1, Transparency = 0.5 }),
+        Create("Frame",     { Size = UDim2.new(0, 2, 1, 0), BackgroundColor3 = color }),
+        Create("TextLabel", {
+            Text               = msg,
+            TextColor3         = CFG.TextColor,
+            Font               = CFG.Font,
+            TextSize           = 11,
+            Size               = UDim2.new(1, -10, 1, 0),
+            Position           = UDim2.new(0, 10, 0, 0),
+            BackgroundTransparency = 1,
+            TextXAlignment     = Enum.TextXAlignment.Left,
+        }),
+    })
+    Tween(nf, { Size = UDim2.new(0, 250, 0, 35) }, 0.5, Enum.EasingStyle.Back)
+    task.delay(3, function()
+        Tween(nf, { Size = UDim2.new(0, 250, 0, 0), BackgroundTransparency = 1 }, 0.5)
+        task.wait(0.5); nf:Destroy()
+    end)
+end
+
+-- ══ TOOLTIP ══════════════════════════════════════════════════════════════════
+local TooltipLabel = Create("TextLabel", {
+    Parent             = ScreenGui,
+    Size               = UDim2.new(0, 0, 0, 20),
+    BackgroundColor3   = CFG.SecondaryColor,
+    TextColor3         = CFG.TextColor,
+    TextSize           = 11,
+    Font               = CFG.Font,
+    BorderSizePixel    = 0,
+    Visible            = false,
+    ZIndex             = 200,
+}, {
+    Create("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5) }),
+    Create("UIStroke",  { Color = CFG.StrokeColor }),
+})
+
+RunService.RenderStepped:Connect(function()
+    if TooltipLabel.Visible then
+        local m = UserInputService:GetMouseLocation()
+        TooltipLabel.Position = UDim2.fromOffset(m.X + 15, m.Y + 15)
+    end
+end)
+
+local function AddTooltip(obj, text)
+    obj.MouseEnter:Connect(function()
+        TooltipLabel.Text    = text
+        TooltipLabel.Size    = UDim2.fromOffset(
+            game:GetService("TextService"):GetTextSize(
+                text, 11, CFG.Font, Vector2.new(10000, 10000)).X + 12, 20)
+        TooltipLabel.Visible = true
+    end)
+    obj.MouseLeave:Connect(function() TooltipLabel.Visible = false end)
+end
+
+-- ══ MAIN FRAME ═══════════════════════════════════════════════════════════════
+local MainFrame = Create("Frame", {
+    Name             = "Main",
+    Parent           = ScreenGui,
+    Size             = UDim2.fromOffset(CFG.BaseSize.X, CFG.BaseSize.Y),
+    Position         = UDim2.new(0.5, -260, 0.5, -215),
+    BackgroundColor3 = CFG.MainColor,
+    BorderSizePixel  = 0,
+}, {
+    Create("UIStroke", { Color = CFG.StrokeColor }),
+    Create("UICorner", { CornerRadius = UDim.new(0, 3) }),
+})
+
+-- Eclipse-style input drag (no .Draggable)
+local Dragging, DragInput, DragStart, StartPos = false, nil, nil, nil
+MainFrame.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1
+    or inp.UserInputType == Enum.UserInputType.Touch then
+        Dragging  = true
+        DragStart = inp.Position
+        StartPos  = MainFrame.Position
+        inp.Changed:Connect(function()
+            if inp.UserInputState == Enum.UserInputState.End then Dragging = false end
+        end)
+    end
+end)
+MainFrame.InputChanged:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseMovement
+    or inp.UserInputType == Enum.UserInputType.Touch then
+        DragInput = inp
+    end
+end)
+UserInputService.InputChanged:Connect(function(inp)
+    if inp == DragInput and Dragging then
+        local d = inp.Position - DragStart
+        Tween(MainFrame, {
+            Position = UDim2.new(
+                StartPos.X.Scale, StartPos.X.Offset + d.X,
+                StartPos.Y.Scale, StartPos.Y.Offset + d.Y)
+        }, 0.05)
+    end
+end)
+
+-- ══ TOP BAR ══════════════════════════════════════════════════════════════════
+local TopBar = Create("Frame", {
+    Parent           = MainFrame,
+    Size             = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = CFG.MainColor,
+    BorderSizePixel  = 0,
+}, {
+    Create("Frame", {
+        Size             = UDim2.new(1, 0, 0, 1),
+        Position         = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = CFG.StrokeColor,
+    }),
+})
+
+local TitleLabel = Create("TextLabel", {
+    Parent             = TopBar,
+    Text               = "rivals.af | follow",
+    TextColor3         = CFG.TextDark,
+    TextSize           = 13,
+    Font               = CFG.Font,
+    BackgroundTransparency = 1,
+    Size               = UDim2.new(0, 240, 1, 0),
+    Position           = UDim2.new(0, 10, 0, 0),
+    TextXAlignment     = Enum.TextXAlignment.Left,
+    RichText           = true,
+})
+
+-- animated type-in title
+task.spawn(function()
+    local base   = "rivals.af | follow"
+    local frames = {}
+    for i = 0, #base do frames[#frames + 1] = base:sub(1, i) end
+    for i = #base - 1, 0, -1 do frames[#frames + 1] = base:sub(1, i) end
+    while true do
+        for _, txt in ipairs(frames) do
+            local display = txt
+                :gsub("af",     '<font color="#bdacff">af</font>')
+                :gsub("follow", '<font color="#bdacff">follow</font>')
+            TitleLabel.Text = display
+            task.wait(0.11)
+        end
+        task.wait(2.5)
+    end
+end)
+
+local CloseBtn = Create("TextButton", {
+    Parent           = TopBar,
+    Size             = UDim2.new(0, 24, 0, 20),
+    Position         = UDim2.new(1, -28, 0.5, -10),
+    BackgroundColor3 = CFG.DangerColor,
+    BorderSizePixel  = 0,
+    TextColor3       = Color3.new(1, 1, 1),
+    Font             = Enum.Font.GothamBold,
+    TextSize         = 11,
+    Text             = "✕",
+}, { Create("UICorner", { CornerRadius = UDim.new(0, 3) }) })
+AddTooltip(CloseBtn, "Close")
+
+-- ══ CONTENT AREA ═════════════════════════════════════════════════════════════
+local ContentArea = Create("Frame", {
+    Parent             = MainFrame,
+    Size               = UDim2.new(1, 0, 1, -30),
+    Position           = UDim2.new(0, 0, 0, 30),
+    BackgroundTransparency = 1,
+}, {
+    Create("UIPadding", {
+        PaddingTop    = UDim.new(0, 12),
+        PaddingBottom = UDim.new(0, 12),
+        PaddingLeft   = UDim.new(0, 12),
+        PaddingRight  = UDim.new(0, 12),
+    }),
+})
+
+local LeftCol = Create("Frame", {
+    Parent             = ContentArea,
+    Size               = UDim2.new(0.485, 0, 1, 0),
+    BackgroundTransparency = 1,
+}, {
+    Create("UIListLayout", {
+        Padding     = UDim.new(0, 8),
+        SortOrder   = Enum.SortOrder.LayoutOrder,
+    }),
+})
+
+local RightCol = Create("Frame", {
+    Parent             = ContentArea,
+    Size               = UDim2.new(0.485, 0, 1, 0),
+    Position           = UDim2.new(0.515, 0, 0, 0),
+    BackgroundTransparency = 1,
+}, {
+    Create("UIListLayout", {
+        Padding     = UDim.new(0, 8),
+        SortOrder   = Enum.SortOrder.LayoutOrder,
+    }),
+})
+
+-- ══ GROUP / SCROLL / BUTTON BUILDERS ════════════════════════════════════════
+local function mkGroup(parent, title)
+    local gf = Create("Frame", {
+        Parent           = parent,
+        Size             = UDim2.new(1, 0, 0, 0),
+        AutomaticSize    = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(17, 17, 17),
+        BorderSizePixel  = 0,
+    }, {
+        Create("UIStroke", { Color = CFG.StrokeColor }),
+        Create("UICorner", { CornerRadius = UDim.new(0, 2) }),
+    })
+
+    Create("Frame", {
+        Parent           = gf,
+        Size             = UDim2.new(1, 0, 0, 25),
+        BackgroundColor3 = CFG.SecondaryColor,
+        BorderSizePixel  = 0,
+    }, {
+        Create("UICorner", { CornerRadius = UDim.new(0, 2) }),
+        Create("Frame", {
+            Size             = UDim2.new(1, 0, 0, 5),
+            Position         = UDim2.new(0, 0, 1, -5),
+            BackgroundColor3 = CFG.SecondaryColor,
+            BorderSizePixel  = 0,
+        }),
+        Create("TextLabel", {
+            Text               = title,
+            Size               = UDim2.new(1, -20, 1, 0),
+            Position           = UDim2.new(0, 8, 0, 0),
+            BackgroundTransparency = 1,
+            TextColor3         = CFG.TextColor,
+            Font               = Enum.Font.GothamBold,
+            TextSize           = 11,
+            TextXAlignment     = Enum.TextXAlignment.Left,
+        }),
+        Create("Frame", {
+            Size             = UDim2.new(0, 4, 0, 4),
+            Position         = UDim2.new(1, -10, 0.5, -2),
+            BackgroundColor3 = CFG.AccentColor,
+            BorderSizePixel  = 0,
+        }, { Create("UICorner", { CornerRadius = UDim.new(1, 0) }) }),
+    })
+
+    local cnt = Create("Frame", {
+        Parent             = gf,
+        Size               = UDim2.new(1, 0, 0, 0),
+        Position           = UDim2.new(0, 0, 0, 25),
+        AutomaticSize      = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+    }, {
+        Create("UIListLayout", {
+            Padding   = UDim.new(0, 5),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }),
+        Create("UIPadding", {
+            PaddingTop    = UDim.new(0, 8),
+            PaddingBottom = UDim.new(0, 8),
+            PaddingLeft   = UDim.new(0, 8),
+            PaddingRight  = UDim.new(0, 8),
+        }),
+    })
+    return cnt
+end
+
+local function mkScroll(parent, height)
+    local sf = Create("ScrollingFrame", {
+        Parent               = parent,
+        Size                 = UDim2.new(1, 0, 0, height),
+        BackgroundColor3     = CFG.SecondaryColor,
+        BorderSizePixel      = 0,
+        ScrollBarThickness   = 2,
+        ScrollBarImageColor3 = CFG.AccentColor,
+        CanvasSize           = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    }, {
+        Create("UIStroke",     { Color = CFG.StrokeColor }),
+        Create("UICorner",     { CornerRadius = UDim.new(0, 3) }),
+        Create("UIListLayout", { Padding = UDim.new(0, 2) }),
+        Create("UIPadding",    {
+            PaddingTop    = UDim.new(0, 3),
+            PaddingBottom = UDim.new(0, 3),
+            PaddingLeft   = UDim.new(0, 3),
+            PaddingRight  = UDim.new(0, 3),
+        }),
+    })
+    return sf
+end
+
+local function mkBtn(parent, text, variant)
+    local bg = CFG.SecondaryColor
+    local tc = CFG.TextDark
+    if variant == "primary" then bg = CFG.AccentColor;  tc = Color3.new(0, 0, 0) end
+    if variant == "danger"  then bg = CFG.DangerColor;  tc = Color3.new(1, 1, 1) end
+
+    return Create("TextButton", {
+        Parent           = parent,
+        Size             = UDim2.new(1, 0, 0, 22),
+        BackgroundColor3 = bg,
+        Text             = text,
+        TextColor3       = tc,
+        Font             = Enum.Font.GothamBold,
+        TextSize         = 10,
+        BorderSizePixel  = 0,
+    }, {
+        Create("UIStroke", { Color = CFG.StrokeColor }),
+        Create("UICorner", { CornerRadius = UDim.new(0, 3) }),
+    })
+end
+
+-- ══ LEFT COLUMN ══════════════════════════════════════════════════════════════
+local qCnt      = mkGroup(LeftCol, "Priority Queue")
+local queueList = mkScroll(qCnt, 95)
+local clearBtn  = mkBtn(qCnt, "Clear Queue", "danger")
+AddTooltip(clearBtn, "Remove all targets from queue")
+
+local ctrlCnt   = mkGroup(LeftCol, "Controls")
+local followBtn = mkBtn(ctrlCnt, "▶  FOLLOW", "primary")
+local tpBtn     = mkBtn(ctrlCnt, "⬆  TELEPORT", nil)
+AddTooltip(followBtn, "Toggle continuous follow on queue head")
+AddTooltip(tpBtn,     "One-shot teleport to queue head")
+
+local statusLbl = Create("TextLabel", {
+    Parent             = ctrlCnt,
+    Size               = UDim2.new(1, 0, 0, 18),
+    BackgroundTransparency = 1,
+    TextColor3         = CFG.AccentColor,
+    Font               = CFG.Font,
+    TextSize           = 11,
+    TextXAlignment     = Enum.TextXAlignment.Left,
+    Text               = "no target · queue empty",
+})
+
+-- ══ RIGHT COLUMN ═════════════════════════════════════════════════════════════
+local plCnt      = mkGroup(RightCol, "Players  —  tap to queue")
+local playerList = mkScroll(plCnt, 120)
+
+-- ══ DEATH INDICATOR ROW (new) ════════════════════════════════════════════════
+-- small status row under Players showing live death-watch state
+local deathWatchLbl = Create("TextLabel", {
+    Parent             = plCnt,
+    Size               = UDim2.new(1, 0, 0, 14),
+    BackgroundTransparency = 1,
+    TextColor3         = CFG.TextDark,
+    Font               = CFG.Font,
+    TextSize           = 10,
+    TextXAlignment     = Enum.TextXAlignment.Left,
+    Text               = "death-watch: off",
+    RichText           = true,
+})
+
+local function updateDeathWatchLabel()
+    if targetPlayer and deathConn then
+        deathWatchLbl.Text = string.format(
+            'death-watch: <font color="#bdacff">watching %s</font>',
+            targetPlayer.Name)
+    else
+        deathWatchLbl.Text = "death-watch: off"
+    end
+end
+
+-- ══ XYZ OFFSET GROUP ═════════════════════════════════════════════════════════
+local offCnt = mkGroup(RightCol, "XYZ Offset  (studs from HRP)")
+
+local function offsetRow(parent, label, key, def)
+    local row = Create("Frame", {
+        Parent             = parent,
+        Size               = UDim2.new(1, 0, 0, 24),
+        BackgroundTransparency = 1,
+    })
+
+    Create("TextLabel", {
+        Parent             = row,
+        Size               = UDim2.new(0, 14, 1, 0),
+        BackgroundTransparency = 1,
+        TextColor3         = CFG.TextDark,
+        Font               = Enum.Font.GothamBold,
+        TextSize           = 11,
+        Text               = label,
+    })
+
+    local minusBtn = Create("TextButton", {
+        Parent           = row,
+        Size             = UDim2.new(0, 22, 0, 18),
+        Position         = UDim2.new(0, 18, 0.5, -9),
+        BackgroundColor3 = CFG.SecondaryColor,
+        BorderSizePixel  = 0,
+        TextColor3       = CFG.TextColor,
+        Font             = Enum.Font.GothamBold,
+        TextSize         = 14,
+        Text             = "−",
+    }, {
+        Create("UIStroke", { Color = CFG.StrokeColor }),
+        Create("UICorner", { CornerRadius = UDim.new(0, 3) }),
+    })
+
+    local box = Create("TextBox", {
+        Parent           = row,
+        Size             = UDim2.new(1, -88, 0, 18),
+        Position         = UDim2.new(0, 44, 0.5, -9),
+        BackgroundColor3 = CFG.SecondaryColor,
+        BorderSizePixel  = 0,
+        TextColor3       = CFG.TextColor,
+        Font             = CFG.Font,
+        TextSize         = 11,
+        ClearTextOnFocus = false,
+    }, {
+        Create("UIStroke", { Color = CFG.StrokeColor }),
+        Create("UICorner", { CornerRadius = UDim.new(0, 3) }),
+        Create("UIPadding", { PaddingLeft = UDim.new(0, 4) }),
+    })
+
+    local plusBtn = Create("TextButton", {
+        Parent           = row,
+        Size             = UDim2.new(0, 22, 0, 18),
+        Position         = UDim2.new(1, -22, 0.5, -9),
+        BackgroundColor3 = CFG.SecondaryColor,
+        BorderSizePixel  = 0,
+        TextColor3       = CFG.TextColor,
+        Font             = Enum.Font.GothamBold,
+        TextSize         = 14,
+        Text             = "+",
+    }, {
+        Create("UIStroke", { Color = CFG.StrokeColor }),
+        Create("UICorner", { CornerRadius = UDim.new(0, 3) }),
+    })
+
+    local function setVal(v)
+        v = math.clamp(math.floor(v * 10 + 0.5) / 10, -30, 30)
+        off[key]  = v
+        box.Text  = string.format("%.1f", v)
+    end
+
+    minusBtn.MouseButton1Click:Connect(function() setVal(off[key] - 0.5) end)
+    plusBtn.MouseButton1Click:Connect(function()  setVal(off[key] + 0.5) end)
+    box.FocusLost:Connect(function()
+        local n = tonumber(box.Text)
+        if n then setVal(n) else box.Text = string.format("%.1f", off[key]) end
+    end)
+    setVal(def)
+end
+
+offsetRow(offCnt, "X", "x",  0.0)
+offsetRow(offCnt, "Y", "y",  4.0)
+offsetRow(offCnt, "Z", "z",  0.0)
+
+-- ══ UI UPDATERS ══════════════════════════════════════════════════════════════
+refreshQueueDisplay = function()
+    for _, c in ipairs(queueList:GetChildren()) do
+        if not c:IsA("UIListLayout") and not c:IsA("UIPadding") then c:Destroy() end
+    end
+    if #priorityQueue == 0 then
+        Create("TextLabel", {
+            Parent             = queueList,
+            Size               = UDim2.new(1, 0, 0, 20),
+            BackgroundTransparency = 1,
+            TextColor3         = CFG.TextDark,
+            Font               = CFG.Font,
+            TextSize           = 11,
+            TextXAlignment     = Enum.TextXAlignment.Left,
+            Text               = "  — empty —",
+        })
+        return
+    end
+    for i, p in ipairs(priorityQueue) do
+        Create("TextLabel", {
+            Parent           = queueList,
+            Size             = UDim2.new(1, 0, 0, 20),
+            BackgroundColor3 = i == 1 and CFG.SecondaryColor or CFG.MainColor,
+            BorderSizePixel  = 0,
+            TextColor3       = i == 1 and CFG.AccentColor or CFG.TextDark,
+            Font             = CFG.Font,
+            TextSize         = 11,
+            TextXAlignment   = Enum.TextXAlignment.Left,
+            Text             = string.format("  %d  %s%s", i, p.Name, i == 1 and "  ◀" or ""),
+        }, { Create("UICorner", { CornerRadius = UDim.new(0, 2) }) })
+    end
+end
+
+refreshPlayerList = function()
+    for _, c in ipairs(playerList:GetChildren()) do
+        if not c:IsA("UIListLayout") and not c:IsA("UIPadding") then c:Destroy() end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            local idx = qIdx(p)
+            local btn = Create("TextButton", {
+                Parent           = playerList,
+                Size             = UDim2.new(1, 0, 0, 22),
+                BackgroundColor3 = idx and CFG.SecondaryColor or CFG.MainColor,
+                BorderSizePixel  = 0,
+                TextColor3       = idx and CFG.AccentColor or CFG.TextDark,
+                Font             = CFG.Font,
+                TextSize         = 11,
+                TextXAlignment   = Enum.TextXAlignment.Left,
+                Text             = idx
+                    and string.format("  [%d]  %s", idx, p.Name)
+                    or  ("       " .. p.Name),
+            }, { Create("UICorner", { CornerRadius = UDim.new(0, 2) }) })
+
+            btn.MouseButton1Click:Connect(function()
+                local ei = qIdx(p)
+                if ei then
+                    table.remove(priorityQueue, ei)
+                    if targetPlayer == p then
+                        if #priorityQueue > 0 then
+                            targetPlayer = priorityQueue[1]
+                            armDeathWatch(targetPlayer)          -- re-arm on manual switch
+                            updateDeathWatchLabel()
+                            setStatus("removed · now → " .. targetPlayer.Name)
+                            Notify("now → " .. targetPlayer.Name)
+                        else
+                            targetPlayer = nil
+                            stopFollow(); setFollowBtnState(false)
+                            armDeathWatch(nil)
+                            updateDeathWatchLabel()
+                            setStatus("queue empty")
+                            Notify("queue empty", "warning")
+                        end
+                    end
+                else
+                    table.insert(priorityQueue, p)
+                    Notify("queued → " .. p.Name, "success")
+                end
+                refreshQueueDisplay(); refreshPlayerList()
+                if #priorityQueue > 0 then
+                    local qs = #priorityQueue == 1 and "1 target"
+                           or  (#priorityQueue .. " queued")
+                    setStatus("→ " .. priorityQueue[1].Name .. "  (" .. qs .. ")")
+                end
+            end)
+        end
+    end
+end
+
+setFollowBtnState = function(active)
+    if active then
+        followBtn.Text             = "⏹  STOP"
+        followBtn.BackgroundColor3 = CFG.DangerColor
+        followBtn.TextColor3       = Color3.new(1, 1, 1)
+    else
+        followBtn.Text             = "▶  FOLLOW"
+        followBtn.BackgroundColor3 = CFG.AccentColor
+        followBtn.TextColor3       = Color3.new(0, 0, 0)
+    end
+end
+
+setStatus = function(text) statusLbl.Text = text end
+
+-- ══ EVENTS ═══════════════════════════════════════════════════════════════════
+refreshQueueDisplay(); refreshPlayerList()
+
+if #priorityQueue > 0 then
+    targetPlayer = priorityQueue[1]
+    armDeathWatch(targetPlayer)          -- restore death-watch on queue restore
+    updateDeathWatchLabel()
+    setStatus(string.format(
+        "queue restored · %d target(s) · press FOLLOW to resume",
+        #priorityQueue))
+    Notify(string.format("queue restored: %d target(s)", #priorityQueue), "success")
+end
+
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5); refreshPlayerList()
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    local idx = qIdx(p)
+    if idx then
+        table.remove(priorityQueue, idx)
+        if idx == 1 then
+            if #priorityQueue > 0 then
+                targetPlayer = priorityQueue[1]
+                armDeathWatch(targetPlayer)
+                updateDeathWatchLabel()
+                setStatus("target left · now → " .. targetPlayer.Name)
+                Notify("target left · now → " .. targetPlayer.Name, "warning")
+            else
+                targetPlayer = nil
+                stopFollow(); setFollowBtnState(false)
+                armDeathWatch(nil)
+                updateDeathWatchLabel()
+                setStatus("queue empty · player left")
+                Notify("queue empty · player left", "warning")
+            end
+        else
+            setStatus(#priorityQueue > 0
+                and ("→ " .. priorityQueue[1].Name)
+                or  "queue empty · player left")
+        end
+        refreshQueueDisplay()
+    end
+    task.delay(0.2, refreshPlayerList)
+end)
+
+-- re-arm Heartbeat connection after local respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if following and targetPlayer then
+        startFollow()
+        setStatus("respawned · resuming → " .. targetPlayer.Name)
+        Notify("respawned · resuming → " .. targetPlayer.Name, "success")
+    end
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    stopFollow()
+    armDeathWatch(nil)
+    ScreenGui:Destroy()
+end)
+
+followBtn.MouseButton1Click:Connect(function()
+    if #priorityQueue == 0 then
+        setStatus("add players to queue first")
+        Notify("add players to queue first", "warning")
+        return
+    end
+    if following then
+        stopFollow(); setFollowBtnState(false)
+        Notify("follow stopped", "warning")
+    else
+        targetPlayer = priorityQueue[1]
+        startFollow(); setFollowBtnState(true)
+        armDeathWatch(targetPlayer)      -- arm death-watch on follow start
+        updateDeathWatchLabel()
+        setStatus("following → " .. targetPlayer.Name)
+        Notify("following → " .. targetPlayer.Name, "success")
+    end
+end)
+
+tpBtn.MouseButton1Click:Connect(function()
+    if #priorityQueue == 0 then
+        setStatus("add players to queue first")
+        Notify("add players to queue first", "warning")
+        return
+    end
+    targetPlayer = priorityQueue[1]; teleportNow()
+    setStatus("teleported → " .. targetPlayer.Name)
+    Notify("teleported → " .. targetPlayer.Name, "success")
+end)
+
+clearBtn.MouseButton1Click:Connect(function()
+    stopFollow()
+    armDeathWatch(nil)
+    updateDeathWatchLabel()
+    for i = #priorityQueue, 1, -1 do table.remove(priorityQueue, i) end
+    targetPlayer = nil
+    setFollowBtnState(false)
+    refreshQueueDisplay(); refreshPlayerList()
+    setStatus("queue cleared")
+    Notify("queue cleared", "warning")
+end)
+
+-- ══ VISIBILITY TOGGLE ════════════════════════════════════════════════════════
+local Visible = true
+
+UserInputService.InputBegan:Connect(function(inp, gpe)
+    if not gpe and inp.KeyCode == Enum.KeyCode.Insert then
+        Visible = not Visible
+        MainFrame.Visible = Visible
+    end
+end)
+
+-- mobile floating toggle
+Create("ImageButton", {
+    Parent           = ScreenGui,
+    Size             = UDim2.new(0, 40, 0, 40),
+    Position         = UDim2.new(0.5, 0, 0, 10),
+    AnchorPoint      = Vector2.new(0.5, 0),
+    BackgroundColor3 = CFG.MainColor,
+    Image            = "rbxassetid://3926305904",
+    ImageColor3      = CFG.AccentColor,
+    AutoButtonColor  = false,
+}, {
+    Create("UICorner", { CornerRadius = UDim.new(1, 0) }),
+    Create("UIStroke", { Color = CFG.AccentColor, Thickness = 2 }),
+}).MouseButton1Click:Connect(function()
+    Visible = not Visible
+    MainFrame.Visible = Visible
+end)

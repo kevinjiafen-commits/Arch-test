@@ -3637,8 +3637,6 @@ local function CollectEnemies()
     if not ctrl then return out end
     local objects = ctrl.Objects
     if type(objects) ~= "table" then return out end
-    -- FighterController.Objects may be sparse/dictionary keyed, so ipairs()
-    -- can silently return no targets. Use pairs() and accept Head as fallback.
     for _, fighter in pairs(objects) do
         if type(fighter) == "table" then
             local player = fighter.Player
@@ -3675,18 +3673,28 @@ end
 
 local function SelectTarget()
     local enemies = CollectEnemies()
-    if Settings.PrioritizeHackers then
+    local prioritizeHackers = Settings.PrioritizeHackers
+    local localRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    local best, bestDist = nil, math.huge
+
+    if prioritizeHackers then
         for _, e in ipairs(enemies) do
-            if e.hacker and IsValidTarget(e) then return e end
+            if e.hacker and IsValidTarget(e) then
+                return e
+            end
         end
     end
-    local best, bestDist = nil, math.huge
-    local char = Player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
+
     for _, e in ipairs(enemies) do
         if IsValidTarget(e) then
-            local d = root and e.rootPart and (root.Position - e.rootPart.Position).Magnitude or 0
-            if d < bestDist then bestDist, best = d, e end
+            local dist = 0
+            if localRoot and e.rootPart then
+                dist = (e.rootPart.Position - localRoot.Position).Magnitude
+            end
+            if dist < bestDist then
+                bestDist = dist
+                best = e
+            end
         end
     end
     return best

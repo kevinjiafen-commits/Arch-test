@@ -1,0 +1,4034 @@
+-- ============================================================
+-- RIVALS RAGEBOT v28 (LinoriaLib UI + Anti-Aim + Combat + ESP + Auto Heal/Ammo)
+-- Combat/ESP/Pickup mantigi KiciaHook RIVALS kaynagindan uyarlandi
+-- Silent Aim + God Mode + Wall Check + Teleport + Void Lock
+-- Degisiklikler: tekrar calistirma temizligi, ayar birlestirme,
+-- God Mode hata duzeltmesi, onbellekli koruma kontrolu, kelime
+-- sinirli melee tespiti, coklu duvar denemesi, Heartbeat icinde
+-- yield yok, void Y duzeltmesi, getgc onbellegi, hata sayaci.
+-- ============================================================
+-- ============================================================
+-- BASLANGIC + RIVALS ANTI-CHEAT BYPASS ("Harion enhancement.lua" ile ayni)
+-- RIVALS'in istemci anti-cheat'i (MiscellaneousController / CameraSecurity /
+-- AnalyticsPipelineController) scripti tespit edince oyunu sonsuza kadar donduruyordu
+-- ("execute'tan ~10 sn sonra donuyor"). Harion bunu asagidaki adimlarla etkisiz birakiyor.
+-- ============================================================
+(function()
+    -- 1) Yukleme ekrani tamamen kapanana kadar bekle (autoexec'te oyun acilmadan donmayi onler)
+    local players = game:GetService("Players")
+    local coreGui = game:GetService("CoreGui")
+    if not game:IsLoaded() then game.Loaded:Wait() end
+    local player = players.LocalPlayer
+    while not player do
+        players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+        player = players.LocalPlayer
+    end
+    local playerGui = player:WaitForChild("PlayerGui")
+    local function isActiveLoadingGui(object)
+        local n = object.Name:lower():gsub("[%s_%-]", "")
+        if n ~= "loadingscreen" and not n:find("loadingscreen", 1, true) then return false end
+        local cur = object
+        while cur and cur ~= playerGui and cur ~= coreGui do
+            if cur:IsA("LayerCollector") and not cur.Enabled then return false end
+            if cur:IsA("GuiObject") and not cur.Visible then return false end
+            cur = cur.Parent
+        end
+        return object:IsDescendantOf(playerGui) or object:IsDescendantOf(coreGui)
+    end
+    local clearSince
+    local t0 = os.clock()
+    repeat
+        local loading = false
+        for _, root in ipairs({ playerGui, coreGui }) do
+            local ok, list = pcall(function() return root:GetDescendants() end)
+            if ok then
+                for _, object in ipairs(list) do
+                    if isActiveLoadingGui(object) then loading = true break end
+                end
+            end
+            if loading then break end
+        end
+        clearSince = loading and nil or (clearSince or os.clock())
+        task.wait(0.1)
+    until (clearSince and os.clock() - clearSince >= 0.5) or os.clock() - t0 > 60
+
+    -- 2) Anti-cheat hook'lari (oturum basina bir kez)
+    local genvL = getgenv()
+    if genvL.__AXISStartupHooks then return end
+    genvL.__AXISStartupHooks = true
+    local function ncc(fn) return (type(newcclosure) == "function" and newcclosure(fn)) or fn end
+    local cref = (type(cloneref) == "function" and cloneref) or function(o) return o end
+    if type(setthreadidentity) == "function" then pcall(setthreadidentity, 8) end
+
+    -- anti-cheat modullerinin zayif (weak) tablolarini etkisizlestir
+    local okEnv, renv = pcall(function() return getrenv() end)
+    local smt = okEnv and type(renv) == "table" and renv.setmetatable or nil
+    if type(hookfunction) == "function" and smt then
+        local oldSmt = smt
+        local okHook, hooked = pcall(hookfunction, smt, ncc(function(Table, Metatable)
+            if Metatable and type(Metatable) == "table" and rawget(Metatable, "__mode") then
+                local mode = rawget(Metatable, "__mode")
+                if mode == "kv" or mode == "v" or mode == "k" then
+                    local okT, trace = pcall(debug.traceback)
+                    trace = okT and trace or ""
+                    if trace:find("MiscellaneousController", 1, true)
+                        or trace:find("CameraSecurity", 1, true)
+                        or trace:find("AnalyticsPipelineController", 1, true) then
+                        return oldSmt({ 1, 2, 3 }, {})
+                    end
+                end
+            end
+            return oldSmt(Table, Metatable)
+        end))
+        if okHook and hooked then oldSmt = hooked end
+    end
+
+    local lpl = cref(players).LocalPlayer
+    if lpl and type(hookfunction) == "function" then
+        -- istemciden kick'i engelle
+        pcall(function()
+            local oldKick
+            oldKick = hookfunction(lpl.Kick, ncc(function(self, ...)
+                if self == lpl then return nil end
+                return oldKick(self, ...)
+            end))
+        end)
+        -- MiscellaneousController'a sahte mouse ver
+        pcall(function()
+            local oldGetMouse
+            oldGetMouse = hookfunction(lpl.GetMouse, ncc(function(self, ...)
+                if self == lpl then
+                    local okT, trace = pcall(debug.traceback)
+                    if okT and trace:find("MiscellaneousController", 1, true) then
+                        local realMouse = oldGetMouse(self, ...)
+                        return setmetatable({}, {
+                            __index = function(_, key)
+                                if key == "X" or key == "Y" then
+                                    local loc = game:GetService("UserInputService"):GetMouseLocation()
+                                    return key == "X" and loc.X or loc.Y
+                                end
+                                local val = realMouse[key]
+                                if type(val) == "function" then return function(_, ...) return val(realMouse, ...) end end
+                                return val
+                            end,
+                            __newindex = function(_, key, value) realMouse[key] = value end,
+                        })
+                    end
+                end
+                return oldGetMouse(self, ...)
+            end))
+        end)
+    end
+
+    -- CameraSecurity modulunu kor et
+    pcall(function()
+        local cs = require(lpl:WaitForChild("PlayerScripts"):WaitForChild("Modules"):WaitForChild("CameraSecurity", 10))
+        local mt = getrawmetatable(cs)
+        if mt then
+            if type(setreadonly) == "function" then pcall(setreadonly, mt, false) end
+            mt.__index = function() return nil end
+            mt.__tostring = function() return "LocalPlayer = nil" end
+            mt.__newindex = function(E, G, f) return rawset(E, G, f) end
+        end
+    end)
+
+    -- servis isimlerini degistir (Harion ile ayni)
+    pcall(function()
+        for _, service in pairs({ cref(players), workspace, cref(game:GetService("ReplicatedStorage")), cref(game:GetService("ReplicatedFirst")) }) do
+            service.Name = service.Name .. " "
+        end
+    end)
+
+    -- oyunun ping kalp atisini taklit et (anti-cheat kapaninca oyunun kendi ping'i durur)
+    task.spawn(function()
+        local ok, ServerPing = pcall(function() return workspace:WaitForChild("ServerPing", 30) end)
+        local Remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+        local PingRemote = Remotes and Remotes:FindFirstChild("Ping")
+        if not PingRemote then return end
+        while task.wait(12 * math.random()) do
+            local rnd = math.random(1, 9999)
+            local sp = (ok and ServerPing and ServerPing.Value) or -1
+            local value = rnd == 6961 and 2137 or rnd == sp and 2138 or rnd
+            pcall(function() PingRemote:FireServer(value) end)
+        end
+    end)
+    print("[axis] anti-cheat bypass aktif")
+end)()
+
+-- ============================================================
+-- 5 SANIYE BASLATMA GECIKMESI
+-- Anti-cheat bypass hemen calisir (donma korumasi korunur),
+-- ardindan hem manuel execute hem de teleport queue (matchmaking)
+-- sonrasi menu ve tum ozellikler 5 saniye sonra baslar.
+-- ============================================================
+task.wait(5)
+
+-- ============================================================
+-- TEKRAR CALISTIRMA TEMIZLIGI (eski baglantilari kapat)
+-- ============================================================
+local genv = getgenv()
+if genv.AXIS_CLEANUP then pcall(genv.AXIS_CLEANUP) end
+
+local Connections, Running = {}, true
+local CleanupFns = {}   -- bolumlerin kendi temizlik fonksiyonlari (do-bloklari icinden eklenir)
+local function track(conn) table.insert(Connections, conn) return conn end
+genv.AXIS_CLEANUP = function()
+    Running = false
+    for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
+    table.clear(Connections)
+end
+
+local function loop(interval, fn)        -- Running false olunca duran dongu
+    task.spawn(function()
+        while Running do
+            local ok, err = pcall(fn)
+            if not ok and genv.AXIS and genv.AXIS.ShowDebug then warn("[axis] loop: " .. tostring(err)) end
+            task.wait(interval)
+        end
+    end)
+end
+
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
+local Workspace         = game:GetService("Workspace")
+local CollectionService = game:GetService("CollectionService")
+
+local lp = Players.LocalPlayer
+while not lp do task.wait() lp = Players.LocalPlayer end
+
+-- ============================================================
+-- KULLANICI AYARLARI (eksik anahtarlar varsayilanla doldurulur)
+-- ============================================================
+local DEFAULTS = {
+    TeleportToShootDelay = 0,
+    RequireTeleport      = true,
+    TeleportConfirmTol   = 2,
+
+    Enabled = true,               -- Ragebot ana acma/kapama
+    SilentAim = true,
+
+    -- ANTI-AIM
+    AntiAimEnabled   = true,
+    YawMode          = "Spin",    -- None / Spin / Jitter / Random / Backwards / Sideways / Spin+Jitter
+    YawAngle         = 0,         -- ek sabit yaw (derece)
+    SpinBypassSpeed  = 720,       -- derece / saniye
+    JitterEnabled    = true,      -- her moda ek rastgele yaw titremesi
+    JitterStrength   = 45,        -- derece
+    JitterInterval   = 0.05,      -- saniye
+    PitchMode        = "None",    -- None / Up / Down / Random / Custom
+    PitchAngle       = 0,         -- Custom modunda derece
+    RollMode         = "None",    -- None / Upside Down / Random
+    PositionJitterEnabled  = false,   -- karakter pozisyon titremesi
+    PositionJitterStrength = 1,       -- stud (TeleportConfirmTol altinda tutun)
+
+    -- VOID SPAM (hiz max 1 saniye)
+    VoidSpamEnabled  = false,
+    VoidMaxValue     = 1000000,
+    VoidMinY         = 5000,      -- void Y her zaman pozitif (SAFE_MIN_Y altina inmez)
+    VoidSpamInterval = 0.016,     -- 0.005 - 1 sn
+    VoidSpamBurst    = 5,
+
+    -- HIDE (void'de saklanma suresi, max 1 saniye)
+    HideTime        = 1.0,        -- baslangic + reload/silah degisimi sonrasi minimum void suresi
+
+    -- GOD MODE
+    GodModeEnabled    = true,
+    VoidProtection    = true,
+    ForceFieldEnabled = true,
+    PhysicalImmunity  = true,
+
+    -- TELEPORT OFFSET (tek ayar, melee/normal ayrimi yok)
+    TeleportOffsetY = 1,  -- -5 ile 50 stud arasi; dusmana gore dikey konum
+
+    -- VOID LOCK
+    VoidLockEnabled = true,
+
+    -- DUVAR KONTROLU
+    WallCheckEnabled   = true,    -- her zaman acik (UI'dan kaldirildi)
+    WallCheckRadius    = 2,
+    WallCheckAttempts  = 4,       -- artik gercekten kullaniliyor
+    WallCheckFallbackY = 5,
+
+    -- HEDEFLEME
+    ForceHeadshot   = true,
+    AimPart         = "HitboxHead",
+    BurstCount      = 4,
+    ProtectionCacheTime = 0.25,   -- koruma kontrolu onbellek suresi (sn)
+
+    ShootInterval = 0,
+    RageRemoteFire = false,
+
+    -- HARION RAGEBOT
+    RageMode          = "Teleport",  -- sabit: klasik teleport (mod secimi kaldirildi)
+    RageDistance      = 2.5,         -- hedefe yatay mesafe (stud)
+    RageVoidSpam      = true,        -- saklanirken rastgele void (csync)
+    RageAttackTime    = 0.03,        -- void modunda hedefte kalma suresi (s)
+    RageShootAttempts = 1,
+    RageTargetMode    = "Closest",   -- Closest / Lowest Health
+    RageAutoPriority  = true,
+    RagePriorityAttackers = true,
+    RagePriorityVoided    = true,
+    RageAutoSwap      = true,        -- mermi bitince silah degistir / reload
+    RagePreferredWeapon = "primary", -- primary / secondary / melee
+    RageAutoEquip     = true,
+    RageAntiAim       = false,
+    RageStrafeSpeed   = 5,
+    RageTeleportDelay = 0.04,
+    RageRandomMovement = false,
+    RageNoclip        = true,
+    RageVoidSpamAfterKill = true,  -- tum dusmanlar olunce extrem void spam
+    RageVoidRange     = 50000,     -- void spam Max Distance (meowlua vars. 50000)
+    RageVoidMinDist   = 1,         -- void spam Min Distance
+    RageVoidIterations = 500,      -- her karede atlama sayisi (meowlua "Iterations")
+    RageVoidOnReload  = true,
+    RageHover         = true,      -- havada sabit kal (dusme yok)      -- mermi degisirken / reload'da void spam
+    RageShotgunVoidTime = 5,       -- shotgun'da mermi degisiminde en az bu kadar sn void
+
+    -- HARION WEAPONS (ragebot acilinca otomatik acilir)
+    HarionFastShoot = false,   -- cooldown/recoil/spread 0, mermi hizi max
+    HarionNoSpread  = false,   -- Gun.StartShooting sonucuna no-spread bayragi
+    AutoExecuteOnTeleport = true, -- UI Settings: matchmaking teleportunda yeniden execute       -- ragebot: rapid fire'a ek olarak dogrudan UseItem remote atislari
+    ShowDebug     = true,
+
+    -- COMBAT / AIMBOT
+    AimbotEnabled  = true,
+    AimbotMode     = "Silent",        -- Silent / Camera
+    SilentRapidFire     = true,       -- Silent: gorunen dusman ekrana girince otomatik rapid fire
+    SilentRapidInterval = 0.03,       -- s
+    AimSpeed       = 35,              -- Camera modu (1-100), sadece nisan alirken (sag tik)
+    IgnoreFOV      = true,
+    FOVRadius      = 282,
+    ShowFOV        = true,
+    AimbotAimPart  = "Auto",          -- Auto / Head / Random
+    FlickbotEnabled = false,
+    FlickShoot      = false,
+    FlickShotDelay  = 0,              -- ms
+    FlickCooldown   = 250,            -- ms
+    FlickDuration   = 110,            -- ms
+    FlickCurvature  = 12,
+    FlickHumanness  = 30,
+    TriggerbotEnabled = false,
+    TriggerReaction   = 0,            -- s
+    CheckKatanaDeflect = true,
+    CheckRiotShield    = true,
+    IgnoreAimbotWeapons = { ["Flare Gun"] = true, ["Freeze Ray"] = true, ["Grenade Launcher"] = true, ["RPG"] = true },
+
+    -- WEAPON MODS
+    ModAttackSpeed      = true,  ModAttackSpeedBoost = 85,
+    ModFasterReload     = true,  ModReloadBoost      = 20,
+    ModNoSpread         = false,
+    ModNoRecoil         = false, ModRecoilReduction  = 100,
+    ModFasterADS        = true,  ModADSBoost         = 85,
+    ModFasterEquip      = true,  ModEquipBoost       = 80,
+    ModScytheDash       = false, ModDashReduction    = 75,
+    ModAutomatic        = false,
+    ModGrenadeFuse      = false, ModExplodeOn = "Impact", ModRemoveFuse = false,
+    LegacyCooldownHack  = true,  -- v25'teki getgc AttackCooldown=0.01 yontemi
+
+    -- ESP
+    ESPEnabled = true, ESPHighlight = true, ESPBox = true, ESPNames = true,
+    ESPHealth = true, ESPVerticalHealth = false, ESPWeapon = true, ESPAmmo = true,
+    ESPDistance = true, ESPLookDirection = true, ESPArrows = true, ESPTeammates = false,
+    ESPThrowables = true, ESPDeflecting = true, ESPRank = true, ESPWinStreak = true,
+    ESPVisibleColor = Color3.fromRGB(0, 255, 0),
+    ESPHiddenColor  = Color3.fromRGB(255, 0, 0),
+    ESPLookColor    = Color3.fromRGB(255, 255, 0),
+    ESPFillOpacity    = 1,   -- 0 = dolu (chams), 1 = dolgu yok
+    ESPOutlineOpacity = 0,   -- 0 = tam outline, 1 = gorunmez
+    ESPMaxDistance    = 2000,
+
+    -- AUTOMATION
+    AutoHeal        = true,
+    AutoHealMissing = 25,      -- bu kadar can eksikken health pack al
+    AutoAmmo        = true,
+    AutoAmmoOnEmptyReserve = false,
+
+    -- MISC: AUTO QUEUE
+    AutoQueue     = false,
+    AutoQueueMode = "1v1",
+}
+genv.AXIS = genv.AXIS or {}
+for k, v in pairs(DEFAULTS) do
+    if genv.AXIS[k] == nil then genv.AXIS[k] = v end
+end
+local AXIS = genv.AXIS
+
+-- Execute edildiginde HER SEY KAPALI baslar; ozellikleri kullanici menuden acar.
+-- (Sadece arka plan guvenlik ayari WallCheckEnabled acik kalir; UI'da yok.)
+local ALWAYS_ON = { WallCheckEnabled = true, AutoExecuteOnTeleport = true }
+
+-- ============================================================
+-- MATCHMAKING TELEPORT: yeniden execute + acik ozellikleri koru
+-- 1) Script yuklenince (Auto Execute acikken) BIR KEZ queue_on_teleport ile yukleyici kuyruga
+--    alinir -> hangi teleport olursa olsun (matchmaking, lobi, arcade) yeni sunucuda calisir.
+--    (OnTeleport olayi bazi executor/teleport turlerinde hic gelmiyordu.)
+-- 2) Ayarlar 2 sn'de bir ve teleport baslarken AXIS/rivals_state.json'a yazilir.
+-- 3) Yeni sunucuda: kuyruk bayragi VEYA dosyadaki son 2 dk icindeki teleport isareti varsa
+--    devam modu (executor autoexec klasorunden calisinca da isler).
+-- Script kaynagi: executor workspace'te AXIS_SCRIPT_PATH (vars. "rivals_auto_kill_v26.lua",
+-- yoksa "AXIS/rivals_auto_kill_v26.lua") veya getgenv().AXIS_SCRIPT_URL.
+-- ============================================================
+local Persist = {
+    file = "AXIS/rivals_state.json",
+    resuming = genv.AXIS_TELEPORT_RESUME == true,
+    pending = nil,
+    queued = false,
+    teleporting = false,
+}
+genv.AXIS_TELEPORT_RESUME = nil
+do
+    local HttpService = game:GetService("HttpService")
+    local function canFile()
+        return type(writefile) == "function" and type(readfile) == "function" and type(isfile) == "function"
+    end
+    local function enc(v)
+        if typeof(v) == "Color3" then return { __c3 = { v.R, v.G, v.B } } end
+        return v
+    end
+    local function dec(v)
+        if type(v) == "table" and type(v.__c3) == "table" then return Color3.new(v.__c3[1], v.__c3[2], v.__c3[3]) end
+        return v
+    end
+
+    function Persist.save(markTeleport)
+        if not canFile() then return false end
+        local data = {}
+        for k, v in pairs(AXIS) do
+            local t = typeof(v)
+            if t == "boolean" or t == "number" or t == "string" or t == "Color3" or t == "table" then data[k] = enc(v) end
+        end
+        local payload = { settings = data, teleportAt = markTeleport and os.time() or nil }
+        return pcall(function()
+            if type(isfolder) == "function" and type(makefolder) == "function" and not isfolder("AXIS") then makefolder("AXIS") end
+            writefile(Persist.file, HttpService:JSONEncode(payload))
+        end)
+    end
+
+    local function readState()
+        if not canFile() then return nil end
+        local ok, d = pcall(function()
+            if not isfile(Persist.file) then return nil end
+            return HttpService:JSONDecode(readfile(Persist.file))
+        end)
+        return ok and type(d) == "table" and d or nil
+    end
+
+    function Persist.apply(d)
+        local settings = type(d.settings) == "table" and d.settings or d
+        Persist.pending = {}
+        for k, v in pairs(settings) do
+            v = dec(v)
+            if type(v) == "boolean" then
+                AXIS[k] = false
+                if v then Persist.pending[k] = true end
+            elseif k ~= "teleportAt" then
+                AXIS[k] = v
+            end
+        end
+    end
+
+    local function queueFn()
+        if type(queue_on_teleport) == "function" then return queue_on_teleport end
+        if type(queueonteleport) == "function" then return queueonteleport end
+        if type(queueteleport) == "function" then return queueteleport end
+        if type(syn) == "table" and type(syn.queue_on_teleport) == "function" then return syn.queue_on_teleport end
+        if type(fluxus) == "table" and type(fluxus.queue_on_teleport) == "function" then return fluxus.queue_on_teleport end
+        return nil
+    end
+
+    function Persist.loaderCode()
+        local url = genv.AXIS_SCRIPT_URL
+        if type(url) == "string" and url ~= "" then
+            return string.format("getgenv().AXIS_TELEPORT_RESUME = true getgenv().AXIS_SCRIPT_URL = %q loadstring(game:HttpGet(%q))()", url, url)
+        end
+        local p1 = genv.AXIS_SCRIPT_PATH or "rivals_auto_kill_v26.lua"
+        local p2 = "AXIS/rivals_auto_kill_v26.lua"
+        return string.format([[
+getgenv().AXIS_TELEPORT_RESUME = true
+getgenv().AXIS_SCRIPT_PATH = %q
+local paths = { %q, %q }
+for _, p in ipairs(paths) do
+    if isfile and isfile(p) then
+        local f, e = loadstring(readfile(p))
+        if f then return f() end
+        warn("[axis] yukleme hatasi: " .. tostring(e)) return
+    end
+end
+warn("[axis] Auto Execute: script dosyasi bulunamadi -> executor workspace klasorune " .. %q .. " olarak kaydedin")
+]], p1, p1, p2, p1)
+    end
+
+    function Persist.queue()
+        if Persist.queued then return true end
+        local q = queueFn()
+        if not q then warn("[axis] Auto Execute: executor queue_on_teleport desteklemiyor") return false end
+        local ok = pcall(q, Persist.loaderCode())
+        Persist.queued = ok
+        return ok
+    end
+
+    -- devam modu: kuyruk bayragi veya son 120 sn icinde teleport isareti
+    local d = readState()
+    if d then
+        local recent = type(d.teleportAt) == "number" and (os.time() - d.teleportAt) <= 120
+        if Persist.resuming or recent then
+            Persist.apply(d)
+            Persist.resuming = true
+            print("[axis] Teleport sonrasi: ayarlar yuklendi, oyun hazir olunca acilacak")
+        end
+    else
+        Persist.resuming = false
+    end
+end
+
+-- Normal execute: HER SEY KAPALI baslar; kullanici menuden acar.
+if not Persist.resuming then
+    for k, v in pairs(AXIS) do
+        if type(v) == "boolean" and not ALWAYS_ON[k] then AXIS[k] = false end
+    end
+end
+AXIS.WallCheckEnabled = true
+if AXIS.AutoExecuteOnTeleport == nil then AXIS.AutoExecuteOnTeleport = true end
+
+local CFG = {
+    SAFE_MIN_Y = -50,
+}
+local function clampNum(v, lo, hi, def)
+    if typeof(v) ~= "number" or v ~= v then v = def end
+    return math.clamp(v, lo, hi)
+end
+local function hideTime()        return clampNum(AXIS.HideTime, 0, 1, 1) end
+local function voidSpamInterval() return clampNum(AXIS.VoidSpamInterval, 0.005, 1, 0.016) end
+
+local stats = { Shots = 0, Teleports = 0, Skips = 0, Errors = 0 }
+
+local function log(msg)
+    if AXIS.ShowDebug then print("[axis] " .. tostring(msg)) end
+end
+
+local function safeCall(tag, fn, ...)
+    local ok, res = pcall(fn, ...)
+    if not ok then
+        stats.Errors += 1
+        if AXIS.ShowDebug then warn("[axis] " .. tag .. ": " .. tostring(res)) end
+        return nil
+    end
+    return res
+end
+
+-- ============================================================
+-- VOID PROTECTION
+-- ============================================================
+-- Void korumasi sadece void kullanan bir ozellik aciksa uygulanir
+local originalFPDH = Workspace.FallenPartsDestroyHeight
+
+-- ============================================================
+-- FIGHTERCONTROLLER (zaman asimli)
+-- ============================================================
+local controllers = lp:WaitForChild("PlayerScripts"):WaitForChild("Controllers")
+local fcModule    = controllers:WaitForChild("FighterController")
+
+local FC
+local fcStart = tick()
+repeat
+    local ok, res = pcall(require, fcModule)
+    if ok and type(res) == "table" then FC = res end
+    if not FC then
+        if tick() - fcStart > 30 then warn("[axis] FighterController yuklenemedi") return end
+        task.wait(0.5)
+    end
+until FC
+
+local function localFighter() return FC and FC.LocalFighter end
+local function equippedItem()
+    local f = localFighter()
+    return f and f.EquippedItem
+end
+local function itemGet(item, key)
+    if not item then return nil end
+    local ok, v = pcall(function() return item:Get(key) end)
+    return ok and v or nil
+end
+
+-- Remotes
+local UseItemRemote = ReplicatedStorage:WaitForChild("Remotes")
+    :WaitForChild("Replication"):WaitForChild("Fighter"):WaitForChild("UseItem")
+
+local Utility, EnumLibrary
+pcall(function() Utility     = require(ReplicatedStorage.Modules.Utility)     end)
+pcall(function() EnumLibrary = require(ReplicatedStorage.Modules.EnumLibrary) end)
+
+local START_SHOOTING = "StartShooting"
+pcall(function()
+    if EnumLibrary then START_SHOOTING = EnumLibrary:ToEnum("StartShooting") or START_SHOOTING end
+end)
+
+local function encodeCF(cf)
+    if Utility and Utility.EncodeCFrame then
+        local ok, r = pcall(function() return Utility:EncodeCFrame(cf) end)
+        if ok and r ~= nil then return r end
+    end
+    return cf
+end
+
+-- ============================================================
+-- SILENT AIM HOOK (tek sefer kurulur, ayni anda bayrakla calisir)
+-- ============================================================
+local SilentAimTarget  = nil
+local SilentAimEnabled = true
+genv.AXIS_SILENT = genv.AXIS_SILENT or {}
+local SA = genv.AXIS_SILENT          -- hook tekrar kurulmasin diye kalici tablo
+
+-- NOT: Utility.Raycast hookfunction kaldirildi. RIVALS anti-cheat hookfunction'i tespit
+-- yuzeyi olarak kullaniyor (KiciaHook de bu oyunda hookfunction cagirmiyor) ve execute'ta
+-- donmaya yol aciyordu. Silent aim artik kusanilan esyanin StartShooting'i uzerinden calisiyor.
+SA.Enabled = AXIS.SilentAim ~= false
+local function setSilentTarget(pos)
+    SA.Enabled = AXIS.SilentAim ~= false
+    SilentAimTarget = pos
+    SA.Target = pos
+end
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local GameState     = "INIT_VOID"
+local StateStart    = tick()
+local voidEntryTime = tick()
+local antiAimAngle, antiAimJitter, jitterTimer = 0, 0, 0
+local jitterSide, randomYaw, randomPitch, randomRoll = 1, 0, 0, 0
+local posJitter = Vector3.zero
+local waitAnchor = nil
+local teleportDone, teleportAt = false, 0
+local lastShot, lastSwitch = 0, 0
+
+local VOID_STATES = { INIT_VOID = true, VOID_SPAM = true, RELOAD_VOID = true, RAGE_VOIDSPAM = true }
+
+local function setGameState(newState)
+    if GameState == newState then return end
+    local old = GameState
+    GameState, StateStart = newState, tick()
+    if VOID_STATES[newState] then voidEntryTime = tick() end
+    teleportDone, teleportAt = false, 0
+    if newState ~= "HUNT" then setSilentTarget(nil) end
+    if newState == "WAIT" then
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        waitAnchor = hrp and hrp.Position or nil
+    end
+    log("STATE: " .. old .. " -> " .. newState)
+end
+
+-- ============================================================
+-- GOD MODE (TakeDamage atamasi artik scripti durdurmuyor)
+-- ============================================================
+-- God Mode istemci canini 1e9 gosterir; Auto Heal icin sunucudan gelen gercek can tutulur
+local RealHealth = { hp = nil, max = nil }
+local function getRealHealth(hum)
+    if AXIS.GodModeEnabled and RealHealth.max then return RealHealth.hp or RealHealth.max, RealHealth.max end
+    return hum.Health, hum.MaxHealth
+end
+
+local PhysOriginals = setmetatable({}, { __mode = "k" })
+local function applyPhysicalImmunity(part)
+    if AXIS.GodModeEnabled and AXIS.PhysicalImmunity and part:IsA("BasePart") and not PhysOriginals[part] then
+        PhysOriginals[part] = { CanCollide = part.CanCollide, Props = part.CustomPhysicalProperties }
+        part.CanCollide = false
+        part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0, 0, 0, 0)
+    end
+end
+local function revertPhysicalImmunity()
+    for part, o in pairs(PhysOriginals) do
+        if typeof(part) == "Instance" then
+            pcall(function() part.CanCollide = o.CanCollide part.CustomPhysicalProperties = o.Props end)
+        end
+        PhysOriginals[part] = nil
+    end
+end
+
+local godApplied = false
+local function applyGodMode(char, hum)
+    if hum.MaxHealth < 1e8 then RealHealth.max = hum.MaxHealth RealHealth.hp = hum.Health end
+    pcall(function() hum.MaxHealth = 1e9 hum.Health = hum.MaxHealth end)
+    if AXIS.ForceFieldEnabled and not char:FindFirstChild("AXIS_FF") then
+        local ff = Instance.new("ForceField")
+        ff.Name, ff.Visible, ff.Parent = "AXIS_FF", false, char
+    elseif not AXIS.ForceFieldEnabled and char:FindFirstChild("AXIS_FF") then
+        char.AXIS_FF:Destroy()
+    end
+    if AXIS.PhysicalImmunity then
+        -- tam tarama sadece karakter basina bir kez; yeni parcalari DescendantAdded yakalar
+        if PhysOriginals.__char ~= char then
+            rawset(PhysOriginals, "__char", char)
+            for _, d in ipairs(char:GetDescendants()) do applyPhysicalImmunity(d) end
+        end
+    else
+        revertPhysicalImmunity()
+    end
+    if not godApplied then godApplied = true log("God Mode aktif: " .. char.Name) end
+end
+local function removeGodMode(char, hum)
+    if not godApplied then return end
+    godApplied = false
+    if RealHealth.max then
+        pcall(function()
+            hum.MaxHealth = RealHealth.max
+            hum.Health = math.min(RealHealth.hp or RealHealth.max, RealHealth.max)
+        end)
+    end
+    local ff = char:FindFirstChild("AXIS_FF")
+    if ff then ff:Destroy() end
+    revertPhysicalImmunity()
+    log("God Mode kapandi")
+end
+
+local function setupGodMode(char)
+    if not char then return end
+    task.spawn(function()
+        local hum = char:WaitForChild("Humanoid", 10)
+        if not hum then return end
+        godApplied = false
+        if hum.MaxHealth < 1e8 then RealHealth.max = hum.MaxHealth RealHealth.hp = hum.Health end
+
+        track(hum.HealthChanged:Connect(function(health)
+            if health < 1e8 then RealHealth.hp = health end
+            if AXIS.GodModeEnabled and health < hum.MaxHealth and health > 0 then
+                hum.Health = hum.MaxHealth
+            end
+        end))
+
+        pcall(function()
+            local oldTakeDamage = hum.TakeDamage
+            hum.TakeDamage = function(self, amount)
+                if AXIS.GodModeEnabled then return end
+                return oldTakeDamage(self, amount)
+            end
+        end)
+
+        track(char.DescendantAdded:Connect(applyPhysicalImmunity))
+    end)
+end
+
+track(lp.CharacterAdded:Connect(function(char)
+    setGameState("INIT_VOID")
+    setupGodMode(char)
+end))
+if lp.Character then setupGodMode(lp.Character) end
+
+-- God Mode toggle'i: acilinca uygulanir, kapaninca geri alinir
+loop(0.1, function()
+    local char = lp.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    if AXIS.GodModeEnabled then
+        applyGodMode(char, hum)
+        if hum.Health > 0 and hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+    else
+        removeGodMode(char, hum)
+    end
+end)
+
+-- FallenPartsDestroyHeight: void kullanan bir ozellik aciksa NaN, degilse orijinal
+loop(0.25, function()
+    local need = AXIS.Enabled or AXIS.VoidSpamEnabled or AXIS.VoidProtection
+    pcall(function()
+        if need then Workspace.FallenPartsDestroyHeight = 0/0
+        else Workspace.FallenPartsDestroyHeight = originalFPDH end
+    end)
+end)
+
+-- ============================================================
+-- VOID OTOMATIK KURTARMA (void durumlarinda devre disi)
+-- ============================================================
+loop(0.1, function()
+    if not AXIS.VoidProtection or VOID_STATES[GameState] then return end
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if hrp and hrp.Position.Y < -100 then
+        hrp.CFrame = CFrame.new(hrp.Position.X, 100, hrp.Position.Z)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        log("Void'den kurtarildi!")
+    end
+end)
+
+-- ============================================================
+-- SOLAR ANIMASYONU
+-- ============================================================
+local SOLAR_ANIM_ID = "rbxassetid://102820461604639"
+local solarTrack
+
+local function setupSolarAnimation(char)
+    task.spawn(function()
+        char = char or lp.Character or lp.CharacterAdded:Wait()
+        local hum = char:WaitForChild("Humanoid", 10)
+        local animator = hum and (hum:FindFirstChildOfClass("Animator") or hum:WaitForChild("Animator", 5))
+        if not animator then return end
+        if solarTrack then pcall(function() solarTrack:Stop() end) end
+
+        local anim = Instance.new("Animation")
+        anim.AnimationId = SOLAR_ANIM_ID
+        local ok, trk = pcall(function() return animator:LoadAnimation(anim) end)
+        if not ok or not trk then return end
+        trk.Looped, trk.Priority = true, Enum.AnimationPriority.Action4
+        if AXIS.SolarAnimation then pcall(function() trk:Play() end) end
+        solarTrack = trk
+
+        while Running and solarTrack == trk and char.Parent do
+            task.wait(0.5)
+            pcall(function()
+                if AXIS.SolarAnimation then
+                    if not trk.IsPlaying then trk:Play() end
+                elseif trk.IsPlaying then
+                    trk:Stop()
+                end
+            end)
+        end
+    end)
+end
+track(lp.CharacterAdded:Connect(function(c) task.wait(1) setupSolarAnimation(c) end))
+task.delay(2, function() if Running then setupSolarAnimation() end end)
+
+-- ============================================================
+-- TEAMCHECK
+-- ============================================================
+local Teammates = {}
+loop(0.5, function()
+    local myTeam, newT = lp.Team, {}
+    for _, v in ipairs(Players:GetPlayers()) do
+        if v ~= lp then
+            local hrp = v.Character and v.Character:FindFirstChild("HumanoidRootPart")
+            if (myTeam and v.Team == myTeam) or (hrp and hrp:FindFirstChild("TeammateLabel")) then
+                newT[v] = true
+            end
+        end
+    end
+    Teammates = newT
+end)
+
+local function isTeammate(plr)
+    if not plr or plr == lp then return true end
+    if Teammates[plr] then return true end
+    return lp.Team ~= nil and plr.Team == lp.Team
+end
+
+-- ============================================================
+-- KORUMA KONTROLU (onbellekli: her karede GetDescendants yok)
+-- ============================================================
+local SPAWN_IMMUNE_TAGS = { "SpawnProtection", "SpawnShield", "Immune", "Invincible",
+    "Protected", "SpawnImmune", "GodMode", "SpawnImmunity" }
+local CHAR_ATTRS = { "SpawnProtection", "Protected", "Invincible", "IsInvincible",
+    "SpawnShield", "Immune", "SpawnImmune", "GodMode", "ImmuneUntil" }
+local HUM_ATTRS  = { "SpawnProtection", "Protected", "Invincible", "IsInvincible", "Immune", "Spawning" }
+local PLR_ATTRS  = { "SpawnProtection", "Protected", "Invincible", "IsInvincible", "Immune", "SpawnShield" }
+
+local function computeProtection(char)
+    if char:FindFirstChildWhichIsA("ForceField", true) then return true end
+
+    for _, a in ipairs(CHAR_ATTRS) do
+        local v = char:GetAttribute(a)
+        if v == true or (typeof(v) == "number" and v > tick()) then return true end
+    end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, a in ipairs(HUM_ATTRS) do
+            if hum:GetAttribute(a) == true then return true end
+        end
+        local st = hum:GetState()
+        if st == Enum.HumanoidStateType.GettingUp or st == Enum.HumanoidStateType.Physics then return true end
+    end
+
+    local plr = Players:GetPlayerFromCharacter(char)
+    if plr then
+        for _, a in ipairs(PLR_ATTRS) do
+            if plr:GetAttribute(a) == true then return true end
+        end
+    end
+
+    for _, tag in ipairs(SPAWN_IMMUNE_TAGS) do
+        if CollectionService:HasTag(char, tag) or (hum and CollectionService:HasTag(hum, tag)) then return true end
+    end
+
+    for _, c in ipairs(char:GetChildren()) do
+        local nm = c.Name:lower()
+        if nm:find("immune") or nm:find("invincible")
+           or (nm:find("spawn") and (nm:find("shield") or nm:find("protect"))) then
+            return true
+        end
+    end
+
+    if plr then
+        local ok, fighter = pcall(function() return FC:GetFighter(plr) end)
+        if ok and fighter then
+            if fighter.Entity then
+                local okE, inv = pcall(function() return fighter.Entity:Get("IsInvincible") end)
+                if okE and inv == true then return true end
+            end
+            local d = fighter.Data
+            if d and (d.IsInvincible == true or d.SpawnProtection == true) then return true end
+        end
+    end
+    return false
+end
+
+local protCache = setmetatable({}, { __mode = "k" })   -- karakter -> {t, v}
+local function hasProtection(char)
+    if not char then return true end
+    local now, e = tick(), protCache[char]
+    if e and now - e.t < (AXIS.ProtectionCacheTime or 0.25) then return e.v end
+    local ok, v = pcall(computeProtection, char)
+    v = (not ok) or v
+    protCache[char] = { t = now, v = v }
+    return v
+end
+
+-- ============================================================
+-- SILAH TESPITI (kelime sinirli eslesme: "bat" artik "combat"/"battle" ile eslesmez)
+-- ============================================================
+local MELEE_KEYWORDS = {
+    "battle axe", "chainsaw", "fists", "glast shard", "glass shard", "katana", "knife",
+    "maul", "riot shield", "scythe", "spear", "trowel",
+    "shield", "sword", "axe", "hammer", "bat", "mace", "dagger", "pickaxe", "melee",
+    "blade", "club", "wrench", "crowbar", "shovel", "hatchet", "cleaver", "rapier",
+    "scimitar", "staff", "stick", "pan", "frying pan", "baseball bat", "golf club",
+    "pool cue", "cue", "nunchuck", "whip", "flail", "halberd", "glaive", "trident", "pitchfork",
+}
+local SHOTGUN_KEYWORDS = { "shotgun", "shotkey", "broomstick" }
+
+local function matchesWord(name, kw)
+    -- " name " icinde " kw " arar; bosluk/alt cizgi/tire ayirici sayilir
+    local padded = " " .. name:lower():gsub("[%p_]", " ") .. " "
+    return padded:find(" " .. kw .. " ", 1, true) ~= nil
+end
+local function matchesAny(name, list)
+    if not name or name == "" then return false end
+    for _, kw in ipairs(list) do if matchesWord(name, kw) then return true end end
+    return false
+end
+
+local function getEnemyEquippedItemName(plr)
+    local ok, fighter = pcall(function() return FC:GetFighter(plr) end)
+    if ok and fighter and fighter.EquippedItem then
+        return tostring(fighter.EquippedItem.Name or "")
+    end
+    local tool = plr.Character and plr.Character:FindFirstChildOfClass("Tool")
+    return tool and tool.Name or ""
+end
+
+local function isUsingMelee(plr)   return matchesAny(getEnemyEquippedItemName(plr), MELEE_KEYWORDS) end
+local function isUsingShotgun()
+    local item = equippedItem()
+    return item ~= nil and matchesAny(tostring(item.Name or ""), SHOTGUN_KEYWORDS)
+end
+local function getVoidDelay() return hideTime() end
+
+-- ============================================================
+-- DUSMAN FONKSIYONLARI
+-- ============================================================
+local function aliveHumanoid(char)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0 and hum or nil
+end
+
+local function getClosestEnemy()
+    local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return nil end
+    local best, bestDist = nil, math.huge
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp and not isTeammate(plr) then
+            local char = plr.Character
+            if char and aliveHumanoid(char) and not hasProtection(char) then
+                local ref = char:FindFirstChild("HitboxHead") or char:FindFirstChild("Head")
+                    or char:FindFirstChild("HumanoidRootPart")
+                if ref then
+                    local d = (myHrp.Position - ref.Position).Magnitude
+                    if d < bestDist then best, bestDist = plr, d end
+                end
+            end
+        end
+    end
+    return best, bestDist
+end
+
+local function hasAnyLiveEnemy()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp and not isTeammate(plr) and aliveHumanoid(plr.Character) then return true end
+    end
+    return false
+end
+
+local function getAimPart(character)
+    if not character then return nil end
+    if AXIS.ForceHeadshot then
+        local head = character:FindFirstChild("HitboxHead") or character:FindFirstChild("Head")
+        if head then return head end
+    end
+    return character:FindFirstChild(AXIS.AimPart or "HitboxHead")
+        or character:FindFirstChild("HitboxHead") or character:FindFirstChild("Head")
+        or character:FindFirstChild("HumanoidRootPart")
+end
+
+-- ============================================================
+-- MERMI / RELOAD
+-- ============================================================
+local function isReloading()
+    local f = localFighter()
+    if not f then return false end
+    if f.IsReloading == true or f.Reloading == true then return true end
+    local item = f.EquippedItem
+    if type(item) == "table" then
+        local now = tick()
+        local c = rawget(item, "_reload_cooldown")
+        if type(c) == "number" and now < c then return true end
+        local n = rawget(item, "_shoot_cooldown_no_ammo")
+        if type(n) == "number" and now < n then return true end
+    end
+    return false
+end
+-- silah degisimi (equip animasyonu) suruyor mu
+local function isEquipping()
+    local item = equippedItem()
+    local c = type(item) == "table" and rawget(item, "_equip_cooldown") or nil
+    return type(c) == "number" and tick() < c
+end
+local function hasAmmo()
+    local a = itemGet(equippedItem(), "Ammo")
+    return not (typeof(a) == "number" and a <= 0)
+end
+
+-- ============================================================
+-- ATES (CFrame'ler bir kez kodlanir, hatalar sayilir)
+-- ============================================================
+local MUZZLE_CF = CFrame.new(0.43, 0.25, 0.42)
+
+local function fireAt(targetPart)
+    if not targetPart or not targetPart.Parent then return end
+    local item = equippedItem()
+    local oid = itemGet(item, "ObjectID")
+    if not oid then return end
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local shootPos, targetPos = hrp.Position, targetPart.Position
+    setSilentTarget(targetPos)
+
+    local aimCF = encodeCF(CFrame.new(shootPos, targetPos))
+    local muzzle = encodeCF(MUZZLE_CF)
+    local data = {
+        [utf8.char(1)] = {
+            [utf8.char(0)] = aimCF,
+            [utf8.char(1)] = aimCF,
+            [utf8.char(2)] = targetPart,
+            [utf8.char(3)] = muzzle,
+        },
+    }
+    if AXIS.ModNoSpread then data[utf8.char(2)] = true end   -- No Spread (Kicia: args["\2"] = true)
+    for _ = 1, math.clamp(AXIS.BurstCount or 4, 1, 10) do
+        safeCall("FireServer", function() UseItemRemote:FireServer(oid, START_SHOOTING, data, nil) end)
+    end
+    stats.Shots += 1
+end
+
+-- ============================================================
+-- OTOMATIK SILAH DEGISTIRME
+-- ============================================================
+loop(0.1, function()
+    local f = localFighter()
+    if not f or not f.Items then return end
+    local item = f.EquippedItem
+    local a = itemGet(item, "Ammo")
+    if typeof(a) ~= "number" or a > 0 then return end
+    if tick() - lastSwitch < 0.5 or not VOID_STATES[GameState] then return end
+    -- bekleme yok: void'e girer girmez mermisi olan silaha gecer, equip bitene kadar void'de kalinir
+
+    lastSwitch = tick()
+    for _, it in ipairs(f.Items) do
+        if it ~= item then
+            local a2 = itemGet(it, "Ammo")
+            if typeof(a2) == "number" and a2 > 0 then
+                safeCall("EquipItem", function() f:EquipItem(it) end)
+                log("Silah degisti: " .. tostring(item and item.Name) .. " -> " .. tostring(it.Name))
+                return
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- TELEPORT YARDIMCILARI
+-- ============================================================
+local function validPos(pos)
+    return pos and pos.X == pos.X and pos.Y == pos.Y and pos.Z == pos.Z and pos.Y >= CFG.SAFE_MIN_Y
+end
+
+local function randomVoidPos()
+    local M = AXIS.VoidMaxValue or 1000000
+    local minY = math.max(AXIS.VoidMinY or 5000, CFG.SAFE_MIN_Y + 1)
+    -- Eski surumde Y negatif cikinca safeCFrame nil donuyor, karelerin ~yarisi bosa gidiyordu
+    return Vector3.new(math.random(-M, M), math.random(minY, math.max(minY, M)), math.random(-M, M))
+end
+
+local function goVoid(hrp)
+    hrp.CFrame = CFrame.new(randomVoidPos())
+    hrp.AssemblyLinearVelocity  = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+end
+
+-- Heartbeat icinde yield yok (eski Heartbeat:Wait() kareleri ust uste bindiriyordu)
+local function serverSafeTeleport(hrp, pos, lookAt)
+    if not hrp or not validPos(pos) then return false end
+    hrp.AssemblyLinearVelocity  = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    hrp.CFrame = lookAt and CFrame.new(pos, lookAt) or CFrame.new(pos)
+    local hum = hrp.Parent and hrp.Parent:FindFirstChildOfClass("Humanoid")
+    if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end) end
+    return true
+end
+
+-- ============================================================
+-- DUVAR KONTROLU (OverlapParams + kendi karakterini yok say)
+-- ============================================================
+local overlap = OverlapParams.new()
+overlap.FilterType = Enum.RaycastFilterType.Exclude
+
+local function isPositionInWall(pos, ignoreChar)
+    if not pos then return true end
+    local ignore = { lp.Character }
+    if ignoreChar then table.insert(ignore, ignoreChar) end
+    overlap.FilterDescendantsInstances = ignore
+    for _, part in ipairs(Workspace:GetPartBoundsInRadius(pos, AXIS.WallCheckRadius or 2, overlap)) do
+        if part.CanCollide and part.Transparency < 1 then return true end
+    end
+    return false
+end
+
+-- Asil ofset duvardaysa WallCheckAttempts kadar alternatif dener
+local function getTeleportPosition(enemyHrp, enemyPlr, enemyChar)
+    if not enemyHrp then return nil end
+    -- Tek offset: dusmanin tam olarak secilen stud kadar ustune (-5 ile +50 arasi) isinlanir
+    local p = enemyHrp.Position + Vector3.new(0, clampNum(AXIS.TeleportOffsetY, -5, 50, 1), 0)
+    if not validPos(p) then return nil end
+    return p
+end
+
+-- ============================================================
+-- HVH ANTI-AIM (mutlak acilar: kareler arasi birikme yok)
+-- Yaw: None / Spin / Jitter / Random / Backwards / Sideways / Spin+Jitter
+-- Pitch: None / Up / Down / Random / Custom   Roll: None / Upside Down / Random
+-- + ek yaw jitter + karakter pozisyon jitter
+-- ============================================================
+local TAU = math.pi * 2
+
+local function antiAimTick(dt)
+    antiAimAngle = (antiAimAngle + math.rad(clampNum(AXIS.SpinBypassSpeed, 0, 7200, 720)) * dt) % TAU
+    jitterTimer += dt
+    if jitterTimer >= clampNum(AXIS.JitterInterval, 0.01, 1, 0.05) then
+        jitterTimer = 0
+        jitterSide  = -jitterSide
+        local js = math.rad(clampNum(AXIS.JitterStrength, 0, 180, 45))
+        antiAimJitter = (math.random() * 2 - 1) * js
+        randomYaw   = math.random() * TAU
+        randomPitch = math.rad(math.random(-89, 89))
+        randomRoll  = math.random() * TAU
+        local s = clampNum(AXIS.PositionJitterStrength, 0, 5, 1)
+        posJitter = Vector3.new((math.random() * 2 - 1) * s, (math.random() * 2 - 1) * s * 0.5, (math.random() * 2 - 1) * s)
+    end
+end
+
+local function getAntiAimAngles()
+    local js = math.rad(clampNum(AXIS.JitterStrength, 0, 180, 45))
+    local yaw = math.rad(AXIS.YawAngle or 0)
+    local mode = AXIS.YawMode or "Spin"
+    if     mode == "Spin"        then yaw += antiAimAngle
+    elseif mode == "Jitter"      then yaw += jitterSide * js
+    elseif mode == "Random"      then yaw += randomYaw
+    elseif mode == "Backwards"   then yaw += math.pi
+    elseif mode == "Sideways"    then yaw += math.pi / 2
+    elseif mode == "Spin+Jitter" then yaw += antiAimAngle + jitterSide * js
+    end
+    if AXIS.JitterEnabled then yaw += antiAimJitter end
+
+    local pitch = 0
+    local pm = AXIS.PitchMode or "None"
+    if     pm == "Up"     then pitch = math.rad(89)
+    elseif pm == "Down"   then pitch = math.rad(-89)
+    elseif pm == "Random" then pitch = randomPitch
+    elseif pm == "Custom" then pitch = math.rad(clampNum(AXIS.PitchAngle, -89, 89, 0))
+    end
+
+    local roll = 0
+    local rm = AXIS.RollMode or "None"
+    if     rm == "Upside Down" then roll = math.pi
+    elseif rm == "Random"      then roll = randomRoll
+    end
+    return pitch, yaw, roll
+end
+
+-- baseCF: anti-aim uygulanmamis temel CFrame (konum + bakis)
+local function applyAntiAim(hrp, dt, baseCF)
+    baseCF = baseCF or CFrame.new(hrp.Position)
+    if not AXIS.AntiAimEnabled then hrp.CFrame = baseCF return end
+    antiAimTick(dt)
+    local pitch, yaw, roll = getAntiAimAngles()
+    local cf = baseCF * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, roll)
+    if AXIS.PositionJitterEnabled then cf = cf + posJitter end
+    hrp.CFrame = cf
+end
+
+-- ============================================================
+-- VOID SPAM LOOP (cift task.wait hatasi duzeltildi)
+-- ============================================================
+task.spawn(function()
+    local acc = 0
+    while Running do
+        local dt = task.wait()
+        if not AXIS.VoidSpamEnabled then
+            if acc ~= -1 then acc = -1 setGameState("INIT_VOID") end   -- kapaninca normal akisa don
+            continue
+        end
+        if acc < 0 then acc = 0 end
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        acc += dt
+        local interval = voidSpamInterval()   -- 0.005 - 1 sn
+        if acc < interval then continue end
+        acc %= interval
+        for _ = 1, math.clamp(AXIS.VoidSpamBurst or 5, 1, 20) do
+            if not hrp.Parent then break end
+            goVoid(hrp)
+        end
+    end
+end)
+
+-- ============================================================
+-- ANA STATE MACHINE
+-- ============================================================
+local function waitInPlace(hrp, dt)
+    setGameState("WAIT")
+    waitAnchor = waitAnchor or hrp.Position
+    hrp.AssemblyLinearVelocity  = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    applyAntiAim(hrp, dt, CFrame.new(waitAnchor))   -- sabit nokta: jitter birikip kaymaz
+end
+
+-- Ragebot'un o anki hedefi: isinlaninca aim render'daki auto fire rapid fire yapar
+local RageShoot = { part = nil, player = nil, at = 0 }
+
+-- RAGEBOT DONUS NOKTASI: acildigi andaki konum kaydedilir, kapatilinca aninda oraya donulur
+local Rage = { was = false, home = nil }
+
+local function returnHome(hrp, hum)
+    local home = Rage.home
+    Rage.home = nil
+    if not home or not hrp or not hrp.Parent then return end
+    hrp.AssemblyLinearVelocity  = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    hrp.CFrame = home
+    if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+    log("Ragebot kapandi -> eski konuma donuldu")
+end
+
+-- yeniden dogunca donus noktasi yeni dogma yeri olur
+track(lp.CharacterAdded:Connect(function(char)
+    Rage.home = nil
+    if AXIS.Enabled then
+        local hrp = char:WaitForChild("HumanoidRootPart", 10)
+        if hrp and AXIS.Enabled then Rage.home = hrp.CFrame end
+    end
+end))
+
+local function step(dt)
+    local char = lp.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return end
+
+    if AXIS.Enabled ~= Rage.was then
+        Rage.was = AXIS.Enabled
+        if AXIS.Enabled then
+            Rage.home = hrp.CFrame          -- acildigi yer
+            setGameState("INIT_VOID")
+        else
+            setSilentTarget(nil)
+            RageShoot.part, RageShoot.player = nil, nil
+            setGameState("IDLE")
+            returnHome(hrp, hum)            -- kapatinca aninda geri don
+            return
+        end
+    end
+    if not AXIS.Enabled then setSilentTarget(nil) return end
+    -- Void spam acikken konumu spam dongusu yonetir; kapaninca bu makine aynen devam eder
+    if AXIS.VoidSpamEnabled then setSilentTarget(nil) return end
+
+    local now = tick()
+
+    -- 1) INIT_VOID
+    if GameState == "INIT_VOID" then
+        goVoid(hrp)
+        if now - StateStart >= hideTime() then setGameState("HUNT") end
+        return
+    end
+
+    -- 2) RELOAD / MERMI YOK / SILAH DEGISIYOR -> void'de bekle; mermi dolunca saldiriya don
+    if isReloading() or not hasAmmo() or isEquipping() then
+        setGameState("RELOAD_VOID")
+        goVoid(hrp)
+        return
+    end
+    if GameState == "RELOAD_VOID" then
+        if now - voidEntryTime < getVoidDelay() then goVoid(hrp) return end
+        setGameState("HUNT")
+    end
+
+    -- 3) DUSMAN ARA
+    local enemy = getClosestEnemy()
+    local eChar = enemy and enemy.Character
+    local eHrp  = eChar and eChar:FindFirstChild("HumanoidRootPart")
+    local aimPart = getAimPart(eChar)
+
+    if not (enemy and eHrp and aimPart) then
+        if AXIS.VoidLockEnabled and hasAnyLiveEnemy() then
+            waitInPlace(hrp, dt)          -- VOID LOCK: canli dusman varken void'e gitme
+            return
+        end
+        setGameState("VOID_SPAM")
+        goVoid(hrp)
+        return
+    end
+
+    setGameState("HUNT")
+
+    -- 4) HUNT
+    local targetPos = getTeleportPosition(eHrp, enemy, eChar)
+    if not targetPos then return end
+
+    if (hrp.Position - targetPos).Magnitude > (AXIS.TeleportConfirmTol or 2) then
+        if serverSafeTeleport(hrp, targetPos, eHrp.Position) then
+            stats.Teleports += 1
+            teleportDone, teleportAt = true, now
+            -- TeleportToShootDelay 0 ise ayni karede ates et (bir kare kazanc)
+            if (AXIS.TeleportToShootDelay or 0) > 0 then return end
+        end
+    elseif not teleportDone then
+        teleportDone, teleportAt = true, now
+    end
+
+    if AXIS.RequireTeleport and not teleportDone then return end
+    if now - teleportAt < (AXIS.TeleportToShootDelay or 0) then return end
+
+    applyAntiAim(hrp, dt, CFrame.new(targetPos, eHrp.Position))
+
+    local cam = Workspace.CurrentCamera   -- kamera degisirse eski referans kullanilmaz
+    if cam then pcall(function() cam.CFrame = CFrame.new(cam.CFrame.Position, aimPart.Position) end) end
+
+    -- Isinlandiktan sonra RAPID FIRE: hedef auto fire'a verilir (oyunun kendi silahi,
+    -- silent hook mermiyi kafaya cevirir). Istege bagli ek remote atislar.
+    RageShoot.part, RageShoot.player, RageShoot.at = aimPart, enemy, now
+    if AXIS.RageRemoteFire and now - lastShot >= (AXIS.ShootInterval or 0) then
+        lastShot = now
+        fireAt(aimPart)
+    end
+end
+
+-- NOT: Eski teleport/void durum makinesi (step) devre disi; Ragebot artik asagidaki
+-- Harion Ragebot modulu ile calisiyor (csync: sunucu hedefte, kamera/istemci yerinde).
+
+-- ============================================================
+-- COOLDOWN HIZLANDIRMA (getgc sonuclari onbellekte, tam tarama 30 sn'de bir)
+-- ============================================================
+local cdTables = setmetatable({}, { __mode = "k" })
+local lastScan = 0
+loop(1, function()
+    if not AXIS.LegacyCooldownHack then return end
+    if tick() - lastScan > 30 or next(cdTables) == nil then
+        lastScan = tick()
+        local gc = getgc(true)
+        for i = 1, #gc do
+            local v = gc[i]
+            if type(v) == "table" and (rawget(v, "HeavyAttackCooldown") or rawget(v, "AttackCooldown")) then
+                cdTables[v] = true
+            end
+            if i % 5000 == 0 then task.wait() end   -- uzun taramada oyunu dondurma
+        end
+    end
+    for v in pairs(cdTables) do
+        if rawget(v, "HeavyAttackCooldown") then rawset(v, "HeavyAttackCooldown", 0.01) end
+        if rawget(v, "AttackCooldown")     then rawset(v, "AttackCooldown",     0.01) end
+    end
+end)
+
+-- ============================================================
+-- DEBUG STATS
+-- ============================================================
+loop(10, function()
+    if AXIS.ShowDebug then
+        log(string.format("[STATS] State=%s | Shots=%d | Teleports=%d | Skips=%d | Errors=%d",
+            GameState, stats.Shots, stats.Teleports, stats.Skips, stats.Errors))
+    end
+end)
+
+-- ============================================================
+-- ORTAK YARDIMCILAR (Combat / ESP / Automation)
+-- ============================================================
+local UserInputService = game:GetService("UserInputService")
+local VIM = nil
+local HAS_DRAWING = (function()
+    local ok, r = pcall(function() return Drawing ~= nil and type(Drawing.new) == "function" end)
+    return ok and r
+end)()
+
+local function requirePath(root, ...)
+    local node = root
+    for _, n in ipairs({ ... }) do node = node and node:FindFirstChild(n) end
+    if not node then return nil end
+    local ok, m = pcall(require, node)
+    return (ok and type(m) == "table") and m or nil
+end
+local function playerModule(...) return requirePath(lp:FindFirstChild("PlayerScripts"), "Modules", ...) end
+
+local function getFighter(plr)
+    local ok, f = pcall(function() return FC:GetFighter(plr) end)
+    return ok and f or nil
+end
+
+local function keyState(id, fallback)
+    local opts = genv.Options
+    local o = opts and opts[id]
+    if not o then return fallback end
+    local ok, s = pcall(function() return o:GetState() end)
+    if ok then return s == true end
+    return fallback
+end
+
+-- KiciaHook gibi once VirtualInputManager ile tiklanir, yoksa executor mouse1press
+local function getVIM()
+    if VIM then return VIM end
+    local ok, v = pcall(function() return Instance.new("VirtualInputManager") end)
+    if ok and v then VIM = v end
+    return VIM
+end
+local function mouseDown()
+    local v = getVIM()
+    if v then
+        local p = UserInputService:GetMouseLocation()
+        if pcall(function() v:SendMouseButtonEvent(p.X, p.Y, 0, true, game, 1) end) then return end
+    end
+    if type(mouse1press) == "function" then pcall(mouse1press) end
+end
+local function mouseUp()
+    local v = getVIM()
+    if v then
+        local p = UserInputService:GetMouseLocation()
+        if pcall(function() v:SendMouseButtonEvent(p.X, p.Y, 0, false, game, 1) end) then return end
+    end
+    if type(mouse1release) == "function" then pcall(mouse1release) end
+end
+local function clickOnce() mouseDown() task.defer(mouseUp) end
+
+local function itemIsReloading(item)
+    if type(item) ~= "table" then return false end
+    local now = tick()
+    local c = rawget(item, "_reload_cooldown")
+    if type(c) == "number" and now < c then return true end
+    local n = rawget(item, "_shoot_cooldown_no_ammo")
+    return type(n) == "number" and now < n
+end
+
+local function itemAmmo(item)
+    local a = itemGet(item, "Ammo")
+    if a == nil and type(item) == "table" then
+        local d = rawget(item, "Data")
+        a = type(d) == "table" and rawget(d, "Ammo") or nil
+    end
+    return a
+end
+local function itemReserve(item)
+    local r = itemGet(item, "AmmoReserve")
+    if r == nil and type(item) == "table" then
+        local d = rawget(item, "Data")
+        r = type(d) == "table" and rawget(d, "AmmoReserve") or nil
+    end
+    return r
+end
+
+-- ============================================================
+-- KATANA DEFLECT / RIOT SHIELD KONTROLU (KiciaHook mantigi)
+-- ============================================================
+local DEFLECT_BYPASS_ITEMS = {
+    ["Slingshot"] = true, ["Bow"] = true, ["Exogun"] = true, ["Spray"] = true, ["Flamethrower"] = true,
+    ["Grenade Launcher"] = true, ["RPG"] = true, ["Crossbow"] = true, ["Daggers"] = true,
+}
+local SHIELD_PIERCE_ITEMS = {
+    ["Flamethrower"] = true, ["Exogun"] = true, ["Spray"] = true, ["Chainsaw"] = true, ["Grenade Launcher"] = true,
+}
+
+local function isKatanaDeflecting(item)
+    if type(item) ~= "table" or item.Name ~= "Katana" then return false end
+    local now = tick()
+    local ac = rawget(item, "_attack_cooldown")
+    local dc = rawget(item, "_deflect_cooldown")
+    local dh = rawget(item, "_deflect_hash")
+    return type(ac) == "number" and ac > now and type(dc) == "number" and dc > now
+        and type(dh) == "number" and dh % 2 == 1
+end
+
+local function inventoryItemName(item)
+    local t = typeof(item)
+    if t == "string" then return item ~= "" and item or nil end
+    if t == "Instance" then return item.Name end
+    if t ~= "table" then return nil end
+    if type(item.Name) == "string" and item.Name ~= "" then return item.Name end
+    local info = item.Info
+    if type(info) == "table" and type(info.Name) == "string" then return info.Name end
+    return nil
+end
+
+local function fighterLoadoutNames(fighter)
+    local names = {}
+    local inv = fighter and (fighter.Loadout or fighter.Slots or fighter.Items or fighter.EquippedItems)
+    if type(inv) == "table" then
+        for _, it in pairs(inv) do
+            local n = inventoryItemName(it)
+            if n then names[n] = true end
+        end
+    end
+    local last = fighter and fighter.Data and fighter.Data.LastPickedWeapons
+    if type(last) == "table" then for _, n in ipairs(last) do names[n] = true end end
+    return names
+end
+
+local function isDeflectBlocked(plr, localItem)
+    if not AXIS.CheckKatanaDeflect then return false end
+    if localItem and DEFLECT_BYPASS_ITEMS[localItem.Name] then return false end
+    local f = getFighter(plr)
+    return isKatanaDeflecting(f and f.EquippedItem)
+end
+
+local function isShieldBlocked(plr, char, localItem, observerPos)
+    if not AXIS.CheckRiotShield then return false end
+    if localItem and SHIELD_PIERCE_ITEMS[localItem.Name] then return false end
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local f = getFighter(plr)
+    if not root or not f or typeof(observerPos) ~= "Vector3" then return false end
+    local equipped = inventoryItemName(f.EquippedItem)
+    local hasShield = fighterLoadoutNames(f)["Riot Shield"] == true
+    local toLocal = observerPos - root.Position
+    toLocal = toLocal.Magnitude > 0.001 and toLocal.Unit or root.CFrame.LookVector
+    local dot = root.CFrame.LookVector:Dot(toLocal)
+    if equipped == "Riot Shield" and dot >= 0 then return true end              -- kalkan onde
+    if hasShield and equipped and equipped ~= "Riot Shield" and dot <= 0 then return true end  -- kalkan sirtta
+    return false
+end
+
+-- ============================================================
+-- AIMBOT HEDEF SECIMI
+-- ============================================================
+local AIMBOT_HARD_BLOCK = {
+    ["Warper"] = true, ["Medkit"] = true, ["Subspace Tripmine"] = true, ["Warpstone"] = true,
+    ["Flashbang"] = true, ["Grenade"] = true, ["Jump Pad"] = true, ["Molotov"] = true,
+    ["Satchel"] = true, ["Smoke Grenade"] = true, ["War Horn"] = true, ["Grappler"] = true,
+    ["Flamethrower"] = true,
+}
+
+local function canAimWithItem(item)
+    if type(item) ~= "table" then return false end
+    local name = item.Name
+    if AIMBOT_HARD_BLOCK[name] then return false end
+    local ignore = AXIS.IgnoreAimbotWeapons
+    if type(ignore) == "table" and (ignore[name] == true or table.find(ignore, name)) then return false end
+    local info = item.Info
+    if type(info) == "table" and type(item.StartShooting) == "function" then
+        if type(info.ShootCooldown) == "number" or type(info.ShootBurstCooldown) == "number"
+           or type(info.ShootBurst) == "number" or type(info.QuickShotCooldown) == "number"
+           or type(info.ChargeReleaseCooldown) == "number" or type(info.BladeCooldown) == "number" then
+            return true
+        end
+        if type(info.AttackCooldown) == "number" and (info.Class == "Melee" or info.Type == "Melee") then return true end
+    end
+    return name == "Daggers" or name == "Bow" or name == "Slingshot"
+end
+
+local RANDOM_PARTS = { "HitboxHead", "Head", "UpperTorso", "HitboxBody", "HumanoidRootPart" }
+local randomPartChoice = setmetatable({}, { __mode = "k" })
+
+local function resolveAimbotPart(char)
+    local mode = AXIS.AimbotAimPart or "Auto"
+    if mode == "Random" then
+        local pick = randomPartChoice[char]
+        if not pick or not char:FindFirstChild(pick) then
+            local avail = {}
+            for _, n in ipairs(RANDOM_PARTS) do if char:FindFirstChild(n) then table.insert(avail, n) end end
+            pick = avail[math.random(1, math.max(#avail, 1))]
+            randomPartChoice[char] = pick
+        end
+        return pick and char:FindFirstChild(pick)
+    end
+    local head = char:FindFirstChild("HitboxHead") or char:FindFirstChild("Head")
+    if mode == "Head" then return head end
+    return head or char:FindFirstChild("HitboxBody") or char:FindFirstChild("HumanoidRootPart")
+end
+
+local visParams = RaycastParams.new()
+visParams.FilterType = Enum.RaycastFilterType.Exclude
+local function isPartVisible(part, char)
+    local cam = Workspace.CurrentCamera
+    if not cam or not part then return false end
+    visParams.FilterDescendantsInstances = { lp.Character, cam }
+    local origin = cam.CFrame.Position
+    local res = Workspace:Raycast(origin, part.Position - origin, visParams)
+    return res == nil or res.Instance:IsDescendantOf(char)
+end
+
+local function isValidAimTarget(plr, localItem)
+    if plr == lp or isTeammate(plr) then return false end
+    local char = plr.Character
+    if not char or not aliveHumanoid(char) or hasProtection(char) then return false end
+    if isDeflectBlocked(plr, localItem) then return false end
+    local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if isShieldBlocked(plr, char, localItem, myHrp and myHrp.Position) then return false end
+    return true
+end
+
+local function getAimbotTarget(requireVisible, onScreenOnly, ignoreFov)
+    local cam = Workspace.CurrentCamera
+    if not cam then return nil end
+    local item = equippedItem()
+    local mouse = UserInputService:GetMouseLocation()
+    local myPos = cam.CFrame.Position
+    local best, bestScore = nil, math.huge
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if isValidAimTarget(plr, item) then
+            local char = plr.Character
+            local part = resolveAimbotPart(char)
+            if part and (not requireVisible or isPartVisible(part, char)) then
+                local sp, onScreen = cam:WorldToViewportPoint(part.Position)
+                onScreen = onScreen and sp.Z > 0
+                local score
+                if onScreenOnly and not onScreen then
+                    score = nil
+                elseif AXIS.IgnoreFOV or ignoreFov then
+                    score = (part.Position - myPos).Magnitude
+                elseif onScreen then
+                    local d = (Vector2.new(sp.X, sp.Y) - mouse).Magnitude
+                    if d <= (AXIS.FOVRadius or 282) then score = d end
+                end
+                if score and score < bestScore then
+                    best, bestScore = { player = plr, char = char, part = part, pos = part.Position }, score
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function aimbotActive()
+    return AXIS.AimbotEnabled and keyState("AXIS_AimbotKey", true)
+end
+
+-- Silent mod: Gun.StartShooting sirasinda kamerayi hedefe cevirip sonra geri alir (Kicia PrimeAimbotAim)
+local function primeSilentShot(item)
+    if not canAimWithItem(item) then return nil end
+    local cam = Workspace.CurrentCamera
+    if not cam then return nil end
+    local pos
+    -- Ragebot isinlandiysa onun hedefi (isinlanma sonrasi rapid fire)
+    if AXIS.Enabled and RageShoot.part and RageShoot.part.Parent and (tick() - RageShoot.at) < 0.25 then
+        pos = RageShoot.part.Position
+    elseif AXIS.AimbotEnabled and AXIS.AimbotMode == "Silent" and aimbotActive() then
+        -- Silent: kamera nereye bakarsa baksin (arkada bile) en yakin GORUNEN dusman; FOV/ekran sarti yok
+        local target = getAimbotTarget(true, false, true)
+        pos = target and target.pos
+    end
+    if not pos then return nil end
+    local original = cam.CFrame
+    cam.CFrame = CFrame.lookAt(original.Position, pos)
+    return { cam = cam, cf = original }
+end
+local function finishSilentShot(prime)
+    if prime and prime.cam and Workspace.CurrentCamera == prime.cam then prime.cam.CFrame = prime.cf end
+end
+
+-- ============================================================
+-- WEAPON MODS (KiciaHook RivalsModsState uyarlamasi)
+-- ============================================================
+genv.AXIS_HOOKS = genv.AXIS_HOOKS or {}
+local HOOKS = genv.AXIS_HOOKS     -- [modul] = { [fonksiyon] = orijinal }; tekrar calistirmada ust uste sarilmaz
+
+local function wrapModuleFn(mod, name, makeWrapper)
+    if type(mod) ~= "table" then return false end
+    HOOKS[mod] = HOOKS[mod] or {}
+    local original = HOOKS[mod][name] or rawget(mod, name)
+    if type(original) ~= "function" then return false end
+    HOOKS[mod][name] = original
+    mod[name] = makeWrapper(original)
+    return true
+end
+local function restoreAllHooks()
+    for mod, fns in pairs(HOOKS) do
+        for name, orig in pairs(fns) do pcall(function() mod[name] = orig end) end
+    end
+    table.clear(HOOKS)
+end
+
+local function attackSpeedScale()
+    if not AXIS.ModAttackSpeed then return 1 end
+    return 1 / (1 + clampNum(AXIS.ModAttackSpeedBoost, 0, 85, 85) / 100)
+end
+
+local function callWithScaledInfo(info, fields, scale, minValue, fn, ...)
+    local saved = {}
+    if type(info) == "table" and scale < 0.999 then
+        for _, f in ipairs(fields) do
+            local v = info[f]
+            if type(v) == "number" then saved[f] = v info[f] = math.max(minValue, v * scale) end
+        end
+    end
+    local res = table.pack(pcall(fn, ...))
+    for f, v in pairs(saved) do info[f] = v end
+    if not res[1] then
+        stats.Errors += 1
+        if AXIS.ShowDebug then warn("[axis] mod: " .. tostring(res[2])) end
+        return table.pack()
+    end
+    return table.pack(table.unpack(res, 2, res.n))
+end
+
+local function shootItem(self)
+    if type(self) == "table" and type(self.Name) == "string" and self.Name ~= "" then return self end
+    local it = equippedItem()
+    if type(it) == "table" and type(it.Name) == "string" and it.Name ~= "" then return it end
+    return nil
+end
+
+local function resolveReloadKey(item, reloadEnum)
+    if reloadEnum ~= nil and type(item.FromEnum) == "function" then
+        local ok, k = pcall(function() return item:FromEnum(reloadEnum) end)
+        if ok and type(k) == "string" then return k end
+    end
+    local a = itemAmmo(item)
+    if type(a) == "number" and a <= 0 and item.Info and item.Info.HasEmptyReload then return "EmptyReload" end
+    return "Reload"
+end
+
+local function stopEquipAnimations(item)
+    local vm = item and item.ViewModel
+    if not vm then return end
+    local target = type(vm.StopAnimation) == "function" and vm or vm.Animator
+    if target and type(target.StopAnimation) == "function" then
+        pcall(function() target:StopAnimation("Equip") end)
+        pcall(function() target:StopAnimation("EquipEmpty") end)
+    end
+end
+
+local ModsInstalled = { Gun = false, Melee = false, Gunblade = false, Throwable = false }
+
+local function installGunHooks()
+    local gun = playerModule("ItemTypes", "Gun")
+    if not gun then return false end
+    wrapModuleFn(gun, "StartShooting", function(orig)
+        return function(self, ...)
+            local item = shootItem(self)
+            if not item then return nil end
+            local r = callWithScaledInfo(item.Info, { "ShootCooldown", "ShootBurstCooldown", "QuickShotCooldown" },
+                attackSpeedScale(), 0.001, orig, item, ...)
+            -- Harion No Spread: StartShooting sonucunun 4. degeri no-spread bayragi
+            if AXIS.HarionNoSpread and typeof(r[3]) == "table" then
+                r[4] = true
+                if (r.n or 0) < 4 then r.n = 4 end
+            end
+            return table.unpack(r, 1, r.n)
+        end
+    end)
+    wrapModuleFn(gun, "StartReloading", function(orig)
+        return function(self, forceReload, reloadEnum, animationEnum, segmentedCount)
+            local boost = clampNum(AXIS.ModReloadBoost, 0, 20, 20)
+            if not AXIS.ModFasterReload or boost <= 0 or type(self) ~= "table" or type(self.Info) ~= "table" then
+                return orig(self, forceReload, reloadEnum, animationEnum, segmentedCount)
+            end
+            local key = resolveReloadKey(self, reloadEnum)
+            local info = self.Info
+            local fields
+            if info.ReloadType == "Regular" then
+                fields = { key .. "Length", key .. "ActionTimestamp" }
+            elseif info.ReloadType == "Segmented" then
+                fields = { key .. "StartLength", key .. "StartActionTimestamp", key .. "SegmentLength",
+                    key .. "SegmentActionTimestamp", key .. "FinishLength", key .. "FinishActionTimestamp" }
+            else
+                return orig(self, forceReload, reloadEnum, animationEnum, segmentedCount)
+            end
+            local r = callWithScaledInfo(info, fields, 1 - boost / 100, 0.05, orig, self, forceReload, reloadEnum, animationEnum, segmentedCount)
+            return table.unpack(r, 1, r.n)
+        end
+    end)
+    wrapModuleFn(gun, "_Recoil", function(orig)
+        return function(self, multiplier)
+            if AXIS.ModNoRecoil and type(multiplier) == "number" then
+                local m = multiplier * (1 - clampNum(AXIS.ModRecoilReduction, 0, 100, 100) / 100)
+                if m <= 0.001 then return end
+                return orig(self, m)
+            end
+            return orig(self, multiplier)
+        end
+    end)
+    wrapModuleFn(gun, "GetAimSpeed", function(orig)
+        return function(self)
+            local s = orig(self)
+            if AXIS.ModFasterADS and type(s) == "number" then
+                return math.max(1, s * (1 + clampNum(AXIS.ModADSBoost, 0, 85, 85) / 100))
+            end
+            return s
+        end
+    end)
+    wrapModuleFn(gun, "Equip", function(orig)
+        return function(self, ...)
+            local r = table.pack(orig(self, ...))
+            if AXIS.ModFasterEquip and type(self) == "table" then
+                local scale = 1 / (1 + clampNum(AXIS.ModEquipBoost, 0, 80, 80) / 100)
+                local now = tick()
+                local remaining = type(self._equip_cooldown) == "number" and math.max(self._equip_cooldown - now, 0) or 0
+                self._equip_cooldown = now + remaining * scale
+                local hash = self._equip_hash
+                task.delay(remaining * scale, function()
+                    if self and self._equip_hash == hash then stopEquipAnimations(self) end
+                end)
+            end
+            return table.unpack(r, 1, r.n)
+        end
+    end)
+    return true
+end
+
+local function installMeleeHooks()
+    local melee = playerModule("ItemTypes", "Melee")
+    if not melee then return false end
+    wrapModuleFn(melee, "StartShooting", function(orig)
+        return function(self, ...)
+            local item = shootItem(self)
+            if not item then return nil end
+            local r = callWithScaledInfo(item.Info, { "AttackCooldown" }, attackSpeedScale(), 0.001, orig, item, ...)
+            return table.unpack(r, 1, r.n)
+        end
+    end)
+    return true
+end
+
+local function installGunbladeHooks()
+    local gb = playerModule("Items", "Gunblade")
+    if not gb then return false end
+    wrapModuleFn(gb, "StartShooting", function(orig)
+        return function(self, ...)
+            local item = shootItem(self)
+            if not item then return nil end
+            local scale = (itemGet(item, "Mode") == "Blade") and attackSpeedScale() or 1
+            local r = callWithScaledInfo(item.Info, { "BladeCooldown" }, scale, 0.001, orig, item, ...)
+            return table.unpack(r, 1, r.n)
+        end
+    end)
+    return true
+end
+
+local function installThrowableHooks()
+    local th = playerModule("ItemTypes", "Throwable")
+    if not th then return false end
+    -- Remove Fuse: oyun cook zamanlayicisini _StartThrow icinde kurar, ayni alan bir adim once silinir
+    wrapModuleFn(th, "_StartThrow", function(orig)
+        return function(item, ...)
+            if AXIS.ModRemoveFuse and type(item) == "table" then rawset(item, "_cook_detonate_delay", nil) end
+            return orig(item, ...)
+        end
+    end)
+    return true
+end
+
+-- Kalici Info degisiklikleri (Automatic Weapon / Scythe Dash), kapaninca orijinale doner
+local ItemInfoOriginals = setmetatable({}, { __mode = "k" })
+local function applyPersistentMods()
+    local f = localFighter()
+    local items = type(f) == "table" and rawget(f, "Items") or nil
+    if type(items) ~= "table" then return end
+    for _, item in pairs(items) do
+        local info = type(item) == "table" and item.Info or nil
+        if type(info) == "table" then
+            local orig = ItemInfoOriginals[info]
+            if not orig then
+                local ise = rawget(info, "InputSpammingEnabled")
+                orig = {
+                    HasISE = ise ~= nil, ISE = type(ise) == "table" and table.clone(ise) or ise,
+                    HasDash = rawget(info, "DashCooldown") ~= nil, Dash = rawget(info, "DashCooldown"),
+                }
+                ItemInfoOriginals[info] = orig
+            end
+            if AXIS.ModAutomatic and type(orig.ISE) == "table" then
+                local auto = table.clone(orig.ISE)
+                auto.StartShooting, auto.StartReloading = 0, 0
+                rawset(info, "InputSpammingEnabled", auto)
+            else
+                rawset(info, "InputSpammingEnabled", orig.HasISE and (type(orig.ISE) == "table" and table.clone(orig.ISE) or orig.ISE) or nil)
+            end
+            if AXIS.ModScytheDash and type(orig.Dash) == "number" then
+                rawset(info, "DashCooldown", orig.Dash * (1 - clampNum(AXIS.ModDashReduction, 0, 100, 75) / 100))
+            else
+                rawset(info, "DashCooldown", orig.HasDash and orig.Dash or nil)
+            end
+        end
+    end
+end
+local function restorePersistentMods()
+    for info, orig in pairs(ItemInfoOriginals) do
+        pcall(function()
+            rawset(info, "InputSpammingEnabled", orig.HasISE and orig.ISE or nil)
+            rawset(info, "DashCooldown", orig.HasDash and orig.Dash or nil)
+        end)
+    end
+end
+
+-- Input hook (No Spread / Grenade Fuse): ClientItem.Input'un ReplicatedStorage upvalue'su
+-- sahte bir agaca yonlendirilir, UseItem paketleri gonderilmeden once duzenlenir.
+local InputHook = { restore = nil, trajectory = nil }
+
+local function getLocalItemById(objectId)
+    local f = localFighter()
+    local items = type(f) == "table" and rawget(f, "Items") or nil
+    if type(items) ~= "table" then return nil end
+    for _, item in next, items do
+        local d = type(item) == "table" and rawget(item, "Data") or nil
+        if type(d) == "table" and rawget(d, "ObjectID") == objectId then return item end
+    end
+    return nil
+end
+
+local function computeImpactTime(tv)
+    local lastArgs = rawget(tv, "_last_args") or {}
+    local step = lastArgs[4] or 0.05
+    local cap = lastArgs[6] or math.huge
+    local sphere = rawget(tv, "_impact_sphere")
+    local segments = rawget(tv, "_segments")
+    if not sphere or type(segments) ~= "table" then return nil end
+    local impactCF = sphere.CFrame
+    for key, seg in next, segments do
+        if seg.CFrame == impactCF then return math.min(cap, (key - 2) * step) end
+    end
+    return nil
+end
+
+local function handleInputPacket(packet)
+    if type(packet.args) ~= "table" then return end
+    local t = packet.type
+    if AXIS.ModNoSpread and t == "StartShooting" then
+        local item = getLocalItemById(packet.objectId)
+        local info = item and rawget(item, "Info")
+        if type(info) == "table" and rawget(info, "Type") == "Gun" then packet.args["\2"] = true end
+    end
+    if AXIS.ModGrenadeFuse then
+        local isStart = t == "StartShooting" or t == "StartAiming"
+        local isFinish = t == "FinishShooting" or t == "FinishAiming"
+        if not (isStart or isFinish) then return end
+        local item = getLocalItemById(packet.objectId)
+        local info = item and rawget(item, "Info")
+        if type(info) ~= "table" or not rawget(info, "CanCook") then return end
+        if isStart then
+            InputHook.trajectory = rawget(item, "_trajectory_visual")
+            if AXIS.ModRemoveFuse then rawset(item, "_cook_detonate_delay", nil) end
+            return
+        end
+        if AXIS.ModExplodeOn == "Throw" then
+            packet.args["\3"] = 0
+        else
+            local tv = InputHook.trajectory
+            packet.args["\3"] = tv and computeImpactTime(tv) or nil
+        end
+        InputHook.trajectory = nil
+    end
+end
+
+local function installInputHook()
+    if InputHook.restore then return true end
+    if not (debug and type(debug.getupvalues) == "function" and type(debug.setupvalue) == "function"
+            and type(clonefunction) == "function") then return false end
+    local clientItem = playerModule("ClientReplicatedClasses", "ClientFighter", "ClientItem")
+    local fromEnum = EnumLibrary and rawget(EnumLibrary, "_from_enum")
+    local inputMethod = clientItem and rawget(clientItem, "Input")
+    if type(inputMethod) ~= "function" or type(fromEnum) ~= "table" then return false end
+
+    local fireNative = clonefunction(Instance.new("RemoteEvent").FireServer)
+    local remote = (type(cloneref) == "function" and cloneref(UseItemRemote)) or UseItemRemote
+    local function fireServer(_, objectId, encodedType, args)
+        local packet = { block = false, objectId = objectId, type = rawget(fromEnum, encodedType), args = args }
+        safeCall("InputHook", handleInputPacket, packet)
+        if packet.block then return end
+        return fireNative(remote, objectId, encodedType, packet.args, nil)
+    end
+    local tree = { Replication = { Fighter = { UseItem = { FireServer = fireServer } } } }
+    local dummy = newproxy(true)                       -- kendi metatablosu olan userdata (global etki yok)
+    getmetatable(dummy).__index = function() return tree end
+
+    for idx, v in pairs(debug.getupvalues(inputMethod)) do
+        if v == ReplicatedStorage then
+            debug.setupvalue(inputMethod, idx, dummy)
+            InputHook.restore = { method = inputMethod, index = idx, original = v }
+            break
+        end
+    end
+    if not InputHook.restore then
+        for _, bundle in pairs(debug.getupvalues(inputMethod)) do
+            if type(bundle) == "table" then
+                for k, v in pairs(bundle) do
+                    if v == ReplicatedStorage then
+                        bundle[k] = dummy
+                        InputHook.restore = { bundle = bundle, key = k, original = v }
+                        break
+                    end
+                end
+            end
+            if InputHook.restore then break end
+        end
+    end
+    return InputHook.restore ~= nil
+end
+local function restoreInputHook()
+    local r = InputHook.restore
+    if not r then return end
+    InputHook.restore = nil
+    pcall(function()
+        if r.bundle then r.bundle[r.key] = r.original else debug.setupvalue(r.method, r.index, r.original) end
+    end)
+end
+
+-- Hook'lar SADECE ilgili bir ozellik acilinca kurulur (KiciaHook EnsureHooks gibi).
+-- Execute aninda oyun modullerine dokunulmaz -> execute'ta donma / tespit riski yok.
+local function modsNeeded()
+    return AXIS.ModAttackSpeed or AXIS.ModFasterReload or AXIS.ModNoRecoil or AXIS.ModFasterADS
+        or AXIS.ModFasterEquip or AXIS.ModRemoveFuse or AXIS.HarionNoSpread
+end
+local persistTouched = false
+loop(1, function()
+    if modsNeeded() then
+        if not ModsInstalled.Gun then ModsInstalled.Gun = installGunHooks() end
+        if not ModsInstalled.Melee then ModsInstalled.Melee = installMeleeHooks() end
+        if not ModsInstalled.Gunblade then ModsInstalled.Gunblade = installGunbladeHooks() end
+        if not ModsInstalled.Throwable then ModsInstalled.Throwable = installThrowableHooks() end
+    end
+    if (AXIS.ModNoSpread or AXIS.ModGrenadeFuse) and not InputHook.restore then
+        if not installInputHook() and AXIS.ShowDebug and not InputHook.warned then
+            InputHook.warned = true
+            warn("[axis] No Spread / Grenade Fuse: executor debug.getupvalues/setupvalue desteklemiyor")
+        end
+    end
+    if AXIS.ModAutomatic or AXIS.ModScytheDash then
+        persistTouched = true
+        applyPersistentMods()
+    elseif persistTouched then
+        persistTouched = false
+        restorePersistentMods()
+    end
+end)
+
+;(function() -- AIMBOT RENDER (ayri fonksiyon: Luau 200-local siniri)
+-- ============================================================
+-- AIMBOT RENDER: Camera modu, FOV dairesi, Flickbot, Triggerbot
+-- ============================================================
+local fovCircle = HAS_DRAWING and (function()
+    local ok, c = pcall(Drawing.new, "Circle")
+    if not ok then return nil end
+    c.Thickness, c.NumSides, c.Filled, c.Transparency, c.Color, c.Visible = 1, 64, false, 0.8, Color3.new(1, 1, 1), false
+    return c
+end)() or nil
+
+local Flick = { active = false, lastEnd = 0 }
+
+local function bezierDir(a, m, b, t)
+    local u = 1 - t
+    local d = a * (u * u) + m * (2 * u * t) + b * (t * t)
+    return d.Magnitude > 0 and d.Unit or b
+end
+
+local function updateFlickbot(cam, now)
+    if not AXIS.FlickbotEnabled then Flick.active = false return end
+    if Flick.active then
+        local tgt = Flick.target
+        local part = tgt and tgt.part
+        if not part or not part.Parent then Flick.active = false Flick.lastEnd = now return end
+        local camPos = cam.CFrame.Position
+        local toDir = (part.Position - camPos).Unit
+        local x = math.clamp((now - Flick.start) / Flick.duration, 0, 1)
+        local t = 1 - (1 - x) ^ 3                                   -- ease-out
+        local dir = bezierDir(Flick.fromDir, Flick.midDir, toDir, t)
+        local noise = (1 - t) * Flick.noise
+        dir = (dir + Vector3.new((math.random() - 0.5) * noise, (math.random() - 0.5) * noise, 0)).Unit
+        cam.CFrame = CFrame.lookAt(camPos, camPos + dir)
+        if x >= 1 then
+            Flick.active = false
+            Flick.lastEnd = now
+            if AXIS.FlickShoot and canAimWithItem(equippedItem()) then
+                task.delay(clampNum(AXIS.FlickShotDelay, 0, 250, 0) / 1000, clickOnce)
+            end
+        end
+        return
+    end
+    if not keyState("AXIS_FlickKey", false) then return end
+    if (now - Flick.lastEnd) * 1000 < clampNum(AXIS.FlickCooldown, 0, 2000, 250) then return end
+    if not canAimWithItem(equippedItem()) then return end
+    local tgt = getAimbotTarget(false)
+    if not tgt then return end
+    local cf = cam.CFrame
+    local fromDir = cf.LookVector
+    local toDir = (tgt.pos - cf.Position).Unit
+    local humanness = clampNum(AXIS.FlickHumanness, 0, 100, 30) / 100
+    local curve = clampNum(AXIS.FlickCurvature, 0, 50, 12) / 100
+    local side = math.random() < 0.5 and -1 or 1
+    local mid = ((fromDir + toDir) / 2 + cf.RightVector * curve * side + cf.UpVector * curve * 0.3 * (math.random() - 0.5))
+    Flick.active = true
+    Flick.target = tgt
+    Flick.start = now
+    Flick.duration = clampNum(AXIS.FlickDuration, 30, 400, 110) / 1000 * (1 + (math.random() - 0.5) * humanness * 0.4)
+    Flick.fromDir, Flick.midDir = fromDir, mid
+    Flick.noise = humanness * 0.02
+end
+
+local trigParams = RaycastParams.new()
+trigParams.FilterType = Enum.RaycastFilterType.Exclude
+local function playerFromPart(part)
+    local node = part
+    while node and node ~= Workspace do
+        local p = Players:GetPlayerFromCharacter(node)
+        if p then return p end
+        node = node.Parent
+    end
+    return nil
+end
+
+-- ------------------------------------------------------------
+-- SILENT AIM: KiciaHook gibi KUSANILAN ESYANIN kendi StartShooting'i sarilir
+-- (modul yamasi yetmiyor: esyalar fonksiyonu kendi tablosunda tasiyor)
+-- ------------------------------------------------------------
+local SilentHook = { item = nil, orig = nil, hadOwn = false, wrapped = nil, depth = 0 }
+
+local function resolveBaseStartShooting(orig)
+    -- esyanin fonksiyonu bir modulun orijinaliyse, modulun guncel (mod'lu) surumunu kullan
+    for mod, fns in pairs(HOOKS) do
+        if fns.StartShooting == orig and type(mod.StartShooting) == "function" then return mod.StartShooting end
+    end
+    return orig
+end
+
+local function unhookSilentItem()
+    local it = SilentHook.item
+    if it and SilentHook.wrapped and rawget(it, "StartShooting") == SilentHook.wrapped then
+        pcall(function() rawset(it, "StartShooting", SilentHook.hadOwn and SilentHook.orig or nil) end)
+    end
+    SilentHook.item, SilentHook.orig, SilentHook.wrapped = nil, nil, nil
+end
+
+local function ensureSilentItemHook(item)
+    if SilentHook.item == item then return end
+    unhookSilentItem()
+    if type(item) ~= "table" or type(item.StartShooting) ~= "function" or not canAimWithItem(item) then return end
+    local own = rawget(item, "StartShooting")
+    local orig = own or item.StartShooting
+    local wrapped
+    wrapped = function(self, ...)
+        local prime = nil
+        if SilentHook.depth == 0 then prime = primeSilentShot(self) end
+        SilentHook.depth += 1
+        local res = table.pack(pcall(resolveBaseStartShooting(orig), self, ...))
+        SilentHook.depth -= 1
+        finishSilentShot(prime)
+        if not res[1] then
+            stats.Errors += 1
+            if AXIS.ShowDebug then warn("[axis] silent StartShooting: " .. tostring(res[2])) end
+            return nil
+        end
+        return table.unpack(res, 2, res.n)
+    end
+    SilentHook.item, SilentHook.orig, SilentHook.hadOwn, SilentHook.wrapped = item, orig, own ~= nil, wrapped
+    rawset(item, "StartShooting", wrapped)
+end
+
+-- ------------------------------------------------------------
+-- AUTO FIRE: Triggerbot + Silent Rapid Fire + Ragebot ayni anda (KiciaHook TryTriggerbotShot)
+-- ------------------------------------------------------------
+local Fire = { target = nil, since = 0, lastShot = 0 }
+local SHOT_FIELDS = { "ShootCooldown", "ShootBurstCooldown", "QuickShotCooldown", "ChargeReleaseCooldown", "AttackCooldown", "BladeCooldown" }
+
+local function weaponShotInterval(item)
+    local info = type(item) == "table" and item.Info or nil
+    local s = 0.05
+    if type(info) == "table" then
+        for _, f in ipairs(SHOT_FIELDS) do
+            if type(info[f]) == "number" then s = math.max(s, info[f]) end
+        end
+    end
+    s = math.max(0.05, s * attackSpeedScale())
+    return math.max(s, clampNum(AXIS.SilentRapidInterval, 0.01, 0.2, 0.03))
+end
+
+local function itemBusy(item)
+    local now = tick()
+    local sc = rawget(item, "_shoot_cooldown")
+    if type(sc) == "number" and sc > now then return true end
+    if itemIsReloading(item) or rawget(item, "_is_charging") == true then return true end
+    local a = itemAmmo(item)
+    return type(a) == "number" and a <= 0
+end
+
+local function cursorTarget(cam, item)
+    local m = UserInputService:GetMouseLocation()
+    local ray = cam:ViewportPointToRay(m.X, m.Y)
+    trigParams.FilterDescendantsInstances = { lp.Character, cam }
+    local hit = Workspace:Raycast(ray.Origin, ray.Direction * 1000, trigParams)
+    local plr = hit and playerFromPart(hit.Instance)
+    if plr and isValidAimTarget(plr, item) then return plr end
+    return nil
+end
+
+local function updateAutoFire(cam, now)
+    local item = equippedItem()
+    local rageFresh = AXIS.Enabled and RageShoot.part ~= nil and RageShoot.part.Parent ~= nil and (now - RageShoot.at) < 0.25
+    local silentOn = AXIS.AimbotEnabled and AXIS.AimbotMode == "Silent" and aimbotActive()
+    local trigOn = AXIS.TriggerbotEnabled and keyState("AXIS_TriggerKey", true)
+    local silentAuto = silentOn and AXIS.SilentRapidFire
+
+    if not (rageFresh or trigOn or silentAuto) then Fire.target = nil return end
+    if not rageFresh and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then Fire.target = nil return end
+    if not canAimWithItem(item) then Fire.target = nil return end
+    if itemBusy(item) then return end
+
+    -- hedef: ragebot hedefi > silent hedefi (gorunen, ekranda) > imlecin altindaki dusman
+    local targetId
+    if rageFresh then
+        targetId = RageShoot.player
+    elseif silentOn then
+        local t = getAimbotTarget(true, false, true)   -- 360 derece: kamera arkaya donukken de ates eder
+        targetId = t and t.player
+    end
+    if not targetId and trigOn then targetId = cursorTarget(cam, item) end
+    if not targetId then Fire.target = nil return end
+
+    if Fire.target ~= targetId then Fire.target, Fire.since = targetId, now end
+    if not rageFresh and trigOn and (now - Fire.since) < clampNum(AXIS.TriggerReaction, 0, 0.1, 0) then return end
+    if (now - Fire.lastShot) < weaponShotInterval(item) then return end
+    Fire.lastShot = now
+    clickOnce()      -- StartShooting -> silent hook mermiyi hedefe cevirir
+end
+
+local function aimRenderStep()
+    if not Running then return end
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local now = tick()
+
+    if fovCircle then
+        fovCircle.Visible = AXIS.AimbotEnabled and AXIS.ShowFOV and not AXIS.IgnoreFOV
+        if fovCircle.Visible then
+            fovCircle.Position = UserInputService:GetMouseLocation()
+            fovCircle.Radius = AXIS.FOVRadius or 282
+        end
+    end
+
+    -- Silent veya Ragebot aciksa kusanilan esyaya silent hook
+    if (AXIS.AimbotEnabled and AXIS.AimbotMode == "Silent") or AXIS.Enabled then
+        ensureSilentItemHook(equippedItem())
+    elseif SilentHook.item then
+        unhookSilentItem()
+    end
+
+    -- Camera modu: sadece nisan alirken (sag tik) yumusak takip
+    if AXIS.AimbotMode == "Camera" and aimbotActive() and not Flick.active
+       and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+       and canAimWithItem(equippedItem()) then
+        local tgt = getAimbotTarget(false)
+        if tgt then
+            local alpha = clampNum(AXIS.AimSpeed, 1, 100, 35) / 100
+            cam.CFrame = cam.CFrame:Lerp(CFrame.lookAt(cam.CFrame.Position, tgt.pos), alpha)
+        end
+    end
+
+    safeCall("Flickbot", updateFlickbot, cam, now)
+    safeCall("AutoFire", updateAutoFire, cam, now)
+end
+RunService:BindToRenderStep("AXIS_Aimbot", Enum.RenderPriority.Camera.Value + 1, function()
+    safeCall("aim", aimRenderStep)
+end)
+
+table.insert(CleanupFns, function()
+    if fovCircle then pcall(function() fovCircle:Remove() end) end
+    unhookSilentItem()
+end)
+
+end)() -- AIMBOT RENDER
+
+;(function() -- ESP (ayri fonksiyon: Luau 200-local siniri)
+-- ============================================================
+-- ESP (Drawing + Highlight)
+-- ============================================================
+local HL_PARENT = (function()
+    if type(gethui) == "function" then
+        local ok, h = pcall(gethui)
+        if ok and typeof(h) == "Instance" then return h end
+    end
+    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+    return ok and cg or nil
+end)()
+
+local function newDrawing(kind, props)
+    if not HAS_DRAWING then return nil end
+    local ok, d = pcall(Drawing.new, kind)
+    if not ok or not d then return nil end
+    for k, v in pairs(props or {}) do pcall(function() d[k] = v end) end
+    return d
+end
+local function setD(d, props) if d then for k, v in pairs(props) do d[k] = v end end end
+local function hideD(d) if d and d.Visible then d.Visible = false end end
+local function removeD(d) if d then pcall(function() d:Remove() end) end end
+
+local function textProps(size) return { Center = true, Outline = true, Size = size or 13, Font = 2, Visible = false } end
+
+-- Rank (SeasonLibrary + DisplayELO) ve Win Streak (StatisticDuelsWinStreak)
+local RankProfile
+local function resolveRankName(elo)
+    elo = tonumber(elo)
+    if not elo then return "Unranked" end
+    if not RankProfile then
+        local lib = requirePath(ReplicatedStorage, "Modules", "SeasonLibrary")
+        local season = lib and lib.CurrentSeason
+        local profile = type(season) == "table" and season.RankProfile or nil
+        local pname = type(profile) == "table" and profile.Name or nil
+        if lib and type(lib.RankProfiles) == "table" and pname then profile = lib.RankProfiles[pname] or profile end
+        if type(profile) == "table" and type(profile.RanksOrder) == "table" and type(profile.Ranks) == "table" then
+            RankProfile = { order = profile.RanksOrder, ranks = profile.Ranks }
+        else
+            return "Unranked"
+        end
+    end
+    local order, ranks = RankProfile.order, RankProfile.ranks
+    for i, name in ipairs(order) do
+        local r = ranks[name]
+        if type(r) == "table" and type(r.RequiredELO) == "number" and elo < r.RequiredELO and r.RequiredELOLeaderboardRanking == nil then
+            return order[math.clamp(i - 1, 1, #order)] or "Unranked"
+        end
+    end
+    for i = #order, 1, -1 do
+        local r = ranks[order[i]]
+        if type(r) == "table" and r.RequiredELOLeaderboardRanking == nil then return order[i] end
+    end
+    return "Unranked"
+end
+
+local ESP = {}
+local function espCreate(plr)
+    local e = {
+        boxOutline = newDrawing("Square", { Thickness = 3, Filled = false, Color = Color3.new(0, 0, 0), Visible = false }),
+        box        = newDrawing("Square", { Thickness = 1, Filled = false, Visible = false }),
+        name       = newDrawing("Text", textProps(13)),
+        status     = newDrawing("Text", textProps(12)),
+        hpBg       = newDrawing("Square", { Filled = true, Color = Color3.new(0, 0, 0), Transparency = 0.7, Visible = false }),
+        hpFill     = newDrawing("Square", { Filled = true, Visible = false }),
+        hpText     = newDrawing("Text", { Center = false, Outline = true, Size = 12, Font = 2, Visible = false }),
+        weapon     = newDrawing("Text", textProps(12)),
+        ammo       = newDrawing("Text", textProps(12)),
+        dist       = newDrawing("Text", textProps(12)),
+        look       = newDrawing("Line", { Thickness = 1.5, Visible = false }),
+        arrow      = newDrawing("Triangle", { Filled = true, Thickness = 1, Visible = false }),
+        hl = nil, visAt = 0, visible = false, rankAt = 0, rank = "Unranked",
+    }
+    ESP[plr] = e
+    return e
+end
+local DRAW_KEYS = { "boxOutline", "box", "name", "status", "hpBg", "hpFill", "hpText", "weapon", "ammo", "dist", "look", "arrow" }
+local function espHide(e)
+    for _, k in ipairs(DRAW_KEYS) do hideD(e[k]) end
+    if e.hl then e.hl.Enabled = false end
+end
+local function espDestroy(plr)
+    local e = ESP[plr]
+    if not e then return end
+    for _, k in ipairs(DRAW_KEYS) do removeD(e[k]) end
+    if e.hl then pcall(function() e.hl:Destroy() end) end
+    ESP[plr] = nil
+end
+
+local function espDrawPlayer(e, plr, char, hum, hrp, cam, vp, dist, now)
+    -- gorunurluk (0.1 sn'de bir raycast)
+    if now - e.visAt > 0.1 then
+        e.visAt = now
+        e.visible = isPartVisible(char:FindFirstChild("HitboxHead") or char:FindFirstChild("Head") or hrp, char)
+    end
+    local color = e.visible and AXIS.ESPVisibleColor or AXIS.ESPHiddenColor
+
+    -- Highlight
+    if AXIS.ESPHighlight and HL_PARENT then
+        if not e.hl or not e.hl.Parent then
+            local ok, hl = pcall(function()
+                local h = Instance.new("Highlight")
+                h.Name = "AXIS_HL"
+                h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                h.Parent = HL_PARENT
+                return h
+            end)
+            e.hl = ok and hl or nil
+        end
+        if e.hl then
+            e.hl.Adornee = char
+            e.hl.FillColor, e.hl.OutlineColor = color, color
+            e.hl.FillTransparency = clampNum(AXIS.ESPFillOpacity, 0, 1, 1)
+            e.hl.OutlineTransparency = clampNum(AXIS.ESPOutlineOpacity, 0, 1, 0)
+            e.hl.Enabled = true
+        end
+    elseif e.hl then
+        e.hl.Enabled = false
+    end
+
+    local pos, onScreen = cam:WorldToViewportPoint(hrp.Position)
+    if not onScreen or pos.Z <= 0 then
+        for _, k in ipairs(DRAW_KEYS) do if k ~= "arrow" then hideD(e[k]) end end
+        if AXIS.ESPArrows and e.arrow then
+            local rel = cam.CFrame:PointToObjectSpace(hrp.Position)
+            local d = Vector2.new(rel.X, rel.Z)
+            d = d.Magnitude > 0 and d.Unit or Vector2.new(0, -1)
+            local center = vp / 2
+            local r = math.min(vp.X, vp.Y) / 2 - 60
+            local base = center + d * r
+            local perp = Vector2.new(-d.Y, d.X)
+            setD(e.arrow, { PointA = base + d * 14, PointB = base + perp * 8, PointC = base - perp * 8, Color = color, Visible = true })
+        else
+            hideD(e.arrow)
+        end
+        return
+    end
+    hideD(e.arrow)
+
+    local top = cam:WorldToViewportPoint(hrp.Position + Vector3.new(0, 3, 0))
+    local bottom = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3.5, 0))
+    local h = math.max(math.abs(bottom.Y - top.Y), 6)
+    local w = h * 0.6
+    local x, y = pos.X - w / 2, top.Y
+
+    if AXIS.ESPBox then
+        setD(e.boxOutline, { Position = Vector2.new(x, y), Size = Vector2.new(w, h), Visible = true })
+        setD(e.box, { Position = Vector2.new(x, y), Size = Vector2.new(w, h), Color = color, Visible = true })
+    else
+        hideD(e.box) hideD(e.boxOutline)
+    end
+
+    local textTop = y - 2
+    if AXIS.ESPHealth then
+        local hp, maxHp = hum.Health, math.max(hum.MaxHealth, 1)
+        local frac = math.clamp(hp / maxHp, 0, 1)
+        local hpColor = Color3.fromRGB(255, 40, 40):Lerp(Color3.fromRGB(40, 255, 40), frac)
+        if AXIS.ESPVerticalHealth then
+            setD(e.hpBg, { Position = Vector2.new(x - 6, y), Size = Vector2.new(4, h), Visible = true })
+            setD(e.hpFill, { Position = Vector2.new(x - 5, y + 1 + (h - 2) * (1 - frac)), Size = Vector2.new(2, (h - 2) * frac), Color = hpColor, Visible = true })
+            setD(e.hpText, { Text = tostring(math.floor(hp)), Position = Vector2.new(x - 30, y + (h - 2) * (1 - frac) - 6), Color = hpColor, Visible = true })
+        else
+            setD(e.hpBg, { Position = Vector2.new(x, textTop - 5), Size = Vector2.new(w, 5), Visible = true })
+            setD(e.hpFill, { Position = Vector2.new(x + 1, textTop - 4), Size = Vector2.new(math.max((w - 2) * frac, 0), 3), Color = hpColor, Visible = true })
+            setD(e.hpText, { Text = math.floor(hp) .. " HP", Position = Vector2.new(x + w + 4, textTop - 10), Color = hpColor, Visible = true })
+            textTop = textTop - 7
+        end
+    else
+        hideD(e.hpBg) hideD(e.hpFill) hideD(e.hpText)
+    end
+
+    if AXIS.ESPNames then
+        setD(e.name, { Text = plr.DisplayName, Position = Vector2.new(pos.X, textTop - 14), Color = Color3.new(1, 1, 1), Visible = true })
+        textTop = textTop - 14
+    else
+        hideD(e.name)
+    end
+
+    local fighter = getFighter(plr)
+    local item = fighter and fighter.EquippedItem
+
+    -- durum satiri: DEFLECTING / Rank / Win Streak
+    local parts = {}
+    if AXIS.ESPDeflecting and isKatanaDeflecting(item) then table.insert(parts, "DEFLECTING") end
+    if AXIS.ESPRank then
+        if now - e.rankAt > 5 then e.rankAt = now e.rank = resolveRankName(plr:GetAttribute("DisplayELO")) end
+        table.insert(parts, e.rank)
+    end
+    if AXIS.ESPWinStreak then
+        local ws = math.floor(tonumber(plr:GetAttribute("StatisticDuelsWinStreak")) or 0)
+        if ws > 0 then table.insert(parts, ws .. " WS") end
+    end
+    if #parts > 0 then
+        setD(e.status, { Text = table.concat(parts, " | "), Position = Vector2.new(pos.X, textTop - 13), Color = Color3.fromRGB(255, 200, 80), Visible = true })
+    else
+        hideD(e.status)
+    end
+
+    local textBottom = y + h + 2
+    if AXIS.ESPWeapon and type(item) == "table" then
+        local reloading = itemIsReloading(item) and item.Info ~= nil and item.Info.ReloadType ~= nil
+        setD(e.weapon, { Text = reloading and "*Reloading*" or tostring(item.Name), Position = Vector2.new(pos.X, textBottom), Color = Color3.fromRGB(200, 200, 255), Visible = true })
+        textBottom = textBottom + 13
+    else
+        hideD(e.weapon)
+    end
+    if AXIS.ESPAmmo and type(item) == "table" then
+        local a, r = itemAmmo(item), itemReserve(item)
+        local maxA = type(item.Info) == "table" and item.Info.MaxAmmo or nil
+        local txt
+        if type(a) == "number" then
+            if type(r) == "number" then txt = math.floor(a) .. "/" .. math.floor(r)
+            elseif type(maxA) == "number" then txt = math.floor(a) .. "/" .. math.floor(maxA)
+            else txt = tostring(math.floor(a)) end
+        end
+        if txt then
+            setD(e.ammo, { Text = txt, Position = Vector2.new(pos.X, textBottom), Color = Color3.fromRGB(200, 200, 255), Visible = true })
+            textBottom = textBottom + 13
+        else
+            hideD(e.ammo)
+        end
+    else
+        hideD(e.ammo)
+    end
+    if AXIS.ESPDistance then
+        setD(e.dist, { Text = "[" .. math.floor(dist) .. "m]", Position = Vector2.new(pos.X, textBottom), Color = Color3.new(1, 1, 1), Visible = true })
+    else
+        hideD(e.dist)
+    end
+
+    if AXIS.ESPLookDirection then
+        local head = char:FindFirstChild("Head") or char:FindFirstChild("HitboxHead")
+        if head then
+            local a = cam:WorldToViewportPoint(head.Position)
+            local b = cam:WorldToViewportPoint(head.Position + head.CFrame.LookVector * 8)
+            if a.Z > 0 and b.Z > 0 then
+                setD(e.look, { From = Vector2.new(a.X, a.Y), To = Vector2.new(b.X, b.Y), Color = AXIS.ESPLookColor, Visible = true })
+            else
+                hideD(e.look)
+            end
+        else
+            hideD(e.look)
+        end
+    else
+        hideD(e.look)
+    end
+end
+
+-- Throwable / World Item ESP
+local THROWABLE_NAMES = {
+    ["Throwable - Grenade"]   = { Color = Color3.fromRGB(255, 80, 80),  Label = "GRENADE" },
+    ["Throwable - Flashbang"] = { Color = Color3.fromRGB(255, 255, 100), Label = "FLASH" },
+    ["Throwable - Molotov"]   = { Color = Color3.fromRGB(255, 120, 0),  Label = "MOLOTOV" },
+    ["Throwable - Smoke"]     = { Color = Color3.fromRGB(200, 200, 200), Label = "SMOKE" },
+    ["Smoke Grenade"]         = { Color = Color3.fromRGB(200, 200, 200), Label = "SMOKE" },
+    ["Satchel"]               = { Color = Color3.fromRGB(255, 50, 50),  Label = "SATCHEL" },
+    ["SubspaceTripmineHitbox"] = { Color = Color3.fromRGB(255, 50, 50), Label = "TRIPMINE" },
+    ["Flare Gun"]             = { Color = Color3.fromRGB(255, 50, 50),  Label = "FLARE GUN" },
+}
+local Throwables = {}
+local function trackThrowable(inst)
+    if Throwables[inst] or not THROWABLE_NAMES[inst.Name] then return end
+    if not (inst:IsA("BasePart") or inst:IsA("Model")) then return end
+    if Players:GetPlayerFromCharacter(inst) then return end
+    Throwables[inst] = newDrawing("Text", textProps(12)) or false
+end
+-- KiciaHook gibi sadece Workspace'in dogrudan cocuklari izlenir (tum harita taranmaz -> donma yok)
+track(Workspace.ChildAdded:Connect(trackThrowable))
+task.spawn(function()
+    for i, d in ipairs(Workspace:GetChildren()) do
+        trackThrowable(d)
+        if i % 200 == 0 then task.wait() end
+    end
+end)
+
+local function updateThrowables(cam, myPos)
+    for inst, label in pairs(Throwables) do
+        if not inst.Parent or not inst:IsDescendantOf(Workspace) then
+            if label then removeD(label) end
+            Throwables[inst] = nil
+        elseif label then
+            if AXIS.ESPEnabled and AXIS.ESPThrowables then
+                local p = inst:IsA("BasePart") and inst.Position or inst:GetPivot().Position
+                local sp, on = cam:WorldToViewportPoint(p)
+                if on and sp.Z > 0 then
+                    local info = THROWABLE_NAMES[inst.Name]
+                    setD(label, { Text = info.Label .. " [" .. math.floor((p - myPos).Magnitude) .. "m]",
+                        Position = Vector2.new(sp.X, sp.Y), Color = info.Color, Visible = true })
+                else
+                    hideD(label)
+                end
+            else
+                hideD(label)
+            end
+        end
+    end
+end
+
+local espWasOn = false
+local function espRenderStep()
+    if not Running then return end
+    if not AXIS.ESPEnabled then
+        if espWasOn then
+            espWasOn = false
+            for _, e in pairs(ESP) do espHide(e) end
+            for _, label in pairs(Throwables) do if label then hideD(label) end end
+        end
+        return
+    end
+    espWasOn = true
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local now = tick()
+    local vp = cam.ViewportSize
+    local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    -- void'deyken mesafe kameraya gore hesaplanir
+    local myPos = (myHrp and not VOID_STATES[GameState]) and myHrp.Position or cam.CFrame.Position
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp then
+            local e = ESP[plr] or espCreate(plr)
+            local char = plr.Character
+            local hum = aliveHumanoid(char)
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local show = AXIS.ESPEnabled and hum ~= nil and hrp ~= nil and (AXIS.ESPTeammates or not isTeammate(plr))
+            local dist = show and (hrp.Position - myPos).Magnitude or 0
+            if show and dist > (AXIS.ESPMaxDistance or 2000) then show = false end
+            if show then
+                local ok, err = pcall(espDrawPlayer, e, plr, char, hum, hrp, cam, vp, dist, now)
+                if not ok then espHide(e) stats.Errors += 1 if AXIS.ShowDebug then warn("[axis] ESP: " .. tostring(err)) end end
+            else
+                espHide(e)
+            end
+        end
+    end
+    for plr in pairs(ESP) do if plr.Parent ~= Players then espDestroy(plr) end end
+    updateThrowables(cam, myPos)
+end
+RunService:BindToRenderStep("AXIS_ESP", Enum.RenderPriority.Camera.Value + 2, function()
+    safeCall("esp", espRenderStep)
+end)
+track(Players.PlayerRemoving:Connect(espDestroy))
+
+table.insert(CleanupFns, function()
+    for plr in pairs(ESP) do espDestroy(plr) end
+    for inst, label in pairs(Throwables) do if label then removeD(label) end Throwables[inst] = nil end
+end)
+end)() -- ESP
+
+;(function() -- AUTOMATION (ayri fonksiyon: Luau 200-local siniri)
+-- ============================================================
+-- AUTOMATION: AUTO HEAL / AUTO AMMO PICKUP (KiciaHook _drop mantigi)
+-- Workspace'teki "_drop" parcalari: "Health" -> can, "AmmoBalanced"/"Ammo" -> mermi
+-- ============================================================
+local Drops = {}
+local function dropKind(drop)
+    if not drop:IsA("BasePart") or drop.Name ~= "_drop" then return nil end
+    if drop:FindFirstChild("Health") then return "Health" end
+    if drop:FindFirstChild("AmmoBalanced") or drop:FindFirstChild("Ammo") then return "Ammo" end
+    return nil
+end
+local function watchDrop(c) if c.Name == "_drop" and c:IsA("BasePart") then Drops[c] = true end end
+for _, c in ipairs(Workspace:GetChildren()) do watchDrop(c) end
+track(Workspace.ChildAdded:Connect(watchDrop))
+track(Workspace.ChildRemoved:Connect(function(c) Drops[c] = nil end))
+
+local function pickupTouchPart()
+    local char = lp.Character
+    return char and (char:FindFirstChild("HitboxBody") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart"))
+end
+
+local function nearestDrop(kind, touchPart)
+    local best, bestD
+    for drop in pairs(Drops) do
+        if drop.Parent ~= Workspace then
+            Drops[drop] = nil
+        elseif dropKind(drop) == kind and drop.CanTouch and drop:FindFirstChildOfClass("TouchTransmitter") then
+            local d = (drop.Position - touchPart.Position).Magnitude
+            if not bestD or d < bestD then best, bestD = drop, d end
+        end
+    end
+    return best
+end
+
+local function touchDrop(drop, touchPart)
+    if type(firetouchinterest) ~= "function" then return false end
+    pcall(firetouchinterest, touchPart, drop, 0)
+    task.defer(function()
+        if drop.Parent and touchPart.Parent then pcall(firetouchinterest, touchPart, drop, 1) end
+    end)
+    return true
+end
+
+loop(0.05, function()
+    if not (AXIS.AutoHeal or AXIS.AutoAmmo) then return end
+    local char = lp.Character
+    local hum = aliveHumanoid(char)
+    local touchPart = pickupTouchPart()
+    if not hum or not touchPart then return end
+    if AXIS.AutoHeal then
+        local hp, maxHp = getRealHealth(hum)
+        if (maxHp - hp) >= clampNum(AXIS.AutoHealMissing, 1, 100, 25) then
+            local drop = nearestDrop("Health", touchPart)
+            if drop and touchDrop(drop, touchPart) then return end
+        end
+    end
+    if AXIS.AutoAmmo then
+        local item = equippedItem()
+        local a, r = itemAmmo(item), itemReserve(item)
+        local need = (type(a) == "number" and a <= 0)
+            or (AXIS.AutoAmmoOnEmptyReserve and type(r) == "number" and r <= 0)
+        if need then
+            local drop = nearestDrop("Ammo", touchPart)
+            if drop then touchDrop(drop, touchPart) end
+        end
+    end
+end)
+
+end)() -- AUTOMATION
+
+-- ============================================================
+-- AUTO QUEUE (KiciaHook RivalsAutoQueue uyarlamasi)
+-- ============================================================
+local AUTO_QUEUE_FALLBACK = { "1v1", "2v2", "3v3", "4v4", "5v5", "ranked_1v1", "ranked_2v2", "ranked_3v3" }
+local AutoQueue = { believed = "idle", lastFire = 0, modes = nil, map = nil, arcade = {} }
+
+local function resolveQueueModes()
+    if AutoQueue.modes then return AutoQueue.modes end
+    local duel = requirePath(ReplicatedStorage, "Modules", "DuelLibrary")
+    local queues = duel and type(duel.MatchmakingQueues) == "table" and duel.MatchmakingQueues or {}
+    local serverTime = os.time()
+    local sot = requirePath(ReplicatedStorage, "Modules", "ServerOsTime")
+    if sot and type(sot.Get) == "function" then
+        local ok, t = pcall(sot.Get, sot)
+        if ok and type(t) == "number" then serverTime = t end
+    end
+    local keys, seen = {}, {}
+    local function add(k) if type(k) == "string" and k ~= "" and not seen[k] then seen[k] = true table.insert(keys, k) end end
+    if duel and type(duel.MatchmakingQueueOrder) == "table" then
+        for _, k in ipairs(duel.MatchmakingQueueOrder) do
+            local info = queues[k]
+            local rel = type(info) == "table" and tonumber(info.TerminalsReleaseTime) or nil
+            if type(info) == "table" and info.CanBeStartedFromClient ~= false and (not rel or rel <= serverTime) then add(k) end
+        end
+    end
+    pcall(function() for _, pad in ipairs(CollectionService:GetTagged("QueuePad")) do add(pad:GetAttribute("QueueName")) end end)
+    local rot = requirePath(ReplicatedStorage, "Modules", "RotatingQueueLibrary")
+    if rot and type(rot.GetCurrent) == "function" then
+        local ok, cur = pcall(function() return rot:GetCurrent() end)
+        if ok and type(cur) == "table" and type(cur.QueueNames) == "table" then for _, q in ipairs(cur.QueueNames) do add(q) end end
+    end
+    AutoQueue.arcade = duel and type(duel.ArcadeModes) == "table" and duel.ArcadeModes or {}
+    if duel and type(duel.ArcadeModeOrder) == "table" then for _, k in ipairs(duel.ArcadeModeOrder) do add(k) end end
+    if #keys == 0 then for _, k in ipairs(AUTO_QUEUE_FALLBACK) do add(k) end end
+
+    local displays, map, seenD = {}, {}, {}
+    for _, k in ipairs(keys) do
+        local info = queues[k] or AutoQueue.arcade[k]
+        local d = (type(info) == "table" and type(info.DisplayName) == "string" and info.DisplayName ~= "") and info.DisplayName or k
+        if not seenD[d] then seenD[d] = true table.insert(displays, d) map[d] = k end
+    end
+    AutoQueue.modes, AutoQueue.map = displays, map
+    return displays
+end
+
+local function playerController(name)
+    return requirePath(lp:FindFirstChild("PlayerScripts"), "Controllers", name)
+end
+local function queueRemote(folder, name)
+    local r = ReplicatedStorage:FindFirstChild("Remotes")
+    r = r and r:FindFirstChild(folder)
+    return r and r:FindFirstChild(name)
+end
+
+local function canFireQueue()
+    if Workspace:GetAttribute("MatchmadeStatus") ~= "Started" then return true end
+    return Workspace:GetAttribute("MatchmadeGameOver") == true
+end
+
+local function autoQueueJoin()
+    if not AXIS.AutoQueue or not canFireQueue() then return false end
+    if AutoQueue.believed == "queued" or AutoQueue.believed == "matched" then return false end
+    if tick() - AutoQueue.lastFire < 2 then return false end
+    AutoQueue.lastFire = tick()
+    resolveQueueModes()
+    local key = AutoQueue.map[AXIS.AutoQueueMode] or AXIS.AutoQueueMode
+    if type(key) ~= "string" or key == "" then return false end
+
+    local arcade = AutoQueue.arcade[key]
+    if arcade then
+        local placeId = tonumber(arcade.PlaceID)
+        if placeId and game.PlaceId == placeId then return true end
+        local ctl = playerController("ArcadeController")
+        local ok, res
+        if ctl and type(ctl.ToArcadeServer) == "function" then
+            ok, res = pcall(ctl.ToArcadeServer, ctl, key)
+        else
+            local rem = queueRemote("Arcade", "TeleportToArcadeServer")
+            if rem then ok, res = pcall(function() return rem:InvokeServer(key) end) end
+        end
+        if ok and not (type(res) == "string" and res ~= "") then AutoQueue.believed = "matched" return true end
+        return false
+    end
+
+    local ctl = playerController("MatchmakingController")
+    if ctl and type(ctl.QueueInto) == "function" then
+        local ok, res = pcall(function() return ctl:QueueInto(key) end)
+        if ok and not (type(res) == "string" and #res > 0) then
+            AutoQueue.believed = "queued"
+            log("Auto Queue: " .. key)
+            return true
+        end
+    else
+        local rem = queueRemote("Matchmaking", "JoinQueue")
+        if rem and rem:IsA("RemoteFunction") then
+            local ok, res = pcall(function() return rem:InvokeServer(key) end)
+            if ok and not (type(res) == "string" and #res > 0) then AutoQueue.believed = "queued" return true end
+        end
+    end
+    return false
+end
+
+local function autoQueueLeave()
+    if AutoQueue.believed == "idle" then return end
+    local ctl = playerController("MatchmakingController")
+    if ctl and type(ctl.TryLeaveQueue) == "function" then
+        pcall(function() ctl:TryLeaveQueue() end)
+    else
+        local rem = queueRemote("Matchmaking", "TryLeaveQueue") or queueRemote("Matchmaking", "LeaveQueue")
+        if rem and rem:IsA("RemoteEvent") then pcall(function() rem:FireServer() end) end
+    end
+    AutoQueue.believed = "idle"
+end
+
+-- mac basladi -> matched; mac bitti / lobiye donus -> idle ve tekrar kuyruk
+track(Workspace:GetAttributeChangedSignal("MatchmadeStatus"):Connect(function()
+    if Workspace:GetAttribute("MatchmadeStatus") == "Started" then AutoQueue.believed = "matched"
+    elseif AutoQueue.believed == "matched" then AutoQueue.believed = "idle" end
+end))
+track(Workspace:GetAttributeChangedSignal("MatchmadeGameOver"):Connect(function()
+    if Workspace:GetAttribute("MatchmadeGameOver") == true then AutoQueue.believed = "idle" end
+end))
+loop(1, function()
+    if AXIS.AutoQueue then
+        -- 'queued' iken 30 sn'den uzun mac gelmezse kuyruk yeniden denenir
+        if AutoQueue.believed == "queued" and tick() - AutoQueue.lastFire > 30 and canFireQueue() then AutoQueue.believed = "idle" end
+        autoQueueJoin()
+    end
+end)
+
+-- ============================================================
+-- HARION RAGEBOT ("Harion enhancement.lua" Ragebot modulunden uyarlandi)
+-- csync: Heartbeat'te kok parca hedef konuma yazilir (sunucu bunu gorur), render oncesi
+-- gercek konuma geri alinir -> sen yerinde kalirsin, kapatinca zaten eski yerindesin.
+-- Stud ayari: "Teleport Offset Y" (-5..50) dikey, "Distance" yatay mesafe.
+-- ============================================================
+;(function()
+local slotKey = { [1] = Enum.KeyCode.One, [2] = Enum.KeyCode.Two, [3] = Enum.KeyCode.Three, [4] = Enum.KeyCode.Four }
+local state = {
+    active = false, target = nil, conn = nil, ammoThread = nil, voidThread = nil, voidHbConn = nil,
+    csyncHbConn = nil, voidExposed = false, voidTargetCF = nil, nextTeleportAt = 0, ammoActionAt = 0,
+    hideOrbitUntil = 0, randPos = nil, randT = 0, lastFakePos = nil, csyncCF = nil, csyncLV = nil,
+    csyncAV = nil, csyncLocalCF = nil, csyncLocalLV = nil, csyncLocalAV = nil, csyncWroteFake = false,
+    noclipAt = 0, collide = setmetatable({}, { __mode = "k" }), suspended = false, charConn = nil,
+}
+local rbGen, rbDuelMod, rbInMatchT, rbInMatch, rbTgtT = 0, nil, 0, false, 0
+local rangeChecked, rangeCache = 0, false
+
+local function stud() return clampNum(AXIS.TeleportOffsetY, -5, 50, 1) end
+AXIS.RageMode = "Teleport"
+local function dist() return clampNum(AXIS.RageDistance, 0, 15, 2.5) end
+local function getRoot(char) return char and char:FindFirstChild("HumanoidRootPart") end
+
+local function isShootingRange()
+    local now = os.clock()
+    if now - rangeChecked < 0.5 then return rangeCache end
+    rangeChecked = now
+    rangeCache = false
+    local function matches(v)
+        if v == nil then return false end
+        local t = tostring(v):lower():gsub("[%s_%-]", "")
+        return t:find("shootingrange", 1, true) ~= nil or t:find("firingrange", 1, true) ~= nil
+    end
+    for _, obj in ipairs({ Workspace, lp }) do
+        for _, attr in ipairs({ "Map", "MapName", "Mode", "GameMode", "Arena", "Environment", "EnvironmentName", "ShootingRange" }) do
+            local v = obj:GetAttribute(attr)
+            if (v == true and attr == "ShootingRange") or matches(v) then rangeCache = true return true end
+        end
+    end
+    return false
+end
+
+local function pressKey(kc)
+    task.spawn(function()
+        local v = getVIM()
+        if not v then return end
+        pcall(function() v:SendKeyEvent(true, kc, false, game) end)
+        task.wait(0.03)
+        pcall(function() v:SendKeyEvent(false, kc, false, game) end)
+    end)
+end
+
+local function scanWeapon(plr)
+    local vms = Workspace:FindFirstChild("ViewModels")
+    if not vms then return "" end
+    for _, model in ipairs(vms:GetChildren()) do
+        if model:IsA("Model") then
+            local sp = model.Name:find(" - ", 1, true)
+            if sp and model.Name:sub(1, sp - 1) == plr.Name then return model.Name:sub(sp + 3):lower() end
+        end
+    end
+    return ""
+end
+
+local function playerIsDead(plr)
+    local char = plr and plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return not char or not hum or hum.Health <= 0 or not getRoot(char)
+end
+
+local function isInvincible(plr)
+    local char = plr and plr.Character
+    local root = getRoot(char)
+    if not root then return true end
+    for _, obj in ipairs(root:GetChildren()) do
+        if obj:IsA("Attachment") and obj.Name == "Attachment" then return true end
+    end
+    return char:FindFirstChild("InvincibilityParticles", true) ~= nil
+end
+
+local function isKatana(plr) return scanWeapon(plr):find("katana", 1, true) ~= nil end
+local function isRiotShield(plr)
+    local w = scanWeapon(plr)
+    return w:find("riot", 1, true) ~= nil or w:find("shield", 1, true) ~= nil
+end
+local function sameMatch(plr) return plr:GetAttribute("EnvironmentID") == lp:GetAttribute("EnvironmentID") end
+
+local function isNearOtherMatch(pos, ignore)
+    if typeof(pos) ~= "Vector3" then return false end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp and plr ~= ignore and not sameMatch(plr) then
+            local r = getRoot(plr.Character)
+            if r and (r.Position - pos).Magnitude <= 1000 then return true end
+        end
+    end
+    return false
+end
+
+local function shouldSkip(plr)
+    if plr == lp or playerIsDead(plr) then return true end
+    if not sameMatch(plr) or isInvincible(plr) then return true end
+    local r = getRoot(plr.Character)
+    if r and isNearOtherMatch(r.Position, plr) then return true end
+    return r and r:FindFirstChild("TeammateLabel") ~= nil
+end
+
+local function getBestTarget()
+    local root = getRoot(lp.Character)
+    if not root then return nil end
+    local best, bestV = nil, math.huge
+    local useHP = AXIS.RageTargetMode == "Lowest Health"
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if not shouldSkip(plr) then
+            local char = plr.Character
+            local tr = getRoot(char)
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local v = useHP and hum.Health or (tr.Position - root.Position).Magnitude
+            if AXIS.RageAutoPriority then
+                if AXIS.RagePriorityVoided and tr.Position.Magnitude > 1000000 then v -= 2000000000 end
+                if AXIS.RagePriorityAttackers and scanWeapon(plr) ~= "" then v -= 1000000000 end
+            end
+            if v < bestV then bestV, best = v, plr end
+        end
+    end
+    return best
+end
+
+local function hasValidTarget()
+    return state.target ~= nil and not playerIsDead(state.target) and not isInvincible(state.target)
+end
+
+local function setStatus()
+    local t = hasValidTarget() and state.target or nil
+    local voiding = not t or ((AXIS.RageMode == "Void" or AXIS.RageMode == "Orbit") and not state.voidExposed)
+    if state.active then setGameState(voiding and "RAGE_VOID" or ("RAGE: " .. t.Name)) end
+end
+
+local function shouldShoot()
+    if not hasValidTarget() or isKatana(state.target) then return false end
+    if AXIS.RageMode == "Void" and not state.voidExposed then return false end
+    return true
+end
+
+local function equippedSlot()
+    local item = equippedItem()
+    local s = itemGet(item, "Slot")
+    return tonumber(s)
+end
+
+local function autoEquipPreferred()
+    if not AXIS.RageAutoEquip then return end
+    local pref = AXIS.RagePreferredWeapon or "primary"
+    local want = (pref == "secondary" and 2) or (pref == "melee" and 3) or 1
+    local slot = equippedSlot()
+    if slot and slot ~= want and tick() >= (state.ammoActionAt or 0) and tick() >= (state.equipAt or 0) then
+        state.equipAt = tick() + 0.5
+        pressKey(slotKey[want])
+    end
+end
+
+local function handleAmmo()
+    local fighter = localFighter()
+    local item = fighter and fighter.EquippedItem
+    if not fighter or not item then return false end
+    local ammo = itemGet(item, "Ammo") or 0
+    local slot = itemGet(item, "Slot") or 1
+    local now = tick()
+    local reloading = false
+    pcall(function() reloading = fighter:Get("Reloading") == true end)
+    if reloading or itemIsReloading(item) then
+        state.hideOrbitUntil = math.max(state.hideOrbitUntil or 0, now + 0.25)
+        state.ammoActionAt = math.max(state.ammoActionAt or 0, now + 0.1)
+        return true
+    end
+    if type(ammo) ~= "number" or ammo > 0 then return false end
+    if now < (state.ammoActionAt or 0) then return true end
+    if not AXIS.RageAutoSwap then return true end
+    local primary = AXIS.RagePreferredWeapon == "secondary" and 2 or 1
+    local secondary = primary == 1 and 2 or 1
+    if slot == primary then
+        state.ammoActionAt = now + 0.45
+        state.hideOrbitUntil = math.max(state.hideOrbitUntil or 0, now + 0.45)
+        pressKey(slotKey[secondary])
+        return true
+    end
+    if slot == secondary then
+        state.ammoActionAt = now + 0.6
+        state.hideOrbitUntil = math.max(state.hideOrbitUntil or 0, now + 0.75)
+        pressKey(slotKey[primary])
+        task.delay(0.18, function()
+            if not state.active then return end
+            local i2 = equippedItem()
+            if i2 and (itemGet(i2, "Slot") or 1) == primary and (itemGet(i2, "Ammo") or 0) <= 0 then pressKey(Enum.KeyCode.R) end
+        end)
+        return true
+    end
+    state.ammoActionAt = now + 0.5
+    pressKey(Enum.KeyCode.R)
+    return true
+end
+
+local function buildCameraData(fromPos, part)
+    if not Utility or not part then return nil end
+    local look = CFrame.new(fromPos, part.Position)
+    local data = {
+        [utf8.char(1)] = {
+            [utf8.char(0)] = Utility:EncodeCFrame(look),
+            [utf8.char(1)] = Utility:EncodeCFrame(look),
+            [utf8.char(2)] = part,
+            [utf8.char(3)] = Utility:EncodeCFrame(part.CFrame:ToObjectSpace(CFrame.new(part.Position))),
+        },
+    }
+    if AXIS.ModNoSpread or AXIS.HarionNoSpread then data[utf8.char(2)] = true end
+    return data
+end
+
+local function doFire(part)
+    local fighter = localFighter()
+    local item = fighter and fighter.EquippedItem
+    if not item or not part then return false end
+    local cam = Workspace.CurrentCamera
+    local fromPos = (AXIS.RageMode == "Teleport" and state.lastTpPos) or (state.csyncCF and state.csyncCF.Position) or (cam and cam.CFrame.Position) or part.Position
+    local any = false
+    for _ = 1, math.clamp(math.floor(AXIS.RageShootAttempts or 1), 1, 10) do
+        local fired = false
+        local ammo = itemGet(item, "Ammo") or 0
+        if EnumLibrary and Utility and type(ammo) == "number" and ammo > 0 then
+            local oid = itemGet(item, "ObjectID")
+            local data = buildCameraData(fromPos, part)
+            if oid and data then
+                fired = pcall(function() UseItemRemote:FireServer(oid, START_SHOOTING, data, nil) end)
+            end
+        end
+        if not fired and type(item.UseItem) == "function" then fired = pcall(function() item:UseItem() end) end
+        any = any or fired
+    end
+    if any then stats.Shots += 1 end
+    return any
+end
+
+local function isLobby()
+    local pg = lp:FindFirstChild("PlayerGui")
+    local mg = pg and pg:FindFirstChild("MainGui")
+    local mf = mg and mg:FindFirstChild("MainFrame")
+    local lobby = mf and mf:FindFirstChild("Lobby")
+    local cur = lobby and lobby:FindFirstChild("Currency")
+    return cur ~= nil and cur.Visible == true
+end
+
+local function getDuel()
+    if not rbDuelMod then rbDuelMod = requirePath(lp:FindFirstChild("PlayerScripts"), "Controllers", "DuelController") end
+    if rbDuelMod and rbDuelMod.GetDuel then
+        local ok, duel = pcall(rbDuelMod.GetDuel, rbDuelMod, lp)
+        if ok then return duel end
+    end
+    return nil
+end
+
+local function inMatch()
+    local now = tick()
+    if now - rbInMatchT < 0.25 then return rbInMatch end
+    rbInMatchT = now
+    local ok = false
+    if not isLobby() and not isShootingRange() then
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if char and getRoot(char) and hum and hum.Health > 0 then
+            ok = getDuel() ~= nil or localFighter() ~= nil
+        end
+    end
+    rbInMatch = ok
+    return ok
+end
+
+-- konumlar: stud (dikey) ve distance (yatay) UI'dan
+local function voidShootPos(tr)
+    return tr.Position - tr.CFrame.LookVector * dist() + Vector3.new(0, stud(), 0)
+end
+local function shieldPos(tr)
+    return tr.Position - tr.CFrame.LookVector * (dist() + 1.5) + Vector3.new(0, stud(), 0)
+end
+local function pickOffset(tr, head)
+    local look, right = tr.CFrame.LookVector, tr.CFrame.RightVector
+    local dirs = { -look, -right, right }
+    return head.Position + dirs[math.random(1, #dirs)] * math.max(dist(), 1.25) + Vector3.new(0, stud(), 0)
+end
+
+local function setCsync(cf, pos, dt)
+    local old = state.lastFakePos
+    state.csyncCF = cf
+    state.csyncLV = (old and dt and dt > 0) and (pos - old) / dt or Vector3.zero
+    state.csyncAV = Vector3.zero
+    state.lastFakePos = pos
+end
+local function clearCsync() state.csyncCF, state.csyncLV, state.csyncAV, state.lastFakePos = nil, nil, nil, nil end
+local function setVoidCsync(cf)
+    state.csyncCF, state.csyncLV, state.csyncAV = cf, Vector3.zero, Vector3.zero
+    state.lastFakePos = cf and cf.Position or nil
+end
+
+local function restoreLocalRoot(root)
+    if not root or not state.csyncLocalCF then return false end
+    local live = root.AssemblyLinearVelocity
+    root.CFrame = state.csyncLocalCF
+    if state.csyncLocalLV then root.AssemblyLinearVelocity = Vector3.new(state.csyncLocalLV.X, live.Y, state.csyncLocalLV.Z) end
+    if state.csyncLocalAV then root.AssemblyAngularVelocity = state.csyncLocalAV end
+    return true
+end
+
+local function startCsync()
+    if state.csyncHbConn then return end
+    state.csyncHbConn = RunService.Heartbeat:Connect(function()
+        local root = getRoot(lp.Character)
+        if not root then return end
+        if state.csyncWroteFake and state.csyncLocalCF then restoreLocalRoot(root) end
+        state.csyncLocalCF = root.CFrame
+        state.csyncLocalLV = root.AssemblyLinearVelocity
+        state.csyncLocalAV = root.AssemblyAngularVelocity
+        if state.csyncCF then
+            root.CFrame = state.csyncCF
+            local fv = state.csyncLV or state.csyncLocalLV
+            root.AssemblyLinearVelocity = Vector3.new(fv.X, state.csyncLocalLV.Y, fv.Z)
+            root.AssemblyAngularVelocity = state.csyncAV or state.csyncLocalAV
+            state.csyncWroteFake = true
+        else
+            state.csyncWroteFake = false
+        end
+    end)
+    RunService:BindToRenderStep("AXIS_RagebotCsync", Enum.RenderPriority.Camera.Value - 1, function()
+        local root = getRoot(lp.Character)
+        if root and state.csyncLocalCF and state.csyncWroteFake and restoreLocalRoot(root) then
+            state.csyncWroteFake = false
+        end
+    end)
+end
+
+local function stopCsync()
+    if state.csyncHbConn then state.csyncHbConn:Disconnect() state.csyncHbConn = nil end
+    pcall(function() RunService:UnbindFromRenderStep("AXIS_RagebotCsync") end)
+    restoreLocalRoot(getRoot(lp.Character))
+    clearCsync()
+    state.csyncLocalCF, state.csyncLocalLV, state.csyncLocalAV, state.csyncWroteFake = nil, nil, nil, false
+end
+
+local function voidRand()
+    local n
+    repeat n = math.random(-2147483646, 2147483646) until n < -1147483646 or n > 1147483646
+    return n
+end
+local function voidRandCF() return CFrame.new(voidRand(), voidRand(), voidRand()) * CFrame.Angles(math.pi, math.pi, math.pi) end
+
+local function enterVoidState()
+    state.voidTargetCF, state.voidExposed = nil, false
+    if not state.active then clearCsync() return end
+    if AXIS.RageVoidSpam then setVoidCsync(voidRandCF()) else clearCsync() end
+    setStatus()
+end
+
+local function enableVoidCsync()
+    if state.voidHbConn then return end
+    startCsync()
+    state.voidHbConn = RunService.Heartbeat:Connect(function()
+        if state.voidTargetCF then setVoidCsync(state.voidTargetCF)
+        elseif AXIS.RageVoidSpam then setVoidCsync(voidRandCF())
+        else clearCsync() end
+    end)
+end
+local function disableVoidCsync()
+    if state.voidHbConn then state.voidHbConn:Disconnect() state.voidHbConn = nil end
+    state.voidTargetCF, state.voidThread, state.voidExposed = nil, nil, false
+end
+
+local function startVoidLoop(myGen)
+    if state.voidThread then return end
+    enableVoidCsync()
+    local th
+    th = task.spawn(function()
+        while state.active and rbGen == myGen and not state.suspended do
+            if not inMatch() or not hasValidTarget() or isKatana(state.target) then
+                enterVoidState()
+                task.wait(0.1)
+                continue
+            end
+            enterVoidState()
+            local hide = hideTime()
+            if hide > 0 then task.wait(hide) end
+            if not state.active or rbGen ~= myGen or state.suspended or not inMatch() then break end
+            local target = state.target
+            if hasValidTarget() and not isKatana(target) then
+                local tc = target.Character
+                local tr = getRoot(tc)
+                local head = tc and (tc:FindFirstChild("Head") or tr)
+                if tr and head then
+                    local shootPos = isRiotShield(target) and shieldPos(tr) or voidShootPos(tr)
+                    if isNearOtherMatch(shootPos, target) then
+                        enterVoidState()
+                        task.wait(0.1)
+                        continue
+                    end
+                    local shootCF = CFrame.new(shootPos, head.Position)
+                    state.voidExposed, state.voidTargetCF = true, shootCF
+                    setVoidCsync(shootCF)
+                    setStatus()
+                    local atk = clampNum(AXIS.RageAttackTime, 0, 1, 0.03)
+                    if atk > 0 then task.wait(atk) end
+                    if hasValidTarget() and not isKatana(target) then doFire(head) end
+                    task.wait(0.05)
+                    enterVoidState()
+                else
+                    task.wait(0.05)
+                end
+            else
+                task.wait(0.05)
+            end
+            if hide <= 0 then task.wait() end   -- her turda en az bir yield (sonsuz dongu/donma yok)
+        end
+        if state.voidThread == th then state.voidThread = nil end
+        if rbGen == myGen and not state.suspended and state.voidThread == nil then disableVoidCsync() end
+    end)
+    state.voidThread = th
+end
+
+local function noclipTick()
+    if not AXIS.RageNoclip then return end
+    local now = tick()
+    if now - state.noclipAt < 0.2 then return end
+    state.noclipAt = now
+    local char = lp.Character
+    if not char then return end
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") and p.CanCollide then
+            if state.collide[p] == nil then state.collide[p] = true end
+            p.CanCollide = false
+        end
+    end
+end
+local function restoreCollide()
+    for p in pairs(state.collide) do pcall(function() p.CanCollide = true end) end
+    table.clear(state.collide)
+end
+
+local function startAmmoLoop()
+    if state.ammoThread then return end
+    state.ammoThread = task.spawn(function()
+        while state.active do
+            if not isShootingRange() and AXIS.RageMode == "Teleport" then
+                -- Teleport modunda sabit aralikli atis (Orbit/Void kendi icinde ates eder)
+                if not handleAmmo() and shouldShoot() then
+                    local tc = state.target and state.target.Character
+                    local head = tc and (tc:FindFirstChild("Head") or getRoot(tc))
+                    if head then doFire(head) end
+                end
+            end
+            task.wait(math.max(0.01, clampNum(AXIS.RageTeleportDelay, 0.01, 1, 0.04)))
+        end
+        state.ammoThread = nil
+    end)
+end
+
+local function startModeLoops(myGen)
+    if AXIS.RageMode == "Teleport" then return end   -- gercek teleport: csync yok
+    if AXIS.RageMode == "Void" then startVoidLoop(myGen)
+    elseif AXIS.RageMode == "Orbit" then enableVoidCsync()
+    else startCsync() end
+end
+
+local aaPhase, orbitAngle = 0, math.random() * math.pi * 2
+local lastMode = nil
+
+-- Ayni mactaki canli dusman var mi? (spawn korumali olsa bile canliysa "var" sayilir)
+local function anyEnemyAlive()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp and sameMatch(plr) and not playerIsDead(plr) then
+            local r = getRoot(plr.Character)
+            if not (r and r:FindFirstChild("TeammateLabel")) and not isTeammate(plr) then return true end
+        end
+    end
+    return false
+end
+
+-- VOID SPAM ("meowlua private" start_void_spam uyarlamasi)
+-- Her Heartbeat: Humanoid Physics durumuna alinir, kok parca N kez (Iterations) son konumdan
+-- rastgele isaretli Min..Max mesafeye atilir (-932098, 834783 gibi), hiz sifirlanir.
+local lastVsPos = nil
+local function meowVoid(root)
+    local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+    if hum:GetState() ~= Enum.HumanoidStateType.Physics then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end) end
+    local iters = math.floor(clampNum(AXIS.RageVoidIterations, 1, 500, 500))
+    local minD = clampNum(AXIS.RageVoidMinDist, 1, 500000, 1)
+    local maxD = math.max(clampNum(AXIS.RageVoidRange, 1, 500000, 50000), minD)
+    for _ = 1, iters do
+        local base = lastVsPos or root.Position
+        local d = minD + math.random() * (maxD - minD)
+        local sx = math.random() < 0.5 and 1 or -1
+        local sy = math.random() < 0.5 and 1 or -1
+        local sz = math.random() < 0.5 and 1 or -1
+        local p = Vector3.new(base.X + sx * d * math.random(), base.Y + sy * d * math.random(), base.Z + sz * d * math.random())
+        -- koordinatlar cok buyurse basa sar (float hassasiyeti bozulmasin)
+        if math.abs(p.X) > 5e6 or math.abs(p.Y) > 5e6 or math.abs(p.Z) > 5e6 then
+            p = Vector3.new(math.random(-1000000, 1000000), math.random(-1000000, 1000000), math.random(-1000000, 1000000))
+        end
+        root.CFrame = CFrame.new(p)
+        lastVsPos = p
+    end
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+    if GameState ~= "RAGE_VOIDSPAM" then setGameState("RAGE_VOIDSPAM") end
+end
+
+local function leaveVoid()
+    if state.voiding then
+        state.voiding = false
+        lastVsPos = nil
+        local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum:GetState() == Enum.HumanoidStateType.Physics and not AXIS.RageHover then
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+        end
+    end
+end
+
+local function stepRagebot(dt, myGen)
+    if not state.active then return end
+    AXIS.RageMode = "Teleport"   -- sadece klasik teleport
+    if isShootingRange() then
+        if not state.suspended then
+            state.suspended = true
+            state.target, state.randPos, state.voidTargetCF, state.voidExposed = nil, nil, nil, false
+            stopCsync() disableVoidCsync()
+        end
+        return
+    end
+    if state.suspended then state.suspended = false startModeLoops(myGen) end
+    -- mod degistiyse donguleri yeniden kur
+    if lastMode ~= AXIS.RageMode then
+        lastMode = AXIS.RageMode
+        stopCsync() disableVoidCsync()
+        rbGen += 1
+        myGen = rbGen
+        state.gen = myGen
+        startModeLoops(myGen)
+    end
+    noclipTick()
+
+    local root = getRoot(lp.Character)
+    if not root then return end
+    if not inMatch() then
+        clearCsync()
+        state.target = nil
+        if AXIS.RageMode == "Orbit" then enterVoidState() else setStatus() end
+        return
+    end
+
+    local now = tick()
+    if state.target and playerIsDead(state.target) then state.target = nil end
+    if state.target and isInvincible(state.target) then state.target = nil end   -- korumaliysa baska hedefe gec
+    if now - rbTgtT >= 0.05 or not state.target then
+        rbTgtT = now
+        local t = getBestTarget()
+        if t then state.target = t end
+    end
+    if not state.target then
+        clearCsync()
+        if AXIS.RageMode == "Teleport" and AXIS.RageVoidSpamAfterKill and not anyEnemyAlive() then
+            state.voiding = true       -- TUM dusmanlar oldu -> void spam (Heartbeat'te)
+        elseif AXIS.RageMode == "Orbit" then
+            enterVoidState()
+        else
+            leaveVoid()            -- hover acikken son noktada havada beklenir
+            setStatus()
+        end
+        return
+    end
+
+    local tc = state.target.Character
+    local tr = getRoot(tc)
+    local head = tc and (tc:FindFirstChild("Head") or tr)
+    if not tr or not head then state.target = nil setStatus() return end
+    if isNearOtherMatch(tr.Position, state.target) then
+        state.target, state.randPos = nil, nil
+        if AXIS.RageMode == "Orbit" or AXIS.RageMode == "Void" then enterVoidState() else clearCsync() setStatus() end
+        return
+    end
+    setStatus()
+    autoEquipPreferred()
+
+    local mode = AXIS.RageMode
+    if mode == "Void" then return end
+    if mode == "Orbit" and (now < (state.hideOrbitUntil or 0) or handleAmmo()) then
+        state.voidTargetCF, state.voidExposed = nil, false
+        enterVoidState()
+        return
+    end
+
+    -- MERMI DEGISIRKEN VOID SPAM: reload / silah degisimi / equip suresince void'de kal.
+    -- Shotgun kullaniyorsan mermi degisimi baslayinca en az "Shotgun Void Time" (vars. 5 sn) void'de bekle.
+    if mode == "Teleport" then
+        local busy = handleAmmo() or isEquipping()
+        if busy then
+            if not state.wasBusy then
+                state.wasBusy = true
+                if isUsingShotgun() then
+                    state.reloadVoidUntil = math.max(state.reloadVoidUntil or 0, now + clampNum(AXIS.RageShotgunVoidTime, 5, 30, 5))
+                end
+            end
+            state.reloadVoidUntil = math.max(state.reloadVoidUntil or 0, now + 0.05)
+        else
+            state.wasBusy = false
+        end
+        if AXIS.RageVoidOnReload and now < (state.reloadVoidUntil or 0) then
+            state.voiding = true
+            return
+        end
+    end
+    leaveVoid()
+
+    local targetPos
+    if mode == "Teleport" then
+        -- KLASIK TELEPORT: hedefin tam ustune, secilen stud kadar (-5..50)
+        targetPos = tr.Position + Vector3.new(0, stud(), 0)
+    elseif isRiotShield(state.target) then
+        targetPos = shieldPos(tr)
+    elseif mode == "Underground" then
+        targetPos = head.Position - tr.CFrame.LookVector * dist() + Vector3.new(0, stud(), 0)
+    elseif mode == "Teleport" then
+        if AXIS.RageRandomMovement then
+            if not state.randPos or (now - (state.randT or 0)) >= 0.08 then
+                state.randT = now
+                local a = math.random() * math.pi * 2
+                state.randPos = pickOffset(tr, head) + Vector3.new(math.cos(a), 0, math.sin(a)) * (math.random() * 1.05)
+            end
+            targetPos = state.randPos
+        else
+            targetPos = pickOffset(tr, head)
+        end
+    else -- Orbit
+        orbitAngle += dt * math.max(1, clampNum(AXIS.RageStrafeSpeed, 1, 20, 5) * 1.5)
+        local r = math.max(dist(), 1.25)
+        targetPos = head.Position + Vector3.new(math.cos(orbitAngle) * r, stud(), math.sin(orbitAngle) * r)
+    end
+
+    if isNearOtherMatch(targetPos, state.target) then
+        state.randPos = nil
+        if mode == "Orbit" then enterVoidState() else clearCsync() setStatus() end
+        return
+    end
+
+    -- stud ~ kafa yuksekligi ise bakis vektoru sifir olur (NaN CFrame) -> duz CFrame kullan
+    local faceCF = ((head.Position - targetPos).Magnitude > 0.1) and CFrame.new(targetPos, head.Position) or CFrame.new(targetPos)
+    if AXIS.RageAntiAim then
+        aaPhase += dt * 20
+        faceCF = faceCF * CFrame.Angles(0, math.rad(math.sin(aaPhase) * 70), 0)
+    end
+
+    if mode == "Orbit" then
+        state.voidExposed, state.voidTargetCF = true, faceCF
+        setCsync(faceCF, targetPos, dt)
+        setStatus()
+        if shouldShoot() then doFire(head) end     -- hyper: her karede rapid fire
+    elseif mode == "Teleport" then
+        -- GERCEK TELEPORT: karakter kendi ekraninda da dusmanin ustune isinlanir
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = faceCF
+        state.lastTpPos = targetPos
+        state.holdCF = faceCF          -- havada sabit kalma noktasi
+    else
+        setCsync(faceCF, targetPos, dt)
+        if mode == "Underground" then
+            if shouldShoot() and not handleAmmo() then doFire(head) end
+        elseif now >= (state.nextTeleportAt or 0) then
+            state.nextTeleportAt = now + math.max(0.01, clampNum(AXIS.RageTeleportDelay, 0.01, 1, 0.04))
+        end
+    end
+end
+
+local function startRagebot()
+    if state.active then return end
+    local r0 = getRoot(lp.Character)
+    state.home = r0 and r0.CFrame or nil          -- kapatinca geri donulecek yer
+    state.active, state.suspended = true, isShootingRange()
+    rbGen += 1
+    local myGen = rbGen
+    state.gen = myGen
+    lastMode = AXIS.RageMode
+    startAmmoLoop()
+    if not state.suspended then startModeLoops(myGen) end
+    state.voidSpamConn = RunService.Heartbeat:Connect(function()
+        -- HAVADA SABIT KAL: void'de degilken son teleport noktasinda tut (yercekimiyle dusmez)
+        if state.active and not state.voiding and state.holdCF and AXIS.RageHover then
+            local r = getRoot(lp.Character)
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            if r and hum and hum.Health > 0 then
+                if not hum.PlatformStand then hum.PlatformStand = true end
+                r.AssemblyLinearVelocity = Vector3.zero
+                r.AssemblyAngularVelocity = Vector3.zero
+                r.CFrame = state.holdCF
+            end
+        end
+        if state.active and state.voiding then
+            local r = getRoot(lp.Character)
+            if r then
+                local ok, err = pcall(meowVoid, r)
+                if not ok and AXIS.ShowDebug then warn("[axis] void spam: " .. tostring(err)) end
+            end
+        end
+    end)
+    state.conn = RunService.Stepped:Connect(function(_, dt)
+        local ok, err = pcall(stepRagebot, dt, state.gen)
+        if not ok then stats.Errors += 1 if AXIS.ShowDebug then warn("[axis] ragebot: " .. tostring(err)) end end
+    end)
+    state.charConn = lp.CharacterAdded:Connect(function(char)
+        stopCsync() disableVoidCsync()
+        state.target, state.voidExposed, state.hideOrbitUntil, state.lastTpPos, state.holdCF = nil, false, 0, nil, nil
+        local hrp = char:WaitForChild("HumanoidRootPart", 10)
+        if hrp then state.home = hrp.CFrame end
+        task.wait(0.5)
+        if state.active then startModeLoops(state.gen) end
+    end)
+    log("Ragebot (Harion) acildi: " .. tostring(AXIS.RageMode))
+end
+
+local function stopRagebot()
+    if not state.active then return end
+    rbGen += 1
+    state.active = false
+    if state.conn then state.conn:Disconnect() state.conn = nil end
+    if state.charConn then state.charConn:Disconnect() state.charConn = nil end
+    if state.voidSpamConn then state.voidSpamConn:Disconnect() state.voidSpamConn = nil end
+    state.target, state.voidExposed, state.nextTeleportAt, state.ammoActionAt, state.hideOrbitUntil = nil, false, 0, 0, 0
+    state.randPos, state.randT, state.lastFakePos = nil, 0, nil
+    rbInMatchT, rbInMatch = 0, false
+    stopCsync()
+    disableVoidCsync()
+    restoreCollide()
+    -- kapatinca aninda eski yerine don
+    local r1 = getRoot(lp.Character)
+    if r1 and state.home then
+        r1.AssemblyLinearVelocity = Vector3.zero
+        r1.AssemblyAngularVelocity = Vector3.zero
+        r1.CFrame = state.home
+    end
+    state.home, state.lastTpPos = nil, nil
+    state.voiding, state.wasBusy, state.reloadVoidUntil, state.holdCF = false, false, 0, nil
+    local hm0 = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if hm0 then pcall(function() hm0.PlatformStand = false end) end
+    lastVsPos = nil
+    local hm = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if hm and hm:GetState() == Enum.HumanoidStateType.Physics then pcall(function() hm:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+    setGameState("IDLE")
+    log("Ragebot kapandi (csync: zaten eski yerindesin)")
+end
+
+-- Ragebot toggle (AXIS.Enabled) takibi
+loop(0.1, function()
+    if AXIS.Enabled and not state.active then startRagebot()
+    elseif not AXIS.Enabled and state.active then stopRagebot() end
+end)
+table.insert(CleanupFns, stopRagebot)
+end)() -- HARION RAGEBOT
+
+-- ============================================================
+-- HARION WEAPONS: FAST SHOOT ("Harion enhancement.lua" applyInfoOptions uyarlamasi)
+-- Yerel esyalarin Info'sunda cooldown'lar 0, recoil/spread 0, mermi hizi max; kapaninca geri alinir.
+-- ============================================================
+;(function()
+local cache = setmetatable({}, { __mode = "k" })
+local KEYS = { "ShootCooldown", "QuickShotCooldown", "SpinCooldown", "DashCooldown", "Cooldown",
+    "BuildCooldown", "AttackCooldown", "HeavyAttackCooldown", "BurstCooldown" }
+
+local function remember(info, key)
+    if info[key] == nil then return nil end
+    local c = cache[info]
+    if not c then c = {} cache[info] = c end
+    if c[key] == nil then c[key] = info[key] end
+    return c[key]
+end
+
+local function apply(info, fast)
+    local recoil = remember(info, "ShootRecoil")
+    if recoil ~= nil then info.ShootRecoil = fast and 0 or recoil end
+    local spread = remember(info, "ShootSpread")
+    if spread ~= nil then info.ShootSpread = fast and 0 or spread end
+    local speed = remember(info, "ProjectileSpeed")
+    if speed ~= nil then info.ProjectileSpeed = fast and 99999999 or speed end
+    for _, key in ipairs(KEYS) do
+        local original = remember(info, key)
+        if original ~= nil then info[key] = fast and 0 or original end
+    end
+end
+
+local applied = false
+loop(0.2, function()
+    if AXIS.HarionFastShoot then
+        local f = localFighter()
+        local items = type(f) == "table" and rawget(f, "Items") or nil
+        if type(items) == "table" then
+            for _, it in pairs(items) do
+                local info = type(it) == "table" and it.Info or nil
+                if type(info) == "table" then pcall(apply, info, true) end
+            end
+        end
+        applied = true
+    elseif applied then
+        for info in pairs(cache) do pcall(apply, info, false) end
+        applied = false
+    end
+end)
+table.insert(CleanupFns, function() for info in pairs(cache) do pcall(apply, info, false) end end)
+end)() -- HARION WEAPONS
+
+-- Ragebot acilinca Fast Shoot + No Spread otomatik acilir; kapaninca onceki haline doner
+;(function()
+local prev = nil
+local function setFeature(key, value)
+    local tg = genv.Toggles and genv.Toggles["AXIS_" .. key]
+    if tg then pcall(function() tg:SetValue(value) end) else AXIS[key] = value end
+end
+local was = false
+loop(0.1, function()
+    if AXIS.Enabled and not was then
+        was = true
+        prev = { HarionFastShoot = AXIS.HarionFastShoot, HarionNoSpread = AXIS.HarionNoSpread }
+        setFeature("HarionFastShoot", true)
+        setFeature("HarionNoSpread", true)
+    elseif not AXIS.Enabled and was then
+        was = false
+        if prev then
+            setFeature("HarionFastShoot", prev.HarionFastShoot)
+            setFeature("HarionNoSpread", prev.HarionNoSpread)
+            prev = nil
+        end
+    end
+end)
+end)()
+
+-- Temizlikte hook / render / drawing geri alinir
+do
+    local prevCleanup = genv.AXIS_CLEANUP
+    genv.AXIS_CLEANUP = function()
+        pcall(prevCleanup)
+        pcall(function() RunService:UnbindFromRenderStep("AXIS_Aimbot") end)
+        pcall(function() RunService:UnbindFromRenderStep("AXIS_ESP") end)
+        restoreAllHooks()
+        restoreInputHook()
+        restorePersistentMods()
+        for _, fn in ipairs(CleanupFns) do pcall(fn) end
+        pcall(function() Workspace.FallenPartsDestroyHeight = originalFPDH end)
+        local ch = lp.Character
+        local hm = ch and ch:FindFirstChildOfClass("Humanoid")
+        if ch and hm then pcall(removeGodMode, ch, hm) end
+        if solarTrack then pcall(function() solarTrack:Stop() end) end
+        mouseUp()
+    end
+end
+
+-- ============================================================
+-- LINORIALIB UI  (https://github.com/violin-suzutsuki/LinoriaLib)
+-- Menu tusu: RightShift (UI Settings sekmesinden degistirilebilir)
+-- ============================================================
+local UI_Library
+local function buildUI()
+    local repo = "https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/"
+    -- Kutuphane diske onbelleklenir (AXIS/lib): ilk seferden sonra internetten indirilmez.
+    -- Bazi executor'larda game:HttpGet oyunu kilitliyor; autoexec'te yukleme ekraninda donmanin sebebi buydu.
+    local function fetch(file)
+        local cachePath = "AXIS/lib/" .. file:gsub("/", "_")
+        local code
+        if type(isfile) == "function" and type(readfile) == "function" then
+            pcall(function() if isfile(cachePath) then code = readfile(cachePath) end end)
+        end
+        if type(code) ~= "string" or #code < 200 then
+            task.wait()
+            local ok, body = pcall(function() return game:HttpGet(repo .. file) end)
+            if ok and type(body) == "string" and #body > 200 then
+                code = body
+                if type(writefile) == "function" then
+                    pcall(function()
+                        if type(isfolder) == "function" and type(makefolder) == "function" then
+                            if not isfolder("AXIS") then makefolder("AXIS") end
+                            if not isfolder("AXIS/lib") then makefolder("AXIS/lib") end
+                        end
+                        writefile(cachePath, body)
+                    end)
+                end
+            end
+        end
+        if type(code) ~= "string" then warn("[axis] " .. file .. " indirilemedi") return nil end
+        task.wait()
+        local f, e = loadstring(code)
+        if not f then warn("[axis] " .. file .. " derlenemedi: " .. tostring(e)) return nil end
+        local ok, res = pcall(f)
+        if not ok then warn("[axis] " .. file .. " calismadi: " .. tostring(res)) return nil end
+        return res
+    end
+    local Library = fetch("Library.lua")
+    if not Library then warn("[axis] UI yok, script ayarlarla calismaya devam ediyor") return end
+    local ThemeManager = fetch("addons/ThemeManager.lua")
+    local SaveManager  = fetch("addons/SaveManager.lua")
+    UI_Library = Library
+
+    local Toggles = genv.Toggles or Library.Toggles
+    local Options = genv.Options or Library.Options
+
+    local Window = Library:CreateWindow({ Title = "RIVALS RAGEBOT v28", Center = true, AutoShow = true })
+    local Tabs = {
+        Main     = Window:AddTab("Ragebot"),
+        Combat   = Window:AddTab("Combat"),
+        ESP      = Window:AddTab("ESP"),
+        AntiAim  = Window:AddTab("Anti-Aim"),
+        Void     = Window:AddTab("Void / Hide"),
+        Misc     = Window:AddTab("Misc"),
+        Settings = Window:AddTab("UI Settings"),
+    }
+
+    -- yardimcilar: her kontrol dogrudan AXIS[key] degerini yazar
+    local function T(group, key, text, tip)
+        local id = "AXIS_" .. key
+        group:AddToggle(id, { Text = text, Default = AXIS[key] == true, Tooltip = tip })
+        Toggles[id]:OnChanged(function() AXIS[key] = Toggles[id].Value end)
+        return Toggles[id]
+    end
+    local function S(group, key, text, min, max, rounding, suffix)
+        local id = "AXIS_" .. key
+        group:AddSlider(id, { Text = text, Default = clampNum(AXIS[key], min, max, min),
+            Min = min, Max = max, Rounding = rounding, Compact = false, Suffix = suffix })
+        Options[id]:OnChanged(function() AXIS[key] = Options[id].Value end)
+    end
+    local function D(group, key, text, values)
+        local id = "AXIS_" .. key
+        group:AddDropdown(id, { Values = values, Default = table.find(values, AXIS[key]) or 1, Multi = false, Text = text })
+        Options[id]:OnChanged(function() AXIS[key] = Options[id].Value end)
+    end
+
+    -- MAIN
+    local Combat = Tabs.Main:AddLeftGroupbox("Ragebot (Teleport)")
+    T(Combat, "Enabled", "Ragebot", "Klasik teleport: kendi ekraninda da hedefin ustune (Stud kadar) isinlanir ve ates eder; kapatinca eski yerine donersin")
+    S(Combat, "TeleportOffsetY", "Stud", -5, 50, 1, " stud")
+    S(Combat, "RageShootAttempts", "Shoot Attempts", 1, 10, 0, "x")
+    S(Combat, "RageTeleportDelay", "Fire Interval", 0.01, 1, 2, " s")
+    T(Combat, "RageVoidSpamAfterKill", "Void Spam After Kill", "Tum dusmanlar olunce rastgele dev koordinatlara void spam; yeni dusman canlaninca tekrar saldirir")
+    T(Combat, "RageHover", "Hover (Havada Sabit)", "Teleport noktasinda havada sabit kalir, yere dusmez")
+    T(Combat, "RageVoidOnReload", "Void Spam While Reloading", "Mermi degisirken / reload'da void spam; shotgun'da en az Shotgun Void Time")
+    S(Combat, "RageShotgunVoidTime", "Shotgun Void Time", 5, 30, 0, " s")
+    S(Combat, "RageVoidMinDist", "Void Min Distance", 1, 50000, 0)
+    S(Combat, "RageVoidRange", "Void Max Distance", 1, 500000, 0)
+    S(Combat, "RageVoidIterations", "Void Iterations", 1, 500, 0)
+    T(Combat, "RageAntiAim", "Ragebot Anti-Aim")
+    T(Combat, "RageNoclip", "Noclip")
+
+    local RageW = Tabs.Main:AddRightGroupbox("Ragebot Weapon / Target")
+    D(RageW, "RagePreferredWeapon", "Preferred Weapon", { "primary", "secondary", "melee" })
+    T(RageW, "RageAutoEquip", "Auto Equip Preferred")
+    T(RageW, "RageAutoSwap", "Swap Weapons When Empty")
+    D(RageW, "RageTargetMode", "Target Mode", { "Closest", "Lowest Health" })
+    T(RageW, "RageAutoPriority", "Auto Prioritize")
+    T(RageW, "RagePriorityAttackers", "Priority: Attackers")
+    T(RageW, "RagePriorityVoided", "Priority: Voided Players")
+    T(RageW, "HarionFastShoot", "Fast Shoot", "Ragebot acilinca otomatik acilir")
+    T(RageW, "HarionNoSpread", "No Spread", "Ragebot acilinca otomatik acilir")
+
+    -- ANTI-AIM
+    local Yaw = Tabs.AntiAim:AddLeftGroupbox("Yaw / Spin / Jitter")
+    T(Yaw, "AntiAimEnabled", "Anti-Aim")
+    D(Yaw, "YawMode", "Yaw Mode", { "None", "Spin", "Jitter", "Random", "Backwards", "Sideways", "Spin+Jitter" })
+    S(Yaw, "YawAngle", "Yaw Offset", -180, 180, 0, " deg")
+    S(Yaw, "SpinBypassSpeed", "Spin Speed", 0, 3600, 0, " deg/s")
+    T(Yaw, "JitterEnabled", "Extra Yaw Jitter")
+    S(Yaw, "JitterStrength", "Jitter Strength", 0, 180, 0, " deg")
+    S(Yaw, "JitterInterval", "Jitter Interval", 0.01, 1, 2, "s")
+
+    local Body = Tabs.AntiAim:AddRightGroupbox("Pitch / Roll / Character Jitter")
+    D(Body, "PitchMode", "Pitch Mode", { "None", "Up", "Down", "Random", "Custom" })
+    S(Body, "PitchAngle", "Custom Pitch", -89, 89, 0, " deg")
+    D(Body, "RollMode", "Roll Mode", { "None", "Upside Down", "Random" })
+    T(Body, "SolarAnimation", "Solar Animation")
+    T(Body, "PositionJitterEnabled", "Character Position Jitter", "Karakteri jitter interval'inde rastgele kaydirir")
+    S(Body, "PositionJitterStrength", "Position Jitter", 0, 5, 1, " stud")
+
+    -- VOID / HIDE
+    -- Hide ustte, Void altinda (ayni sutun)
+    local Hide = Tabs.Void:AddLeftGroupbox("Hide")
+    T(Hide, "VoidLockEnabled", "Void Lock", "Canli dusman varken void'e gitmez")
+    T(Hide, "VoidProtection", "Void Protection")
+
+    local Spam = Tabs.Void:AddLeftGroupbox("Void")
+    T(Spam, "VoidSpamEnabled", "Void Spam", "Kapatinca script normal ragebot akisina doner")
+    S(Spam, "VoidSpamInterval", "Void Spam Speed", 0.005, 1, 3, "s")
+    S(Spam, "VoidSpamBurst", "Burst per Tick", 1, 20, 0)
+    S(Spam, "VoidMaxValue", "Void Range", 1000, 1000000, 0)
+
+
+    -- GOD MODE / DEBUG artik Ragebot sekmesinde (Misc sadece Auto Queue + pickup)
+    local God = Tabs.Main:AddLeftGroupbox("God Mode")
+    T(God, "GodModeEnabled", "God Mode")
+    T(God, "ForceFieldEnabled", "ForceField (sonraki dogusta)")
+    T(God, "PhysicalImmunity", "Physical Immunity")
+
+    local Dbg = Tabs.Main:AddRightGroupbox("Debug")
+    T(Dbg, "ShowDebug", "Show Debug")
+    Dbg:AddButton("Unload", function() Library:Unload() end)
+
+    -- COMBAT
+    local Aim = Tabs.Combat:AddLeftGroupbox("Aimbot")
+    T(Aim, "AimbotEnabled", "Enabled", "Secili Silent / Camera modunu acar"):AddKeyPicker("AXIS_AimbotKey", { Default = "MB2", Mode = "Always", Text = "Aimbot", NoUI = false })
+    D(Aim, "AimbotMode", "Mode", { "Silent", "Camera" })
+    T(Aim, "SilentRapidFire", "Silent Rapid Fire", "Silent modda gorunen dusman ekrana girince ates eder (wall check her zaman acik). Triggerbot ile ayni anda calisir")
+
+    S(Aim, "AimSpeed", "Aim Speed (Camera)", 1, 100, 0)
+    T(Aim, "IgnoreFOV", "Ignore FOV", "Ekran disindakiler dahil en yakin hedef")
+    S(Aim, "FOVRadius", "FOV Radius", 25, 500, 0)
+    T(Aim, "ShowFOV", "Show FOV")
+    D(Aim, "AimbotAimPart", "Aim Part", { "Auto", "Head", "Random" })
+    T(Aim, "FlickbotEnabled", "Flickbot"):AddKeyPicker("AXIS_FlickKey", { Default = "X", Mode = "Hold", Text = "Flickbot", NoUI = false })
+    T(Aim, "FlickShoot", "Flick: Shoot")
+    S(Aim, "FlickShotDelay", "Flick Shot Delay", 0, 250, 0, " ms")
+    S(Aim, "FlickCooldown", "Flick Cooldown", 0, 2000, 0, " ms")
+    S(Aim, "FlickDuration", "Flick Duration", 30, 400, 0, " ms")
+    S(Aim, "FlickCurvature", "Flick Curvature", 0, 50, 0)
+    S(Aim, "FlickHumanness", "Flick Humanness", 0, 100, 0)
+    T(Aim, "TriggerbotEnabled", "Triggerbot"):AddKeyPicker("AXIS_TriggerKey", { Default = "MB2", Mode = "Always", Text = "Triggerbot", NoUI = false })
+    S(Aim, "TriggerReaction", "Trigger Reaction Time", 0, 0.1, 2, " s")
+    T(Aim, "CheckKatanaDeflect", "Check Katana Deflect")
+    T(Aim, "CheckRiotShield", "Check Riot Shield")
+    do
+        local values = { "Flare Gun", "Freeze Ray", "Grenade Launcher", "RPG" }
+        local defaults = {}
+        for _, v in ipairs(values) do if AXIS.IgnoreAimbotWeapons[v] then table.insert(defaults, v) end end
+        Aim:AddDropdown("AXIS_IgnoreAimbotWeapons", { Values = values, Default = defaults, Multi = true, Text = "Ignore Aimbot Weapons" })
+        Options.AXIS_IgnoreAimbotWeapons:OnChanged(function()
+            local set = {}
+            for k, v in pairs(Options.AXIS_IgnoreAimbotWeapons.Value) do if v == true then set[k] = true end end
+            AXIS.IgnoreAimbotWeapons = set
+        end)
+    end
+
+    local Mods = Tabs.Combat:AddRightGroupbox("Weapon Mods")
+    T(Mods, "ModAttackSpeed", "Weapon Attack Speed")
+    S(Mods, "ModAttackSpeedBoost", "Speed Boost", 0, 85, 0, "%")
+    T(Mods, "ModFasterReload", "Faster Reload")
+    S(Mods, "ModReloadBoost", "Reload Faster", 0, 20, 0, "%")
+    T(Mods, "ModNoSpread", "No Spread")
+    T(Mods, "ModNoRecoil", "No Recoil")
+    S(Mods, "ModRecoilReduction", "Recoil Reduction", 0, 100, 0, "%")
+    T(Mods, "ModFasterADS", "Faster ADS")
+    S(Mods, "ModADSBoost", "ADS Faster", 0, 85, 0, "%")
+    T(Mods, "ModFasterEquip", "Faster Equip")
+    S(Mods, "ModEquipBoost", "Equip Faster", 0, 80, 0, "%")
+    T(Mods, "ModScytheDash", "Scythe Dash Cooldown")
+    S(Mods, "ModDashReduction", "Cooldown Reduction", 0, 100, 0, "%")
+    T(Mods, "ModAutomatic", "Automatic Weapon")
+    T(Mods, "ModGrenadeFuse", "Grenade Fuse")
+    D(Mods, "ModExplodeOn", "Explode On", { "Impact", "Throw" })
+    T(Mods, "ModRemoveFuse", "Remove Fuse")
+    T(Mods, "LegacyCooldownHack", "Legacy Cooldown (getgc)", "v25'teki AttackCooldown=0.01 yontemi")
+
+    -- ESP
+    local EspL = Tabs.ESP:AddLeftGroupbox("ESP Options")
+    T(EspL, "ESPEnabled", "ESP Enabled")
+    T(EspL, "ESPHighlight", "Highlight")
+    T(EspL, "ESPBox", "Box")
+    T(EspL, "ESPNames", "Names")
+    T(EspL, "ESPHealth", "Health Info")
+    T(EspL, "ESPVerticalHealth", "Vertical Health")
+    T(EspL, "ESPWeapon", "Weapon Info")
+    T(EspL, "ESPAmmo", "Ammo Text")
+    T(EspL, "ESPDistance", "Distance")
+    T(EspL, "ESPLookDirection", "Look Direction")
+    T(EspL, "ESPArrows", "Arrows")
+    T(EspL, "ESPTeammates", "Show Teammates")
+    T(EspL, "ESPThrowables", "Throwable ESP")
+    T(EspL, "ESPDeflecting", "Deflecting")
+    T(EspL, "ESPRank", "Rank")
+    T(EspL, "ESPWinStreak", "Win Streak")
+
+    local EspR = Tabs.ESP:AddRightGroupbox("Colors / Opacity")
+    local function C(group, key, text)
+        local id = "AXIS_" .. key
+        group:AddLabel(text):AddColorPicker(id, { Default = AXIS[key], Title = text })
+        Options[id]:OnChanged(function() AXIS[key] = Options[id].Value end)
+    end
+    C(EspR, "ESPVisibleColor", "Visible Color")
+    C(EspR, "ESPHiddenColor", "Hidden Color")
+    C(EspR, "ESPLookColor", "Look Direction Color")
+    S(EspR, "ESPFillOpacity", "Fill Opacity", 0, 1, 2)
+    S(EspR, "ESPOutlineOpacity", "Outline Opacity", 0, 1, 2)
+    S(EspR, "ESPMaxDistance", "Max Distance", 100, 5000, 0, " m")
+
+    -- MISC: AUTO QUEUE + AUTO HEAL / AMMO PICKUP (KiciaHook Automation)
+    local Queue = Tabs.Misc:AddLeftGroupbox("Auto Queue")
+    do
+        local modes = resolveQueueModes()
+        if not table.find(modes, AXIS.AutoQueueMode) then AXIS.AutoQueueMode = modes[1] end
+        D(Queue, "AutoQueueMode", "Mode", modes)
+        T(Queue, "AutoQueue", "Auto Queue", "Secili moda girer, her mactan sonra tekrar kuyruga girer")
+        Toggles.AXIS_AutoQueue:OnChanged(function()
+            if Toggles.AXIS_AutoQueue.Value then AutoQueue.lastFire = 0 autoQueueJoin() else autoQueueLeave() end
+        end)
+        Options.AXIS_AutoQueueMode:OnChanged(function()
+            if AXIS.AutoQueue and AutoQueue.believed == "queued" then
+                autoQueueLeave()
+                task.delay(0.15, function() AutoQueue.lastFire = 0 autoQueueJoin() end)
+            end
+        end)
+    end
+    local Auto = Tabs.Misc:AddRightGroupbox("Auto Heal / Ammo")
+    T(Auto, "AutoHeal", "Auto Heal", "Can azalinca en yakin health pack'i alir")
+    S(Auto, "AutoHealMissing", "Heal When Missing", 1, 100, 0, " HP")
+    T(Auto, "AutoAmmo", "Auto Ammo Pickup", "Sarjor bosken en yakin ammo pack'i alir")
+    T(Auto, "AutoAmmoOnEmptyReserve", "Also When Reserve Empty")
+
+    -- UI SETTINGS
+    local Menu = Tabs.Settings:AddLeftGroupbox("Menu")
+    Menu:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+    T(Menu, "AutoExecuteOnTeleport", "Auto Execute on Teleport", "Matchmaking teleportunda script yeniden calisir, acik ozellikler korunur")
+    Toggles.AXIS_AutoExecuteOnTeleport:OnChanged(function()
+        if Toggles.AXIS_AutoExecuteOnTeleport.Value then Persist.queue() end
+    end)
+    Library.ToggleKeybind = Options.MenuKeybind
+
+    if ThemeManager and SaveManager then
+        ThemeManager:SetLibrary(Library)
+        SaveManager:SetLibrary(Library)
+        SaveManager:IgnoreThemeSettings()
+        SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+        ThemeManager:SetFolder("AXIS")
+        SaveManager:SetFolder("AXIS/rivals")
+        SaveManager:BuildConfigSection(Tabs.Settings)
+        ThemeManager:ApplyToTab(Tabs.Settings)
+        -- teleport sonrasi devam ediliyorsa autoload config acik ayarlari ezmesin
+        if not Persist.resuming then pcall(function() SaveManager:LoadAutoloadConfig() end) end
+    end
+
+    -- Autoload config ayarlari (slider, renk, mod) yukler ama hicbir ozelligi acmaz:
+    -- execute edildiginde tum toggle'lar kapali baslar, kullanici kendisi acar.
+    -- (Matchmaking teleportundan gelindiyse acik ozellikler oldugu gibi kalir.)
+    if not Persist.resuming then
+        for id, toggle in pairs(Toggles) do
+            if type(id) == "string" and id:sub(1, 5) == "AXIS_" and toggle.Value == true and not ALWAYS_ON[id:sub(6)] then
+                pcall(function() toggle:SetValue(false) end)
+            end
+        end
+        for k, v in pairs(AXIS) do
+            if type(v) == "boolean" and not ALWAYS_ON[k] then AXIS[k] = false end
+        end
+    end
+
+    Library:SetWatermarkVisibility(true)
+    loop(0.5, function()
+        if Library.Unloaded then return end
+        Library:SetWatermark(string.format("AXIS v28 | %s | Shots %d | TP %d | Err %d",
+            GameState, stats.Shots, stats.Teleports, stats.Errors))
+    end)
+
+    Library:OnUnload(function()
+        Library.Unloaded = true
+        if genv.AXIS_CLEANUP then pcall(genv.AXIS_CLEANUP) end
+    end)
+
+    Library:Notify("RIVALS RAGEBOT v28 yuklendi (RightShift: menu)", 5)
+end
+
+-- temizlik UI'yi de kapatsin (tekrar calistirmada eski menu kalmasin)
+do
+    local baseCleanup = genv.AXIS_CLEANUP
+    local cleaning = false
+    genv.AXIS_CLEANUP = function()
+        if cleaning then return end
+        cleaning = true
+        pcall(baseCleanup)
+        if UI_Library and not UI_Library.Unloaded then pcall(function() UI_Library:Unload() end) end
+    end
+end
+
+-- Auto Execute: yuklemede bir kez kuyruga al (her teleportta yeni sunucuda calisir)
+if AXIS.AutoExecuteOnTeleport then task.defer(Persist.queue) end
+
+-- Ayarlari duzenli kaydet (teleport olayi hic gelmese bile dosya guncel kalir)
+loop(2, function()
+    if not Persist.teleporting and not Persist.pending then Persist.save(false) end
+end)
+
+-- Teleport baslarken/surerken: isaretli kaydet (autoexec ile calisan kopya da devam modunu anlar)
+track(lp.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Started or state == Enum.TeleportState.InProgress then
+        Persist.teleporting = true
+        Persist.save(true)
+        if AXIS.AutoExecuteOnTeleport then Persist.queue() end
+    elseif state == Enum.TeleportState.Failed then
+        Persist.teleporting = false
+        Persist.save(false)
+    end
+end))
+
+-- Teleport sonrasi: acik ozellikleri ancak karakter + fighter hazir olunca geri ac
+-- (yukleme sirasinda ragebot/void/hook'larin hemen baslamasi donmaya yol aciyordu)
+if Persist.resuming and Persist.pending then
+    task.spawn(function()
+        local t0 = tick()
+        while Running and tick() - t0 < 30 do
+            local char = lp.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and localFighter() then break end
+            task.wait(0.25)
+        end
+        task.wait(1)
+        if not Running then return end
+        local toggles = genv.Toggles
+        for k in pairs(Persist.pending) do
+            local tg = toggles and toggles["AXIS_" .. k]
+            if tg then pcall(function() tg:SetValue(true) end) else AXIS[k] = true end
+        end
+        Persist.pending = nil
+        log("Teleport sonrasi ozellikler geri acildi")
+    end)
+end
+
+-- UI, oyun ve karakter hazir olduktan sonra ayri bir thread'de kurulur (execute aninda kilitlenme yok)
+task.spawn(function()
+    local t0 = tick()
+    while Running and not lp.Character and tick() - t0 < 20 do task.wait(0.25) end
+    task.wait(1)
+    if not Running then return end
+    local ok, err = pcall(buildUI)
+    if not ok then warn("[axis] UI hatasi: " .. tostring(err)) end
+end)
+print("[axis] RIVALS RAGEBOT v28 yuklendi | getgenv().AXIS_CLEANUP() ile durdur")

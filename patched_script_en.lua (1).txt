@@ -27229,3 +27229,917 @@ if not launched then
 elseif not session then
     platform.log(problem or 'Unable to start')
 end
+--!nocheck
+--!nolint
+-- ============================================================
+--   Arch Script Music Player v2.2 — Local Library Edition
+--   Arch Script · cold black · cold white · zero radius
+--   v2.2: draggable toggle button · default top-left anchor
+--         Shift-key toggle · persistent ♪ toggle button
+--         × closes (mobile-friendly) · all three re-open
+-- ============================================================
+
+local Players          = cloneref and cloneref(game:GetService("Players"))          or game:GetService("Players")
+local RunService       = cloneref and cloneref(game:GetService("RunService"))       or game:GetService("RunService")
+local UserInputService = cloneref and cloneref(game:GetService("UserInputService")) or game:GetService("UserInputService")
+local SoundService     = cloneref and cloneref(game:GetService("SoundService"))     or game:GetService("SoundService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ─────────────────────────────────────────────────────────────
+--  ARCH COLOR PALETTE
+-- ─────────────────────────────────────────────────────────────
+local C_BG_MAIN    = Color3.fromRGB(10,  11,  13)
+local C_BG_CARD    = Color3.fromRGB(14,  15,  18)
+local C_BG_ELEM    = Color3.fromRGB(16,  17,  21)
+local C_BG_ROW     = Color3.fromRGB(13,  14,  17)
+local C_BG_ROWSEL  = Color3.fromRGB(19,  21,  27)
+local C_BG_ALBUM   = Color3.fromRGB(18,  19,  24)
+local C_BD_MAIN    = Color3.fromRGB(22,  24,  30)
+local C_BD_MID     = Color3.fromRGB(20,  22,  27)
+local C_BD_LIGHT   = Color3.fromRGB(28,  30,  38)
+local C_TX_PRI     = Color3.fromRGB(228, 231, 240)
+local C_TX_SEC     = Color3.fromRGB(135, 139, 155)
+local C_TX_TER     = Color3.fromRGB(72,  76,  92)
+local C_AC         = Color3.fromRGB(210, 215, 232)
+local C_AC_DIM     = Color3.fromRGB(150, 155, 172)
+local C_FILL       = Color3.fromRGB(195, 200, 218)
+local C_FILL_BG    = Color3.fromRGB(22,  24,  30)
+local C_OK         = Color3.fromRGB(100, 210, 140)
+local C_WARN       = Color3.fromRGB(220, 180,  60)
+local C_ERR        = Color3.fromRGB(220,  90,  80)
+
+-- ─────────────────────────────────────────────────────────────
+--  MUSIC PLAYER STATE
+-- ─────────────────────────────────────────────────────────────
+
+local MusicPlayer = {
+    Visible      = false,
+    Playing      = false,
+    CurrentTrack = 1,
+    Volume       = 0.5,
+    Shuffle      = false,
+    RepeatAll    = true,
+    BassBoost    = false,
+    NormalMode   = true,
+    AutoNext     = false,
+    Sound        = nil,
+    Equalizer    = nil,
+    Gui          = nil,
+    MainFrame    = nil,
+    Playlist     = {
+        { title = "01 OMFG - Hello",                   artist = "OMFG",                  time = "3:44", id = "rbxassetid://110788401793874"  },
+        { title = "02 heart - myla",                   artist = "heart",                 time = "2:15", id = "rbxassetid://71792887446304"   },
+        { title = "03 no name triad",                  artist = "triad",                 time = "2:30", id = "rbxassetid://104949403812182"  },
+        { title = "04 KING NASIR SONG",                artist = "King Nasir",            time = "2:45", id = "rbxassetid://76650356472656"   },
+        { title = "05 Under your spell",               artist = "Snow Strippers",        time = "2:20", id = "rbxassetid://91007045451630"   },
+        { title = "06 End of Beginning",               artist = "Djo",                   time = "2:39", id = "rbxassetid://91319037332598"   },
+        { title = "07 Du Bist Gut Genug",              artist = "Bausa",                 time = "2:48", id = "rbxassetid://85462356235488"   },
+        { title = "08 IMPOSTER SYNDROME",              artist = "Art",                   time = "2:35", id = "rbxassetid://132298170699457"  },
+        { title = "09 BABYDOLL",                       artist = "Ari Abdul",             time = "3:01", id = "rbxassetid://127012181396114"  },
+        { title = "10 RICARDO MILOS (DOTA)",           artist = "Basshunter",            time = "3:20", id = "rbxassetid://78478068056253"   },
+        { title = "11 TERRANOVA",                      artist = "Terranova",             time = "2:50", id = "rbxassetid://82746224492420"   },
+        { title = "12 MIRROR DEMO",                    artist = "Mirror",                time = "2:15", id = "rbxassetid://124497261394793"  },
+        { title = "13 RAMPAGE",                        artist = "Jugsta",                time = "2:10", id = "rbxassetid://15689453751"      },
+        { title = "14 Sudno (Vessel)",                 artist = "Molchat Doma",          time = "2:21", id = "rbxassetid://9048375035"       },
+        { title = "15 Metamorphosis",                  artist = "INTERWORLD",            time = "2:23", id = "rbxassetid://9045763048"       },
+        { title = "16 Midnight City",                  artist = "M83",                   time = "4:03", id = "rbxassetid://1837879082"       },
+        { title = "17 Tokyo Drift",                    artist = "Teriyaki Boyz",         time = "4:15", id = "rbxassetid://1843404009"       },
+        { title = "18 After Dark",                     artist = "Mr. Kitty",             time = "4:17", id = "rbxassetid://6913550904"       },
+        { title = "19 Resonance",                      artist = "HOME",                  time = "3:32", id = "rbxassetid://5410086218"       },
+        { title = "20 Murder In My Mind",              artist = "KORDHELL",              time = "2:25", id = "rbxassetid://9048375035"       },
+        { title = "21 Close Eyes",                     artist = "DVRST",                 time = "2:12", id = "rbxassetid://9043887091"       },
+        { title = "22 Neon Blade",                     artist = "MoonDeity",             time = "4:24", id = "rbxassetid://1848354536"       },
+        { title = "23 Memory Reboot",                  artist = "VOJ & Narvent",         time = "3:29", id = "rbxassetid://7028525146"       },
+        { title = "24 Sahara",                         artist = "Hensonn",               time = "2:51", id = "rbxassetid://1845554011"       },
+        { title = "25 GigaChad Theme",                 artist = "Phonk Remix",           time = "2:20", id = "rbxassetid://9045763048"       },
+        { title = "26 SimpsonWave 1995",               artist = "FrankJavCee",           time = "2:45", id = "rbxassetid://5410086218"       },
+        { title = "27 Supernova",                      artist = "Phonk Edition",         time = "3:10", id = "rbxassetid://9048375035"       },
+        { title = "28 Override",                       artist = "KSLV Noh",              time = "1:55", id = "rbxassetid://9043887091"       },
+        { title = "29 Live Another Day",               artist = "KSLV",                  time = "2:14", id = "rbxassetid://1848354536"       },
+        { title = "30 Disaster",                       artist = "KSLV",                  time = "2:18", id = "rbxassetid://1843404009"       },
+        { title = "31 SXND NXDES",                     artist = "BADTRIP MUSIC",         time = "2:04", id = "rbxassetid://7028525146"       },
+        { title = "32 Montagem Mysterious",             artist = "Phonk Drift",           time = "2:31", id = "rbxassetid://9045763048"       },
+        { title = "33 Automotivo Bibi Fogosa",          artist = "Bibi Babydoll",         time = "2:00", id = "rbxassetid://1837879082"       },
+        { title = "34 Brazilian Phonk Mano",            artist = "Slowed",                time = "2:22", id = "rbxassetid://6913550904"       },
+        { title = "35 Vendetta",                       artist = "MUPP & Sadfriendd",     time = "1:47", id = "rbxassetid://5409894140"       },
+        { title = "36 Wake Up!",                       artist = "MoonDeity",             time = "2:15", id = "rbxassetid://9048375035"       },
+        { title = "37 Lovely Bastards",                artist = "ZWE1HVNDXR",            time = "1:58", id = "rbxassetid://9043887091"       },
+        { title = "38 Smoke",                          artist = "Cowbell Cult",          time = "2:08", id = "rbxassetid://1845554011"       },
+        { title = "39 North Face",                     artist = "RXDXVIL",               time = "2:12", id = "rbxassetid://5410086218"       },
+        { title = "40 Warning",                        artist = "MC Orsen",              time = "2:37", id = "rbxassetid://1843404009"       },
+        { title = "41 Dark Beach",                     artist = "Pastel Ghost",          time = "3:42", id = "rbxassetid://1848354536"       },
+        { title = "42 The Perfect Girl",               artist = "Mareux",                time = "3:14", id = "rbxassetid://7028525146"       },
+        { title = "43 Transgender",                    artist = "Crystal Castles",       time = "3:05", id = "rbxassetid://9045763048"       },
+        { title = "44 Suffocation",                    artist = "Crystal Castles",       time = "4:02", id = "rbxassetid://1837879082"       },
+        { title = "45 Dream Space",                    artist = "DVRST",                 time = "2:52", id = "rbxassetid://6913550904"       },
+        { title = "46 Rapture",                        artist = "INTERWORLD",            time = "2:30", id = "rbxassetid://5410086218"       },
+        { title = "47 Sahara Slowed",                  artist = "Hensonn",               time = "3:20", id = "rbxassetid://9048375035"       },
+        { title = "48 Shadow",                         artist = "ONIMXRU & SMITHMANE",   time = "2:06", id = "rbxassetid://9043887091"       },
+        { title = "49 S.X.N.D. N.X.D.E.S.",           artist = "Sped Up",               time = "1:45", id = "rbxassetid://1845554011"       },
+        { title = "50 Neon Blade Slowed",              artist = "MoonDeity",             time = "4:55", id = "rbxassetid://1848354536"       },
+        { title = "51 AB4T",                           artist = "Phonk",                 time = "2:10", id = "rbxassetid://17422173467"      },
+        { title = "52 Above Phonk",                    artist = "Phonk",                 time = "2:20", id = "rbxassetid://89824897586105"   },
+        { title = "53 Alanwaad",                       artist = "Phonk",                 time = "2:15", id = "rbxassetid://17422074849"      },
+        { title = "54 Assassin's Ride",                artist = "Phonk",                 time = "2:30", id = "rbxassetid://73326647630445"   },
+        { title = "55 Metamorphosis (Phonk Ver)",      artist = "Phonk Remix",           time = "2:23", id = "rbxassetid://15689451063"      },
+        { title = "56 Sinistra",                       artist = "Phonk",                 time = "2:18", id = "rbxassetid://15689443663"      },
+        { title = "57 Blackout Drift",                 artist = "Phonk Drift",           time = "2:25", id = "rbxassetid://85290495098172"   },
+        { title = "58 Cowbell God",                    artist = "Phonk",                 time = "2:05", id = "rbxassetid://16190760005"      },
+        { title = "59 Ghostblade Phonk",               artist = "Phonk",                 time = "2:20", id = "rbxassetid://90441404910975"   },
+        { title = "60 Gigachand Phonk",                artist = "Phonk",                 time = "2:15", id = "rbxassetid://134366188285514"  },
+        { title = "61 Phonk of Darkness",              artist = "Phonk",                 time = "2:30", id = "rbxassetid://116896498238234"  },
+        { title = "62 Savage Slay Phonk",              artist = "Phonk",                 time = "2:10", id = "rbxassetid://71837666565538"   },
+        { title = "63 Ooga Ooga (Brazilian Phonk)",    artist = "Brazilian Phonk",       time = "2:00", id = "rbxassetid://119257435703988"  },
+        { title = "64 Motor de Favela",                artist = "Brazilian Phonk",       time = "2:15", id = "rbxassetid://91128030193066"   },
+        { title = "65 Brazil Fiesta",                  artist = "Brazilian Phonk",       time = "2:20", id = "rbxassetid://125498129824026"  },
+        { title = "66 Traphouse (Drift Phonk)",        artist = "Drift Phonk",           time = "2:25", id = "rbxassetid://91451793035186"   },
+        { title = "67 Graveyard Drift",                artist = "Drift Phonk",           time = "2:30", id = "rbxassetid://99535595384098"   },
+        { title = "68 Nostalgic Airtel Phonk",         artist = "Phonk",                 time = "2:15", id = "rbxassetid://122689619912715"  },
+        { title = "69 TOMA FUNK PHONK",                artist = "Funk Phonk",            time = "2:10", id = "rbxassetid://129098116998483"  },
+        { title = "70 67 KID PHONK",                   artist = "Phonk",                 time = "2:05", id = "rbxassetid://125476440612900"  },
+        { title = "71 ROBLOX PHONK",                   artist = "Phonk",                 time = "2:20", id = "rbxassetid://136932193331774"  },
+        { title = "72 SugarCrash! (Slowed+Reverb)",    artist = "ElyOtto",               time = "2:10", id = "rbxassetid://9044739323"       },
+        { title = "73 SugarCrash! (ElyOtto ver)",      artist = "ElyOtto",               time = "2:10", id = "rbxassetid://7577234475"       },
+        { title = "74 Midu Echoing",                   artist = "Traditional / Rework",  time = "3:20", id = "rbxassetid://115189039255362"  },
+        { title = "75 Stay With Me (City Pop)",        artist = "Miki Matsubara",        time = "4:14", id = "rbxassetid://6092500846"       },
+        { title = "76 Stay With Me (2020 ver)",        artist = "Miki Matsubara",        time = "4:14", id = "rbxassetid://6025043324"       },
+        { title = "77 Stay With Me (2019 ver)",        artist = "Miki Matsubara",        time = "4:14", id = "rbxassetid://2978924413"       },
+        { title = "78 Stay With Me (Slow ver)",        artist = "Miki Matsubara",        time = "4:30", id = "rbxassetid://6341195534"       },
+        { title = "79 Stay With Me",                   artist = "Sam Smith",             time = "2:52", id = "rbxassetid://6224994254"       },
+        { title = "80 Stay With Me (Piano)",           artist = "Sam Smith",             time = "2:52", id = "rbxassetid://529291302"        },
+        { title = "81 STAY",                           artist = "The Kid LAROI & Bieber",time = "2:21", id = "rbxassetid://9062549544"       },
+        { title = "82 STAY (alt ver)",                 artist = "The Kid LAROI & Bieber",time = "2:21", id = "rbxassetid://7081437616"       },
+        { title = "83 STAY (backup)",                  artist = "The Kid LAROI & Bieber",time = "2:21", id = "rbxassetid://7142575161"       },
+        { title = "84 Stay With Me (Rock)",            artist = "Whitesnake",            time = "3:40", id = "rbxassetid://2159549296"       },
+        { title = "85 Stay With Me",                   artist = "Ed Sheeran",            time = "2:50", id = "rbxassetid://1134058594"       },
+        { title = "86 Stay With Me",                   artist = "Sam Martin",            time = "3:10", id = "rbxassetid://162220205"        },
+        { title = "87 Stay With Me",                   artist = "Sam Tsui",              time = "3:05", id = "rbxassetid://535192581"        },
+        { title = "88 Stay With Me (Clean)",           artist = "1nonly",                time = "2:30", id = "rbxassetid://6243836833"       },
+        { title = "89 loner",                          artist = "1nonly",                time = "2:15", id = "rbxassetid://8827064516"       },
+        { title = "90 falling",                        artist = "1nonly",                time = "2:20", id = "rbxassetid://9163464022"       },
+        { title = "91 i don't care",                   artist = "1nonly",                time = "2:10", id = "rbxassetid://9163473281"       },
+        { title = "92 Freaks",                         artist = "Surf Curse",            time = "?:??", id = "rbxassetid://121899558798491"  },
+        { title = "93 Life Goes On",                   artist = "Oliver Tree",           time = "?:??", id = "rbxassetid://135321902579514"  },
+        { title = "94 Wasted",                         artist = "Juice WRLD",            time = "?:??", id = "rbxassetid://130796457790083"  },
+        { title = "95 Luo Lei (Kang Xi)",              artist = "toyoki",                time = "?:??", id = "rbxassetid://110398343528156"  },
+        { title = "96 From The Start",                 artist = "laufey",                time = "?:??", id = "rbxassetid://127460736736456"  },
+        { title = "97 Letting Go",                     artist = "Tanya Chua",            time = "?:??", id = "rbxassetid://130378308050086"  },
+        { title = "98 Cradles (Slowed)",               artist = "Sub Urban",             time = "?:??", id = "rbxassetid://111775445806866"  },
+        { title = "99 I Don't Know",                   artist = "Erika",                 time = "?:??", id = "rbxassetid://104932048517135"  },
+        { title = "100 LEGACY",                        artist = "PIXY",                  time = "?:??", id = "rbxassetid://98250122413808"   },
+        { title = "101 Mask Off",                      artist = "Future",                time = "?:??", id = "rbxassetid://118893494775965"  },
+        { title = "102 Ransom",                        artist = "Lil Tecca",             time = "?:??", id = "rbxassetid://111098375937975"  },
+        { title = "103 You Broke My Heart",            artist = "myla",                  time = "?:??", id = "rbxassetid://71792887446304"   },
+        { title = "104 Fall From The Sky (Slowed)",    artist = "Unknown",               time = "?:??", id = "rbxassetid://115590187881251"  },
+        { title = "105 Verity Hardtekk",               artist = "Hardtekk",             time = "?:??", id = "rbxassetid://116704489332329"  },
+        { title = "106 Sugar Crash!",                  artist = "ElyOtto",               time = "?:??", id = "rbxassetid://112095632725896"  },
+        { title = "107 Notion",                        artist = "The Rare Occasions",    time = "?:??", id = "rbxassetid://91686549884884"   },
+        { title = "108 MISERY",                        artist = "Unknown",               time = "?:??", id = "rbxassetid://109252339723127"  },
+        { title = "109 Faded",                         artist = "Alan Walker",           time = "?:??", id = "rbxassetid://101942928369299"  },
+        { title = "110 Falling Tears",                 artist = "Unknown",               time = "?:??", id = "rbxassetid://110398343528156"  },
+        { title = "111 All I Want Is You",             artist = "Unknown",               time = "?:??", id = "rbxassetid://81067084464165"   },
+        { title = "112 Montagem Alquimia",             artist = "Brazilian Phonk",       time = "?:??", id = "rbxassetid://92006180012745"   },
+        { title = "113 Xangai Vem Vem",                artist = "Brazilian Phonk",       time = "?:??", id = "rbxassetid://79914691299579"   },
+    }
+}
+
+-- ─────────────────────────────────────────────────────────────
+--  FOLDER HELPERS
+-- ─────────────────────────────────────────────────────────────
+
+local SONGS_DIR  = "arch/songs"
+local SONGS_FILE = "arch/songs/songs.cfg"
+
+local function ensureSongsFolder()
+    pcall(function()
+        if not isfolder then return end
+        if not isfolder("arch") then makefolder("arch") end
+        if not isfolder(SONGS_DIR)  then makefolder(SONGS_DIR) end
+        if isfile and not isfile(SONGS_FILE) then
+            writefile(SONGS_FILE, table.concat({
+                "-- Arch Script Music Player · songs.cfg",
+                "-- One song per line:  Title|Artist|M:SS|rbxassetid://ID",
+                "-- Lines starting with -- are ignored.",
+                "",
+                "OMFG - Hello|OMFG|3:44|rbxassetid://110788401793874",
+                "After Dark|Mr. Kitty|4:17|rbxassetid://6913550904",
+                "Midnight City|M83|4:03|rbxassetid://1837879082",
+                "Memory Reboot|VOJ & Narvent|3:29|rbxassetid://7028525146",
+            }, "\n"))
+        end
+    end)
+end
+
+local function loadSongsFromFile()
+    local ok, result = pcall(function()
+        if not (isfile and readfile) then return nil end
+        ensureSongsFolder()
+        if not isfile(SONGS_FILE) then return nil end
+        local raw = readfile(SONGS_FILE)
+        local songs = {}
+        for line in raw:gmatch("[^\r\n]+") do
+            local trimmed = line:match("^%s*(.-)%s*$")
+            if trimmed ~= "" and trimmed:sub(1,2) ~= "--" then
+                local parts = {}
+                for part in trimmed:gmatch("([^|]+)") do
+                    table.insert(parts, part:match("^%s*(.-)%s*$"))
+                end
+                if #parts >= 4 then
+                    local id = parts[4]
+                    if not id:find("rbxassetid://") and not id:find("assetid://") then
+                        local num = id:gsub("%D","")
+                        if #num > 0 then id = "rbxassetid://" .. num end
+                    end
+                    table.insert(songs, { title=parts[1], artist=parts[2] or "", time=parts[3] or "?:??", id=id })
+                end
+            end
+        end
+        return #songs > 0 and songs or nil
+    end)
+    if ok then return result end
+    return nil
+end
+
+-- ─────────────────────────────────────────────────────────────
+--  MAIN INIT
+-- ─────────────────────────────────────────────────────────────
+
+local function initMusicPlayer()
+    local coreGui  = (gethui and gethui()) or game:GetService("CoreGui")
+    local soundSvc = cloneref and cloneref(game:GetService("SoundService")) or game:GetService("SoundService")
+
+    -- ── Sound instance ───────────────────────────────────────
+    local sound = Instance.new("Sound")
+    sound.Name     = "_ArchMusicTrack"
+    sound.Volume   = MusicPlayer.Volume
+    sound.Looped   = not MusicPlayer.RepeatAll
+    sound.Parent   = soundSvc
+    MusicPlayer.Sound = sound
+
+    local eq = Instance.new("EqualizerSoundEffect")
+    eq.Name    = "_ArchBassBoost"
+    eq.LowGain = 0; eq.MidGain = 0; eq.HighGain = 0; eq.Enabled = false
+    eq.Parent  = sound
+    MusicPlayer.Equalizer = eq
+
+    -- ── ScreenGui ────────────────────────────────────────────
+    local sg = Instance.new("ScreenGui")
+    sg.Name           = "_ArchMusicGui"
+    sg.ResetOnSpawn   = false
+    sg.DisplayOrder   = 1000
+    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    pcall(function() sg.Parent = coreGui end)
+    if not sg.Parent then
+        pcall(function()
+            sg.Parent = LocalPlayer:FindFirstChild("PlayerGui")
+                     or LocalPlayer:WaitForChild("PlayerGui", 0.5)
+        end)
+    end
+    MusicPlayer.Gui = sg
+
+    -- ── Main frame ───────────────────────────────────────────
+    local main = Instance.new("Frame")
+    main.Name                = "ArchMusicPlayerFrame"
+    main.Size                = UDim2.fromOffset(296, 499)
+    main.Position            = UDim2.new(1, -315, 0, 20)
+    main.BackgroundColor3    = C_BG_MAIN
+    main.BorderSizePixel     = 0
+    main.Visible             = true
+    main.ZIndex              = 500
+    main.Parent              = sg
+    MusicPlayer.MainFrame    = main
+    local mainStroke = Instance.new("UIStroke", main)
+    mainStroke.Color = C_BD_MAIN; mainStroke.Thickness = 1
+
+    -- ─────────────────────────────────────────────────────────
+    --  TOGGLE BUTTON — draggable, default top-left (10, 10)
+    --  tbMoved flag: swallows the click when button was dragged
+    --  so a drag doesn't accidentally toggle the main panel.
+    -- ─────────────────────────────────────────────────────────
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Name             = "ArchToggleBtn"
+    toggleBtn.Size             = UDim2.fromOffset(88, 22)
+    toggleBtn.Position         = UDim2.fromOffset(10, 10)   -- top-left default
+    toggleBtn.BackgroundColor3 = C_BG_CARD
+    toggleBtn.BorderSizePixel  = 0
+    toggleBtn.Text             = "♪  arch player"
+    toggleBtn.TextColor3       = C_TX_TER
+    toggleBtn.Font             = Enum.Font.Gotham
+    toggleBtn.TextSize         = 9
+    toggleBtn.ZIndex           = 600   -- above main (500), always on top
+    toggleBtn.Parent           = sg
+    local toggleStroke = Instance.new("UIStroke", toggleBtn)
+    toggleStroke.Color     = C_BD_MID
+    toggleStroke.Thickness = 1
+
+    -- drag state
+    local tbDragging  = false
+    local tbDragStart = nil
+    local tbStartPos  = nil
+    local tbMoved     = false   -- true once cursor/finger moved enough to count as a drag
+
+    toggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            tbDragging  = true
+            tbMoved     = false
+            tbDragStart = input.Position
+            tbStartPos  = toggleBtn.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    tbDragging = false
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if tbDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+                        or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - tbDragStart
+            if math.abs(d.X) > 4 or math.abs(d.Y) > 4 then
+                tbMoved = true
+            end
+            toggleBtn.Position = UDim2.new(
+                tbStartPos.X.Scale, tbStartPos.X.Offset + d.X,
+                tbStartPos.Y.Scale, tbStartPos.Y.Offset + d.Y
+            )
+        end
+    end)
+
+    -- visual state: dim when panel open, glow when hidden (findable on mobile)
+    local function syncToggleBtn()
+        if main.Visible then
+            toggleBtn.BackgroundColor3 = C_BG_CARD
+            toggleBtn.TextColor3       = C_TX_TER
+            toggleStroke.Color         = C_BD_MID
+        else
+            toggleBtn.BackgroundColor3 = C_BG_ROWSEL
+            toggleBtn.TextColor3       = C_AC
+            toggleStroke.Color         = C_AC_DIM
+        end
+    end
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        if tbMoved then return end   -- swallow click if it was a drag
+        main.Visible = not main.Visible
+        syncToggleBtn()
+    end)
+
+    -- ── Drag (main panel) ────────────────────────────────────
+    local dragging, dragStart, startPos
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+                      or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+                                      startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+
+    -- ── Shift key — toggle hide (keyboard shortcut) ──────────
+    UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.LeftShift
+        or input.KeyCode == Enum.KeyCode.RightShift then
+            main.Visible = not main.Visible
+            syncToggleBtn()
+        end
+    end)
+
+    -- ── Top bar ──────────────────────────────────────────────
+    local topBar = Instance.new("Frame")
+    topBar.Size = UDim2.new(1,0,0,32); topBar.BackgroundTransparency=1; topBar.Parent=main
+
+    local accentLine = Instance.new("Frame")
+    accentLine.Size = UDim2.fromOffset(2, 14); accentLine.Position = UDim2.fromOffset(12, 9)
+    accentLine.BackgroundColor3 = C_AC; accentLine.BorderSizePixel = 0; accentLine.Parent = topBar
+    Instance.new("UICorner", accentLine).CornerRadius = UDim.new(1, 0)
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.fromOffset(120, 32); titleLabel.Position = UDim2.fromOffset(20, 0)
+    titleLabel.BackgroundTransparency = 1; titleLabel.Text = "arch music player"
+    titleLabel.TextColor3 = C_TX_PRI; titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 11; titleLabel.TextXAlignment = Enum.TextXAlignment.Left; titleLabel.Parent = topBar
+
+    local songCountLabel = Instance.new("TextLabel")
+    songCountLabel.Size = UDim2.fromOffset(70, 32); songCountLabel.Position = UDim2.new(1,-125,0,0)
+    songCountLabel.BackgroundTransparency = 1; songCountLabel.Text = #MusicPlayer.Playlist.." tracks"
+    songCountLabel.TextColor3 = C_TX_TER; songCountLabel.Font = Enum.Font.Gotham
+    songCountLabel.TextSize = 10; songCountLabel.TextXAlignment = Enum.TextXAlignment.Right; songCountLabel.Parent = topBar
+
+    local function makeTopBtn(xOff, label)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.fromOffset(20, 20); b.Position = UDim2.new(1, xOff, 0, 6)
+        b.BackgroundColor3 = C_BG_ELEM; b.Text = label
+        b.TextColor3 = C_TX_SEC; b.Font = Enum.Font.GothamBold; b.TextSize = 11; b.Parent = topBar
+        local s = Instance.new("UIStroke", b); s.Color = C_BD_LIGHT; s.Thickness = 1
+        return b
+    end
+    local minBtn   = makeTopBtn(-48, "−")
+    local closeBtn = makeTopBtn(-24, "×")
+
+    -- × hides main; toggle button (or Shift) brings it back
+    closeBtn.MouseButton1Click:Connect(function()
+        main.Visible = false
+        syncToggleBtn()
+    end)
+
+    -- ── Content frame ────────────────────────────────────────
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Size = UDim2.new(1,0,1,-32); contentFrame.Position = UDim2.fromOffset(0,32)
+    contentFrame.BackgroundTransparency = 1; contentFrame.Parent = main
+
+    local minimized = false
+    minBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        contentFrame.Visible = not minimized
+        main.Size = minimized and UDim2.fromOffset(296, 32) or UDim2.fromOffset(296, 499)
+        minBtn.Text = minimized and "+" or "−"
+    end)
+
+    -- ── Separator line ───────────────────────────────────────
+    local sepLine = Instance.new("Frame")
+    sepLine.Size = UDim2.new(1,-20,0,1); sepLine.Position = UDim2.fromOffset(10,2)
+    sepLine.BackgroundColor3 = C_BD_MAIN; sepLine.BorderSizePixel = 0; sepLine.Parent = contentFrame
+
+    -- ── Now-playing card ─────────────────────────────────────
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1,-20,0,64); card.Position = UDim2.fromOffset(10,8)
+    card.BackgroundColor3 = C_BG_CARD; card.BorderSizePixel = 0; card.Parent = contentFrame
+    local cardStroke = Instance.new("UIStroke", card); cardStroke.Color = C_BD_MID; cardStroke.Thickness = 1
+
+    local album = Instance.new("Frame")
+    album.Size = UDim2.fromOffset(46, 46); album.Position = UDim2.fromOffset(9, 9)
+    album.BackgroundColor3 = C_BG_ALBUM; album.BorderSizePixel = 0; album.Parent = card
+    local albumStroke = Instance.new("UIStroke", album); albumStroke.Color = C_BD_LIGHT; albumStroke.Thickness = 1
+
+    local albumMono = Instance.new("TextLabel")
+    albumMono.Size = UDim2.new(1,0,1,0); albumMono.BackgroundTransparency = 1
+    albumMono.Text = "♪"; albumMono.TextColor3 = C_TX_TER
+    albumMono.Font = Enum.Font.GothamBold; albumMono.TextSize = 18; albumMono.Parent = album
+
+    local waveLabel = Instance.new("TextLabel")
+    waveLabel.Size = UDim2.new(1,-4,0,10); waveLabel.Position = UDim2.new(0,2,1,-12)
+    waveLabel.BackgroundTransparency = 1; waveLabel.Text = "· · · ·"
+    waveLabel.TextColor3 = C_AC_DIM; waveLabel.Font = Enum.Font.Gotham
+    waveLabel.TextSize = 8; waveLabel.Parent = album
+
+    local trackTitle = Instance.new("TextLabel")
+    trackTitle.Size = UDim2.new(1,-70,0,16); trackTitle.Position = UDim2.fromOffset(64,10)
+    trackTitle.BackgroundTransparency = 1; trackTitle.Text = MusicPlayer.Playlist[1].title
+    trackTitle.TextColor3 = C_TX_PRI; trackTitle.Font = Enum.Font.GothamBold
+    trackTitle.TextSize = 11; trackTitle.TextXAlignment = Enum.TextXAlignment.Left
+    trackTitle.TextTruncate = Enum.TextTruncate.AtEnd; trackTitle.Parent = card
+
+    local trackStatus = Instance.new("TextLabel")
+    trackStatus.Size = UDim2.new(1,-70,0,13); trackStatus.Position = UDim2.fromOffset(64,26)
+    trackStatus.BackgroundTransparency = 1; trackStatus.Text = "idle"
+    trackStatus.TextColor3 = C_TX_SEC; trackStatus.Font = Enum.Font.Gotham
+    trackStatus.TextSize = 10; trackStatus.TextXAlignment = Enum.TextXAlignment.Left; trackStatus.Parent = card
+
+    local trackSub = Instance.new("TextLabel")
+    trackSub.Size = UDim2.new(1,-70,0,12); trackSub.Position = UDim2.fromOffset(64,40)
+    trackSub.BackgroundTransparency = 1
+    trackSub.Text = "track 1 of "..#MusicPlayer.Playlist.." · library"
+    trackSub.TextColor3 = C_TX_TER; trackSub.Font = Enum.Font.Gotham
+    trackSub.TextSize = 9; trackSub.TextXAlignment = Enum.TextXAlignment.Left; trackSub.Parent = card
+
+    -- ── Progress bar ─────────────────────────────────────────
+    local progressFrame = Instance.new("Frame")
+    progressFrame.Size = UDim2.new(1,-20,0,16); progressFrame.Position = UDim2.fromOffset(10,78)
+    progressFrame.BackgroundTransparency = 1; progressFrame.Parent = contentFrame
+
+    local curTimeLbl = Instance.new("TextLabel")
+    curTimeLbl.Size = UDim2.fromOffset(28,16); curTimeLbl.BackgroundTransparency = 1
+    curTimeLbl.Text = "0:00"; curTimeLbl.TextColor3 = C_TX_TER
+    curTimeLbl.Font = Enum.Font.Gotham; curTimeLbl.TextSize = 9
+    curTimeLbl.TextXAlignment = Enum.TextXAlignment.Left; curTimeLbl.Parent = progressFrame
+
+    local totTimeLbl = Instance.new("TextLabel")
+    totTimeLbl.Size = UDim2.fromOffset(28,16); totTimeLbl.Position = UDim2.new(1,-28,0,0)
+    totTimeLbl.BackgroundTransparency = 1; totTimeLbl.Text = MusicPlayer.Playlist[1].time
+    totTimeLbl.TextColor3 = C_TX_TER; totTimeLbl.Font = Enum.Font.Gotham
+    totTimeLbl.TextSize = 9; totTimeLbl.TextXAlignment = Enum.TextXAlignment.Right; totTimeLbl.Parent = progressFrame
+
+    local progBarBg = Instance.new("TextButton")
+    progBarBg.Size = UDim2.new(1,-66,0,3); progBarBg.Position = UDim2.fromOffset(33,6)
+    progBarBg.BackgroundColor3 = C_FILL_BG; progBarBg.Text = ""
+    progBarBg.AutoButtonColor = false; progBarBg.Parent = progressFrame
+
+    local progFill = Instance.new("Frame")
+    progFill.Size = UDim2.new(0,0,1,0); progFill.BackgroundColor3 = C_FILL
+    progFill.BorderSizePixel = 0; progFill.Parent = progBarBg
+
+    local progDragging = false
+    progBarBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            progDragging = true
+            if sound.TimeLength > 0 then
+                local rel = math.clamp((input.Position.X - progBarBg.AbsolutePosition.X) / progBarBg.AbsoluteSize.X, 0, 1)
+                sound.TimePosition = rel * sound.TimeLength
+            end
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then progDragging = false end
+    end)
+
+    -- ── Playback controls ────────────────────────────────────
+    local controls = Instance.new("Frame")
+    controls.Size = UDim2.new(1,-20,0,36); controls.Position = UDim2.fromOffset(10,98)
+    controls.BackgroundTransparency = 1; controls.Parent = contentFrame
+
+    local function makeCtrlBtn(xPct, xOff, w, h, label, isPrimary)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.fromOffset(w, h); b.Position = UDim2.new(xPct, xOff, 0, math.floor((36-h)/2))
+        b.BackgroundColor3 = isPrimary and C_AC or C_BG_ELEM
+        b.Text = label
+        b.TextColor3 = isPrimary and C_BG_MAIN or C_TX_SEC
+        b.Font = Enum.Font.GothamBold; b.TextSize = isPrimary and 14 or 11; b.Parent = controls
+        if not isPrimary then
+            local s = Instance.new("UIStroke", b); s.Color = C_BD_LIGHT; s.Thickness = 1
+        end
+        return b
+    end
+
+    local prevBtn = makeCtrlBtn(0.5, -60, 34, 28, "|◂", false)
+    local playBtn = makeCtrlBtn(0.5, -18, 36, 32, "▶", true)
+    local nextBtn = makeCtrlBtn(0.5,  24, 34, 28, "▸|", false)
+
+    -- ── Volume bar ───────────────────────────────────────────
+    local volFrame = Instance.new("Frame")
+    volFrame.Size = UDim2.new(1,-20,0,18); volFrame.Position = UDim2.fromOffset(10,140)
+    volFrame.BackgroundTransparency = 1; volFrame.Parent = contentFrame
+
+    local volLabel = Instance.new("TextLabel")
+    volLabel.Size = UDim2.fromOffset(40,18); volLabel.BackgroundTransparency = 1
+    volLabel.Text = "vol"; volLabel.TextColor3 = C_TX_TER
+    volLabel.Font = Enum.Font.Gotham; volLabel.TextSize = 10
+    volLabel.TextXAlignment = Enum.TextXAlignment.Left; volLabel.Parent = volFrame
+
+    local volBarBg = Instance.new("TextButton")
+    volBarBg.Size = UDim2.new(1,-52,0,14); volBarBg.Position = UDim2.fromOffset(44,2)
+    volBarBg.BackgroundColor3 = C_FILL_BG; volBarBg.Text = ""
+    volBarBg.AutoButtonColor = false; volBarBg.Parent = volFrame
+    local vbS = Instance.new("UIStroke", volBarBg); vbS.Color = C_BD_MID; vbS.Thickness = 1
+
+    local volFill = Instance.new("Frame")
+    volFill.Size = UDim2.new(0.5,0,1,0); volFill.BackgroundColor3 = C_FILL
+    volFill.BorderSizePixel = 0; volFill.Parent = volBarBg
+
+    local volPctLbl = Instance.new("TextLabel")
+    volPctLbl.Size = UDim2.new(1,0,1,0); volPctLbl.BackgroundTransparency = 1
+    volPctLbl.Text = "50%"; volPctLbl.TextColor3 = C_TX_SEC
+    volPctLbl.Font = Enum.Font.GothamBold; volPctLbl.TextSize = 9; volPctLbl.Parent = volBarBg
+
+    local volDragging = false
+    local function updateVol(input)
+        local rel = math.clamp((input.Position.X - volBarBg.AbsolutePosition.X) / volBarBg.AbsoluteSize.X, 0, 1)
+        volFill.Size = UDim2.new(rel,0,1,0); MusicPlayer.Volume = rel; sound.Volume = rel
+        volPctLbl.Text = math.floor(rel*100).."%"
+    end
+    volBarBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then volDragging = true; updateVol(input) end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then volDragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if volDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+                         or input.UserInputType == Enum.UserInputType.Touch) then updateVol(input) end
+    end)
+
+    -- ── Mode toggle row  (5 buttons: shuffle / repeat / bass / normal / auto) ──
+    local modeRow = Instance.new("Frame")
+    modeRow.Size = UDim2.new(1,-20,0,22); modeRow.Position = UDim2.fromOffset(10,164)
+    modeRow.BackgroundTransparency = 1; modeRow.Parent = contentFrame
+
+    local function makeModeBtn(x, w, txt, active)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(w,-3,1,0); b.Position = UDim2.new(x,2,0,0)
+        b.BackgroundColor3 = active and C_BG_ROWSEL or C_BG_ELEM
+        b.Text = txt
+        b.TextColor3 = active and C_AC or C_TX_TER
+        b.Font = Enum.Font.Gotham; b.TextSize = 9; b.Parent = modeRow
+        local s = Instance.new("UIStroke", b)
+        s.Color = active and C_AC_DIM or C_BD_LIGHT; s.Thickness = 1
+        return b, s
+    end
+
+    local shufBtn, shufS = makeModeBtn(0,   0.2, "shuffle", MusicPlayer.Shuffle)
+    local repBtn,  repS  = makeModeBtn(0.2, 0.2, "repeat",  MusicPlayer.RepeatAll)
+    local bassBtn, bassS = makeModeBtn(0.4, 0.2, "bass",    MusicPlayer.BassBoost)
+    local normBtn, normS = makeModeBtn(0.6, 0.2, "normal",  MusicPlayer.NormalMode)
+    local autoBtn, autoS = makeModeBtn(0.8, 0.2, "auto",    MusicPlayer.AutoNext)
+
+    local function toggleMode(flag, btn, stroke)
+        btn.BackgroundColor3 = flag and C_BG_ROWSEL or C_BG_ELEM
+        btn.TextColor3 = flag and C_AC or C_TX_TER
+        stroke.Color = flag and C_AC_DIM or C_BD_LIGHT
+    end
+
+    shufBtn.MouseButton1Click:Connect(function()
+        MusicPlayer.Shuffle = not MusicPlayer.Shuffle; toggleMode(MusicPlayer.Shuffle, shufBtn, shufS)
+    end)
+    repBtn.MouseButton1Click:Connect(function()
+        MusicPlayer.RepeatAll = not MusicPlayer.RepeatAll; toggleMode(MusicPlayer.RepeatAll, repBtn, repS)
+        sound.Looped = not MusicPlayer.RepeatAll
+    end)
+    bassBtn.MouseButton1Click:Connect(function()
+        MusicPlayer.BassBoost = not MusicPlayer.BassBoost; eq.Enabled = MusicPlayer.BassBoost
+        eq.LowGain = MusicPlayer.BassBoost and 10 or 0; toggleMode(MusicPlayer.BassBoost, bassBtn, bassS)
+    end)
+    normBtn.MouseButton1Click:Connect(function()
+        MusicPlayer.NormalMode = not MusicPlayer.NormalMode; toggleMode(MusicPlayer.NormalMode, normBtn, normS)
+    end)
+    autoBtn.MouseButton1Click:Connect(function()
+        MusicPlayer.AutoNext = not MusicPlayer.AutoNext; toggleMode(MusicPlayer.AutoNext, autoBtn, autoS)
+    end)
+
+    -- ── Search row ───────────────────────────────────────────
+    local searchRow = Instance.new("Frame")
+    searchRow.Size = UDim2.new(1,-20,0,24); searchRow.Position = UDim2.fromOffset(10,192)
+    searchRow.BackgroundTransparency = 1; searchRow.Parent = contentFrame
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Size = UDim2.new(1,-64,1,0)
+    searchBox.BackgroundColor3 = C_BG_ELEM
+    searchBox.PlaceholderText = "search library or paste audio id..."
+    searchBox.PlaceholderColor3 = C_TX_TER; searchBox.Text = ""
+    searchBox.TextColor3 = C_TX_PRI; searchBox.Font = Enum.Font.Gotham
+    searchBox.TextSize = 10; searchBox.TextXAlignment = Enum.TextXAlignment.Left
+    searchBox.ClearTextOnFocus = false; searchBox.Parent = searchRow
+    local sbS = Instance.new("UIStroke", searchBox); sbS.Color = C_BD_LIGHT; sbS.Thickness = 1
+    local sPad = Instance.new("UIPadding", searchBox); sPad.PaddingLeft = UDim.new(0,8)
+
+    local randomBtn = Instance.new("TextButton")
+    randomBtn.Size = UDim2.fromOffset(58,24); randomBtn.Position = UDim2.new(1,-58,0,0)
+    randomBtn.BackgroundColor3 = C_BG_ELEM; randomBtn.Text = "random"
+    randomBtn.TextColor3 = C_TX_SEC; randomBtn.Font = Enum.Font.Gotham; randomBtn.TextSize = 10; randomBtn.Parent = searchRow
+    local rbS = Instance.new("UIStroke", randomBtn); rbS.Color = C_BD_LIGHT; rbS.Thickness = 1
+
+    -- ── Song list ────────────────────────────────────────────
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1,-20,0,148); scroll.Position = UDim2.fromOffset(10,220)
+    scroll.BackgroundColor3 = Color3.fromRGB(11,12,15); scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 2; scroll.ScrollBarImageColor3 = C_AC_DIM
+    scroll.CanvasSize = UDim2.fromOffset(0, #MusicPlayer.Playlist*24+4)
+    scroll.Parent = contentFrame
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0,2); listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = scroll
+
+    -- ─────────────────────────────────────────────────────────
+    --  TRACK PLAY — with auto-skip on load failure
+    -- ─────────────────────────────────────────────────────────
+
+    local songRows       = {}
+    local playGeneration = 0
+
+    local function playTrack(idx)
+        if idx < 1 then idx = #MusicPlayer.Playlist end
+        if idx > #MusicPlayer.Playlist then idx = 1 end
+        MusicPlayer.CurrentTrack = idx
+
+        playGeneration = playGeneration + 1
+        local gen = playGeneration
+
+        local item = MusicPlayer.Playlist[idx]
+        sound.SoundId = item.id; sound.TimePosition = 0; sound:Play()
+        MusicPlayer.Playing = true; playBtn.Text = "⏸"; playBtn.TextSize = 11
+        trackTitle.Text = item.title; trackStatus.Text = "playing"
+        trackSub.Text = "track "..idx.." of "..#MusicPlayer.Playlist
+                     ..(item.artist ~= "" and (" · "..item.artist) or " · library")
+        totTimeLbl.Text = item.time
+
+        for i, r in ipairs(songRows) do
+            local c = (i == idx)
+            r.Button.BackgroundColor3 = c and C_BG_ROWSEL or C_BG_ROW
+            r.Title.TextColor3 = c and C_AC or C_TX_SEC
+            r.Title.Text = (c and "▸  " or "   ")..MusicPlayer.Playlist[i].title
+            r.Time.TextColor3 = c and C_AC_DIM or C_TX_TER
+        end
+
+        if MusicPlayer.AutoNext then
+            task.delay(5, function()
+                if playGeneration == gen
+                and MusicPlayer.Playing
+                and sound.TimeLength <= 0 then
+                    trackStatus.Text = "skipped"
+                    if MusicPlayer.Shuffle then
+                        playTrack(math.random(1, #MusicPlayer.Playlist))
+                    else
+                        playTrack(MusicPlayer.CurrentTrack + 1)
+                    end
+                end
+            end)
+        end
+    end
+
+    local function rebuildSongList()
+        for _, r in ipairs(songRows) do if r.Button then r.Button:Destroy() end end
+        songRows = {}
+        scroll.CanvasSize = UDim2.fromOffset(0, #MusicPlayer.Playlist*24+4)
+        songCountLabel.Text = #MusicPlayer.Playlist.." tracks"
+        for i, trk in ipairs(MusicPlayer.Playlist) do
+            local isCur = (i == MusicPlayer.CurrentTrack)
+            local row = Instance.new("TextButton")
+            row.Size = UDim2.new(1,-4,0,22); row.BackgroundColor3 = isCur and C_BG_ROWSEL or C_BG_ROW
+            row.Text = ""; row.AutoButtonColor = false; row.LayoutOrder = i; row.Parent = scroll
+            local tLbl = Instance.new("TextLabel")
+            tLbl.Size = UDim2.new(1,-45,1,0); tLbl.Position = UDim2.fromOffset(4,0)
+            tLbl.BackgroundTransparency = 1; tLbl.Text = (isCur and "▸  " or "   ")..trk.title
+            tLbl.TextColor3 = isCur and C_AC or C_TX_SEC
+            tLbl.Font = Enum.Font.Gotham; tLbl.TextSize = 10
+            tLbl.TextXAlignment = Enum.TextXAlignment.Left; tLbl.TextTruncate = Enum.TextTruncate.AtEnd; tLbl.Parent = row
+            local dLbl = Instance.new("TextLabel")
+            dLbl.Size = UDim2.fromOffset(40,22); dLbl.Position = UDim2.new(1,-44,0,0)
+            dLbl.BackgroundTransparency = 1; dLbl.Text = trk.time
+            dLbl.TextColor3 = isCur and C_AC_DIM or C_TX_TER
+            dLbl.Font = Enum.Font.Gotham; dLbl.TextSize = 9
+            dLbl.TextXAlignment = Enum.TextXAlignment.Right; dLbl.Parent = row
+            local cap = i
+            row.MouseButton1Click:Connect(function() playTrack(cap) end)
+            songRows[i] = { Button=row, Title=tLbl, Time=dLbl }
+        end
+    end
+
+    rebuildSongList()
+
+    -- ── Playback callbacks ────────────────────────────────────
+    playBtn.MouseButton1Click:Connect(function()
+        if MusicPlayer.Playing then
+            sound:Pause(); MusicPlayer.Playing = false
+            playBtn.Text = "▶"; playBtn.TextSize = 14; trackStatus.Text = "paused"
+        else
+            if sound.SoundId == "" then playTrack(MusicPlayer.CurrentTrack)
+            else sound:Resume(); MusicPlayer.Playing = true; playBtn.Text = "⏸"; playBtn.TextSize = 11; trackStatus.Text = "playing" end
+        end
+    end)
+    prevBtn.MouseButton1Click:Connect(function() playTrack(MusicPlayer.CurrentTrack - 1) end)
+    nextBtn.MouseButton1Click:Connect(function()
+        if MusicPlayer.Shuffle then playTrack(math.random(1, #MusicPlayer.Playlist))
+        else playTrack(MusicPlayer.CurrentTrack + 1) end
+    end)
+
+    randomBtn.MouseButton1Click:Connect(function()
+        playTrack(math.random(1, #MusicPlayer.Playlist))
+    end)
+
+    -- Direct audio ID: paste a numeric ID and press Enter
+    searchBox.FocusLost:Connect(function(enterPressed)
+        local query = searchBox.Text:gsub("%s+","")
+        if #query > 0 then
+            local cleanNum = query:gsub("%D+","")
+            if #cleanNum > 4 and enterPressed then
+                sound.SoundId = "rbxassetid://"..cleanNum; sound.TimePosition = 0; sound:Play()
+                MusicPlayer.Playing = true; playBtn.Text = "⏸"; playBtn.TextSize = 11
+                trackTitle.Text = "custom: "..query; trackStatus.Text = "playing"
+                trackSub.Text = "direct audio id"
+                searchBox.Text = ""
+            end
+        end
+    end)
+
+    -- Live filter
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local q = string.lower(searchBox.Text)
+        for i, r in ipairs(songRows) do
+            if MusicPlayer.Playlist[i] then
+                local tm = string.lower(MusicPlayer.Playlist[i].title):find(q,  1, true)
+                local am = string.lower(MusicPlayer.Playlist[i].artist):find(q, 1, true)
+                r.Button.Visible = (q == "" or tm ~= nil or am ~= nil)
+            end
+        end
+    end)
+
+    -- ── Bottom bar ───────────────────────────────────────────
+    local function makeBottomBtn(xPct, xOff, w, label, accent)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0, w, 0, 22); b.Position = UDim2.new(xPct, xOff, 0, 390)
+        b.BackgroundColor3 = C_BG_ELEM; b.Text = label
+        b.TextColor3 = accent and C_AC or C_TX_SEC
+        b.Font = Enum.Font.Gotham; b.TextSize = 10; b.Parent = contentFrame
+        local s = Instance.new("UIStroke", b)
+        s.Color = accent and C_BD_MID or C_BD_LIGHT; s.Thickness = 1
+        return b
+    end
+
+    local loadCommBtn = makeBottomBtn(0, 10,  128, "library songs", true)
+    local scanBtn     = makeBottomBtn(0, 148, 128, "scan folder",   false)
+
+    local footNote1 = Instance.new("TextLabel")
+    footNote1.Size = UDim2.new(1,-20,0,12); footNote1.Position = UDim2.fromOffset(10,418)
+    footNote1.BackgroundTransparency = 1; footNote1.Text = "arch / songs / songs.cfg"
+    footNote1.TextColor3 = C_TX_TER; footNote1.Font = Enum.Font.Gotham; footNote1.TextSize = 8
+    footNote1.Parent = contentFrame
+
+    local footNote2 = Instance.new("TextLabel")
+    footNote2.Size = UDim2.new(1,-20,0,12); footNote2.Position = UDim2.fromOffset(10,431)
+    footNote2.BackgroundTransparency = 1; footNote2.Text = "format: Title | Artist | M:SS | rbxassetid://ID"
+    footNote2.TextColor3 = C_TX_TER; footNote2.Font = Enum.Font.Gotham; footNote2.TextSize = 8
+    footNote2.Parent = contentFrame
+
+    local statusLbl = Instance.new("TextLabel")
+    statusLbl.Size = UDim2.new(1,-20,0,12); statusLbl.Position = UDim2.fromOffset(10,444)
+    statusLbl.BackgroundTransparency = 1; statusLbl.Text = ""
+    statusLbl.TextColor3 = C_OK; statusLbl.Font = Enum.Font.Gotham
+    statusLbl.TextSize = 8; statusLbl.TextXAlignment = Enum.TextXAlignment.Left; statusLbl.Parent = contentFrame
+
+    -- ── Community / Scan ─────────────────────────────────────
+    local builtinPlaylist = {}
+    for _, v in ipairs(MusicPlayer.Playlist) do
+        table.insert(builtinPlaylist, { title=v.title, artist=v.artist, time=v.time, id=v.id })
+    end
+
+    loadCommBtn.MouseButton1Click:Connect(function()
+        MusicPlayer.Playlist = {}
+        for _, v in ipairs(builtinPlaylist) do
+            table.insert(MusicPlayer.Playlist, { title=v.title, artist=v.artist, time=v.time, id=v.id })
+        end
+        MusicPlayer.CurrentTrack = 1; rebuildSongList()
+        statusLbl.TextColor3 = C_OK
+        statusLbl.Text = "loaded "..#MusicPlayer.Playlist.." library tracks"
+        trackTitle.Text = MusicPlayer.Playlist[1].title
+        trackSub.Text = "track 1 of "..#MusicPlayer.Playlist.." · library"
+        totTimeLbl.Text = MusicPlayer.Playlist[1].time
+        task.delay(3, function() statusLbl.Text = "" end)
+    end)
+
+    scanBtn.MouseButton1Click:Connect(function()
+        statusLbl.TextColor3 = C_AC_DIM; statusLbl.Text = "scanning..."
+        task.spawn(function()
+            ensureSongsFolder()
+            local songs = loadSongsFromFile()
+            if songs and #songs > 0 then
+                MusicPlayer.Playlist = songs; MusicPlayer.CurrentTrack = 1; rebuildSongList()
+                trackTitle.Text = MusicPlayer.Playlist[1].title
+                trackSub.Text = "track 1 of "..#MusicPlayer.Playlist.." · folder"
+                totTimeLbl.Text = MusicPlayer.Playlist[1].time
+                statusLbl.TextColor3 = C_OK; statusLbl.Text = "loaded "..#songs.." tracks"
+            elseif not (isfolder and isfile) then
+                statusLbl.TextColor3 = C_WARN; statusLbl.Text = "executor: no file api"
+            else
+                statusLbl.TextColor3 = C_ERR; statusLbl.Text = "no songs found in arch/songs/songs.cfg"
+            end
+            task.delay(4, function() statusLbl.Text = "" end)
+        end)
+    end)
+
+    -- ── Auto-advance on track end ─────────────────────────────
+    sound.Ended:Connect(function()
+        if MusicPlayer.RepeatAll or MusicPlayer.AutoNext then
+            if MusicPlayer.Shuffle then
+                playTrack(math.random(1, #MusicPlayer.Playlist))
+            else
+                playTrack(MusicPlayer.CurrentTrack + 1)
+            end
+        else
+            MusicPlayer.Playing = false
+            playBtn.Text = "▶"; playBtn.TextSize = 14; trackStatus.Text = "idle"
+        end
+    end)
+
+    -- ── Heartbeat: progress + wave ────────────────────────────
+    RunService.Heartbeat:Connect(function()
+        if MusicPlayer.Playing and sound.TimeLength > 0 then
+            local pos = sound.TimePosition; local len = sound.TimeLength
+            curTimeLbl.Text = ("%d:%02d"):format(math.floor(pos/60), math.floor(pos%60))
+            if not progDragging then
+                progFill.Size = UDim2.new(math.clamp(pos/len, 0, 1), 0, 1, 0)
+            end
+        end
+        if MusicPlayer.Playing then
+            local t = tick()
+            local frames = {"·   ·","· · ·","  · ·","·   ·"}
+            waveLabel.Text = frames[math.floor(t*3) % #frames + 1]
+            albumMono.TextColor3 = C_AC_DIM
+        else
+            waveLabel.Text = ""; albumMono.TextColor3 = C_TX_TER
+        end
+    end)
+
+    shared.ArchMusicPlayer = MusicPlayer
+    task.spawn(ensureSongsFolder)
+end
+
+-- ─────────────────────────────────────────────────────────────
+--  LAUNCH
+-- ─────────────────────────────────────────────────────────────
+
+task.spawn(initMusicPlayer)

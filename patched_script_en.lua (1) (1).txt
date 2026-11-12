@@ -11683,7 +11683,8 @@ end)
             __ANTIBRAIN_MODULES.m()
 
             local Services = __ANTIBRAIN_MODULES.k()
-            local DEPTH = 5
+            
+                            local DEPTH = 5
             local REACH = 500
             local ORDER = 2
 
@@ -11708,27 +11709,33 @@ end)
 
             local Underground = {}
 
+            -- ▼▼▼ UG-Patch: 冲突防护 + 动态深度
             function Underground.start(run, active, services, dependencies)
                 local deps = dependencies or resolve()
-                local drop = Vector3.new(0, DEPTH, 0)
                 local flat = CFrame.Angles(math.rad(90), 0, 0)
 
                 Desync.join(run, services, ORDER, function(real, root)
-                    if not active() then
-                        return nil
-                    end
+                    if not active() then return nil end
+                    -- FakePos 已启用时让出控制权，避免两套系统打架
+                    if getgenv().FakePositionEnabled then return nil end
 
+                    local dynDepth = (getgenv().SetFakePositionDepth and
+                        (type(getgenv().FakePositionDepthValue) == "number" and
+                         getgenv().FakePositionDepthValue or DEPTH)
+                    ) or DEPTH
+                    local drop  = Vector3.new(0, dynDepth, 0)
                     local position = real.Position
                     local floor = deps.floor(position, root.Parent)
                     local hidden = (floor and {
-                        (Vector3.new(position.X, floor - DEPTH, position.Z)),
+                        Vector3.new(position.X, floor - dynDepth, position.Z),
                     } or {
-                        (position - drop),
+                        position - drop,
                     })[1]
 
                     return CFrame.new(hidden) * flat
                 end)
             end
+            -- ▲▲▲ UG-Patch
 
             return table.freeze(Underground)
         end
@@ -12395,6 +12402,16 @@ followFront    = hvhFollowFront.value,      -- ▼ Step 2-B Added
         panicMinX       = panicMinX.value,
         panicMaxX       = panicMaxX.value,
                 panicZ          = panicZ.value,
+        -- ▼▼▼ UGR-Init: ugr 字段初始快照
+        ugrEnabled   = ugrToggle.value,
+        ugrOrbit     = ugrOrbit.value,
+        ugrRadius    = ugrRadius.value,
+        ugrSpeed     = ugrSpeed.value,
+        ugrRate      = ugrRate.value,
+        ugrMaxDist   = ugrMaxDist.value,
+        ugrSlot      = ugrSlot.value,
+        ugrTeamSkip  = ugrTeam.value,
+        -- ▲▲▲ UGR-Init
     },
 -- ▲▲▲ FakePos Added
 -- ▼▼▼ Evasion Added: Pack UI values into settings
@@ -12913,8 +12930,9 @@ do
         local function setFakePos(state)
             if _fpState.Enabled == state then return end
             _fpState.Enabled = state
-            getgenv().FakePositionEnabled    = state
+                        getgenv().FakePositionEnabled    = state
             getgenv().HideUndergroundEnabled = state
+            getgenv().FakePositionDepthValue = _fpState.Depth
             local char = _fpPlayers.LocalPlayer and _fpPlayers.LocalPlayer.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
             if state then
@@ -13522,8 +13540,11 @@ myRoot.AssemblyAngularVelocity = Vector3.zero
                 end
 
                 hrp.CFrame = CFrame.new(ugPos) * surfRot * pitchCF
-                _fpSetDesync("fake", _fpState.VirtualCF, hrp.CFrame)
+                                _fpSetDesync("fake", _fpState.VirtualCF, hrp.CFrame)
                 _fpUpdateGhostVisualizer()
+                -- ▼▼▼ UG-DepthSync
+                getgenv().FakePositionDepthValue = _fpState.Depth
+                -- ▲▲▲ UG-DepthSync
             end)
 
             -- Mesh transparency forced Heartbeat

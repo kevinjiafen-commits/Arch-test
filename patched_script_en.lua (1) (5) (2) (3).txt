@@ -19972,6 +19972,7 @@ fuBox:slider(context.ui.id('fu-panic-min-y'), {
     rounding = 0,
 }):onChanged(function(v) FU.pYMin = v end)
 
+
 fuBox:slider(context.ui.id('fu-panic-max-y'), {
     text     = 'jitter max Y',
     default  = 0,
@@ -19981,18 +19982,11 @@ fuBox:slider(context.ui.id('fu-panic-max-y'), {
 }):onChanged(function(v) FU.pYMax = v end)
 -- ▲▲▲ Y轴 jitter sliders
 
-fuBox:toggle(context.ui.id('fu-panic-z'), {
-    text     = 'jitter max X',
-    default  = 5,
-    min      = 0,
-    max      = 50,
-    rounding = 0,
-}):onChanged(function(v) FU.pMax = v end)
-
-fuBox:toggle(context.ui.id('fu-panic-z'), {
+fuBox:toggle(context.ui.id('fu-panic-z-enabled'), {
     text    = 'jitter Z too',
     default = false,
-}):onChanged(function(v) FU.pZ = v end)
+}):onChanged(function(v) FU.pZ = (v == true) end)
+
 
 -- ▼▼▼ Z轴 jitter sliders
 fuBox:slider(context.ui.id('fu-panic-min-z'), {
